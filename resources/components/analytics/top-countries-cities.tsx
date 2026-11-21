@@ -43,6 +43,7 @@ export function TopCountriesCities() {
                     <TableRow>
                       <TableHead>Country</TableHead>
                       <TableHead className="text-right">Hits</TableHead>
+                      <TableHead className="text-right">Errors</TableHead>
                       <TableHead className="text-right">Unique IPs</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -54,6 +55,9 @@ export function TopCountriesCities() {
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
                           {formatNumber(row.hits)}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {formatNumber(row.errorHits)}
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
                           {formatNumber(row.uniqueIps)}

@@ -1,7 +1,9 @@
 import { expect, test, type Page } from "@playwright/test"
 import type {
   TopAsnsResponse,
+  TopCountriesStatsResponse,
   TopGeoAsnsResponse,
+  TopIpsResponse,
   TopUrlDto,
   TopUrlsResponse,
 } from "../../resources/generated/api/types.gen"
@@ -134,10 +136,46 @@ async function mockTopAsns(page: Page) {
   await page.route("**/api/v1/geo-events/top-asns*", (route) => route.fulfill({ json: geoLogs }))
 }
 
+async function mockTopIps(page: Page, distinctIps: number) {
+  const body: TopIpsResponse = {
+    startDate: "2026-11-20T00:00:00Z",
+    endDate: "2026-11-21T00:00:00Z",
+    items: [
+      {
+        ipAddress: "203.0.113.7",
+        countryCode: "NO",
+        city: "Oslo",
+        asn: 15169,
+        asOrganization: "Google LLC",
+        hits: 640,
+        errorHits: 12,
+        totalBytes: 64_000,
+      },
+    ],
+    distinctIps,
+  }
+  await page.route("**/api/v1/analytics/top-ips*", (route) => route.fulfill({ json: body }))
+}
+
+async function mockTopCountries(page: Page) {
+  const body: TopCountriesStatsResponse = {
+    startDate: "2026-11-20T00:00:00Z",
+    endDate: "2026-11-21T00:00:00Z",
+    items: [
+      { countryCode: "NO", countryName: "Norway", hits: 9_870, errorHits: 1204, uniqueIps: 87 },
+    ],
+  }
+  await page.route("**/api/v1/analytics/top-countries*", (route) => route.fulfill({ json: body }))
+}
+
+function cardTitled(page: Page, title: string) {
+  return page.locator('[data-slot="card"]').filter({
+    has: page.locator('[data-slot="card-title"]', { hasText: new RegExp(`^${title}$`) }),
+  })
+}
+
 function topUrlsCard(page: Page) {
-  return page
-    .locator('[data-slot="card"]')
-    .filter({ has: page.locator('[data-slot="card-title"]', { hasText: /^Top URLs$/ }) })
+  return cardTitled(page, "Top URLs")
 }
 
 function hostCombobox(page: Page) {
@@ -332,8 +370,63 @@ test("the Geo Logs ASN row menu filters by ASN", async ({ page }) => {
   ).toBeVisible()
 })
 
+test("the Countries table shows errors after hits", async ({ page }) => {
+  await mockTopCountries(page)
+  await openAnalytics(page)
+  const card = cardTitled(page, "Top Countries / Cities")
+  await expect(card.getByRole("cell", { name: "1,204", exact: true })).toBeVisible()
+  await expect(card.getByRole("columnheader")).toHaveText([
+    "Country",
+    "Hits",
+    "Errors",
+    "Unique IPs",
+  ])
+  await expect(card.getByRole("row").filter({ hasText: "Norway" }).getByRole("cell")).toHaveText([
+    /Norway/,
+    "9,870",
+    "1,204",
+    "87",
+  ])
+})
+
+for (const [distinctIps, label] of [
+  [1284, "1,284 unique IPs"],
+  [1, "1 unique IP"],
+] as const) {
+  test(`the Top IPs header counts ${label}`, async ({ page }) => {
+    await mockTopIps(page, distinctIps)
+    await openAnalytics(page)
+    const card = cardTitled(page, "Top IPs")
+    await expect(card.getByText(label, { exact: true })).toBeVisible()
+  })
+}
+
+test("the Top IPs header shows no count at zero", async ({ page }) => {
+  await mockTopIps(page, 0)
+  await openAnalytics(page)
+  const card = cardTitled(page, "Top IPs")
+  await expect(card.getByText("203.0.113.7", { exact: true })).toBeVisible()
+  await expect(card.getByText(/unique IPs?$/)).toHaveCount(0)
+})
+
 test.describe("phone", () => {
   test.use({ viewport: { width: 393, height: 852 } })
+
+  test("the Top IPs count shows and the title stays on one line", async ({ page }) => {
+    await mockTopIps(page, 1284)
+    await openAnalytics(page)
+    const card = cardTitled(page, "Top IPs")
+    await card.scrollIntoViewIfNeeded()
+    await expect(card.getByText("1,284 unique IPs", { exact: true })).toBeVisible()
+    const title = card.locator('[data-slot="card-title"]')
+    expect(
+      await title.evaluate((element) => {
+        const range = document.createRange()
+        range.selectNodeContents(element)
+        return range.getClientRects().length
+      }),
+    ).toBe(1)
+  })
 
   test("a long Top URLs host opens a drawer whose title wraps", async ({ page }) => {
     await mockTopUrls(page, [urlRow(LONG_HOST, "/reports/latest")])
