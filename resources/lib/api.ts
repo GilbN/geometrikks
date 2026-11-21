@@ -813,6 +813,7 @@ function analyticsFilterQuery(params: AnalyticsFilterParams) {
     ipAddressNotIn: params.ipsExclude?.length ? params.ipsExclude : undefined,
     asnIn: params.asns?.length ? params.asns : undefined,
     asnNotIn: params.asnsExclude?.length ? params.asnsExclude : undefined,
+    excludeMutedIps: params.excludeMutedIps || undefined,
   }
 }
 

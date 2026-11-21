@@ -38,6 +38,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { PaginationFooter } from "@/components/ui/pagination-footer"
+import { pageToClamp } from "@/lib/use-muted-page"
 import { useAccessLogs, useCrowdsecLiveUpdates } from "@/lib/queries"
 import { IpActionsMenu, IpFilterTargetsProvider } from "@/components/ip-actions/ip-actions-menu"
 import { IpLabel } from "@/components/ip-actions/ip-label"
@@ -305,7 +306,8 @@ export function AccessLogsTable({
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
 
   useEffect(() => {
-    if (data && !isPlaceholderData && page > pageCount) onPageChange(pageCount)
+    const target = pageToClamp({ loaded: !!data, placeholder: isPlaceholderData, page, pageCount })
+    if (target !== null) onPageChange(target)
   }, [data, isPlaceholderData, page, pageCount, onPageChange])
 
   // A changed hidden set can leave the open row off the list.

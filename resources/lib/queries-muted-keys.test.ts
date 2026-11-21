@@ -44,7 +44,7 @@ vi.mock("./api", async (importOriginal) => ({
 }))
 import { DEFAULT_MUTED_SCOPE } from "./muted-ips"
 import { useAccessLogs, useGeoLogSparklines, useGeoLogTimeSeries, useTopAsns } from "./queries"
-import { makeToggleMuted } from "./use-muted-page"
+import { makeToggleMuted, pageToClamp } from "./use-muted-page"
 
 const flagged: MutedScope = { flag: true, version: "abc12345", count: 2, chip: "hiding" }
 const filters = { countryCodes: [], cities: [], ips: [], ipsExclude: [], asns: [], asnsExclude: [] }
@@ -117,14 +117,22 @@ it("does not carry a placeholder across a version change", () => {
   ).toBe("rows")
 })
 
-it("resets the page on a flip of the switch and not on a version change", () => {
+it("resets the page only on a user flip of the switch", () => {
   const setHidden = vi.fn()
   const patchSearch = vi.fn()
   makeToggleMuted(true, setHidden, patchSearch)()
   expect(setHidden).toHaveBeenCalledWith(false)
   expect(patchSearch).toHaveBeenCalledWith({ page: undefined })
-  // A version change reaches the pages only through the scope, never this function.
-  patchSearch.mockClear()
-  makeToggleMuted(false, setHidden)()
+})
+
+it("only clamps down to the last page when the list version changes", () => {
+  const patchSearch = vi.fn()
+  // A version change reaches the tables as a smaller page count; the table moves
+  // to the last page and never touches the switch's page-reset path.
+  const target = pageToClamp({ loaded: true, placeholder: false, page: 5, pageCount: 2 })
+  expect(target).toBe(2)
   expect(patchSearch).not.toHaveBeenCalled()
+  expect(pageToClamp({ loaded: true, placeholder: true, page: 5, pageCount: 2 })).toBeNull()
+  expect(pageToClamp({ loaded: false, placeholder: false, page: 5, pageCount: 2 })).toBeNull()
+  expect(pageToClamp({ loaded: true, placeholder: false, page: 2, pageCount: 2 })).toBeNull()
 })

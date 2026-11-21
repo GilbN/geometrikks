@@ -45,6 +45,7 @@ import { IpActionsMenu, IpFilterTargetsProvider } from "@/components/ip-actions/
 import { IpLabel } from "@/components/ip-actions/ip-label"
 import { geoLogFilterTargets } from "@/lib/ip-filter-targets"
 import { useGeoLogs } from "@/lib/queries"
+import { pageToClamp } from "@/lib/use-muted-page"
 import { cn } from "@/lib/utils"
 import { useColumnVisibility } from "@/lib/column-visibility"
 
@@ -229,7 +230,8 @@ export function GeoLogsTable({
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
 
   useEffect(() => {
-    if (data && !isPlaceholderData && page > pageCount) onPageChange(pageCount)
+    const target = pageToClamp({ loaded: !!data, placeholder: isPlaceholderData, page, pageCount })
+    if (target !== null) onPageChange(target)
   }, [data, isPlaceholderData, page, pageCount, onPageChange])
 
   // A changed hidden set can leave the open row off the list.

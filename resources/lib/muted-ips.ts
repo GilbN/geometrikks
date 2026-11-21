@@ -237,7 +237,7 @@ export function mutedKeyFields(scope: MutedScope): MutedKeyFields {
   return scope.flag ? { excludeMutedIps: true, mutedIpsVersion: scope.version } : {}
 }
 
-function findMutedFields(value: unknown, depth = 0): MutedKeyFields {
+export function findMutedFields(value: unknown, depth = 0): MutedKeyFields {
   if (depth > 4 || value === null || typeof value !== "object") return {}
   if (Array.isArray(value)) {
     for (const entry of value) {

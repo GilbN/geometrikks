@@ -157,12 +157,12 @@ import { isClientError } from "./crowdsec-errors"
 import {
   DEFAULT_MUTED_SCOPE,
   currentWriteSequence,
+  findMutedFields,
   keepIfSameMuted,
   markUnconfirmed,
   mutedKeyFields,
   noteFirstLoadFailed,
   noteListLoaded,
-  type MutedKeyFields,
   type MutedScope,
 } from "./muted-ips"
 import type { CreateMutedIpPayload } from "@/generated/api/types.gen"
@@ -1297,12 +1297,6 @@ export function useGeoTimeSeries(options: UseAnalyticsQueryOptions = {}) {
  * such as the page's filters; a new scope sweeps the lines in again, as a new
  * range does.
  */
-function mutedFieldsOf(scope: Record<string, unknown>): MutedKeyFields {
-  return scope.excludeMutedIps === true
-    ? { excludeMutedIps: true, mutedIpsVersion: String(scope.mutedIpsVersion) }
-    : {}
-}
-
 function useCardSparklines<Data, Lines>(
   enabled: boolean,
   queryKey: (params: Record<string, unknown>, refreshKey?: number) => readonly unknown[],
@@ -1334,7 +1328,7 @@ function useCardSparklines<Data, Lines>(
     enabled: shown,
     // Each refresh is a new key; keeping the last lines stops them blinking out.
     // Without muted fields on either side this keeps them as before.
-    placeholderData: keepIfSameMuted(mutedFieldsOf(scope)),
+    placeholderData: keepIfSameMuted(findMutedFields(scope)),
     staleTime: 60 * 1000,
     refetchInterval,
   })
@@ -1695,7 +1689,7 @@ export function useAccessLogs(options: UseAccessLogsOptions = {}) {
       })
     },
     enabled,
-    // Built inline so its identity changes only with the muted fields.
+    // Built inline per render so TanStack v5 doesn't reuse an earlier placeholder callback.
     placeholderData: keepIfSameMuted(mutedKeyFields(muted)),
     staleTime: 15 * 1000,
     refetchInterval,
@@ -1863,7 +1857,7 @@ export function useGeoLogs(options: UseGeoLogsOptions = {}) {
       })
     },
     enabled,
-    // Built inline so its identity changes only with the muted fields.
+    // Built inline per render so TanStack v5 doesn't reuse an earlier placeholder callback.
     placeholderData: keepIfSameMuted(mutedKeyFields(muted)),
     staleTime: 15 * 1000,
     refetchInterval,

@@ -18,6 +18,20 @@ export function makeToggleMuted(
   }
 }
 
+/**
+ * A changed hidden set can leave the current page past the last one. This
+ * only ever moves down to the last page; it never resets to page 1.
+ */
+export function pageToClamp(args: {
+  loaded: boolean
+  placeholder: boolean
+  page: number
+  pageCount: number
+}): number | null {
+  const { loaded, placeholder, page, pageCount } = args
+  return loaded && !placeholder && page > pageCount ? pageCount : null
+}
+
 /** The page-level muted scope: mounts the list observer and the switch for one route. */
 export function useMutedPage(
   hasIpInclude: boolean,

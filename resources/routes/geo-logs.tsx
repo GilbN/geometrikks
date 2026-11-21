@@ -8,7 +8,7 @@
  * GeoLogFiltersContext live in lib/geo-logs-search.ts. The date range stays
  * global via TimeRangeProvider and is deliberately not in the URL.
  */
-import { lazy, Suspense } from "react"
+import { lazy, Suspense, useCallback } from "react"
 import { createFileRoute } from "@tanstack/react-router"
 import { PageHeader } from "@/components/page-header"
 import { CardChartsSwitch } from "@/components/dashboard/card-charts-switch"
@@ -72,6 +72,10 @@ function GeoLogsPage() {
   })
 
   const { muted, toggleMuted } = useMutedPage(filters.ips.length > 0, patchSearch)
+  const onPageChange = useCallback(
+    (next: number) => patchSearch({ page: dropDefault(next, 1) }),
+    [patchSearch],
+  )
 
   const page = search.page ?? 1
   const pageSize = search.pageSize ?? 50
@@ -129,7 +133,7 @@ function GeoLogsPage() {
             pageSize={pageSize}
             sortField={sortBy}
             sortOrder={sort}
-            onPageChange={(next) => patchSearch({ page: dropDefault(next, 1) })}
+            onPageChange={onPageChange}
             onPageSizeChange={(next) =>
               patchSearch({ pageSize: dropDefault(next, 50), page: undefined })
             }
