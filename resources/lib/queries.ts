@@ -626,7 +626,10 @@ export async function settleMutedIpWrite(queryClient: QueryClient): Promise<void
   // A GET already in flight carries the list from before the write.
   await queryClient.cancelQueries({ queryKey: queryKeys.mutedIps, exact: true })
   markUnconfirmed()
-  await queryClient.refetchQueries({ queryKey: queryKeys.mutedIps, exact: true })
+  // fetchQuery, not refetchQueries: that skips a disabled query, and a row menu's passive observer may be the only reader.
+  await queryClient.fetchQuery({ ...mutedIpsQueryOptions, staleTime: 0 }).catch(() => {
+    // The store stays unconfirmed until a later GET succeeds.
+  })
 }
 
 export function useAddMutedIp() {
