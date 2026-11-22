@@ -1,11 +1,13 @@
 import { useRef, useState } from "react"
-import { EyeOff, X } from "lucide-react"
+import { Link } from "@tanstack/react-router"
+import { EyeOff, FileText, X } from "lucide-react"
 import { toast } from "sonner"
 import type { MutedIpView } from "@/generated/api/types.gen"
 import { useAddMutedIp, useMutedIpsList, useRemoveMutedIp } from "@/lib/queries"
 import {
   focusIdAfterRemoval,
   mutedIpAddErrorMessage,
+  mutedFilterValue,
   mutedIpsCountLine,
   runUnmute,
 } from "@/lib/muted-ips"
@@ -94,6 +96,22 @@ function AddMutedIpForm() {
   )
 }
 
+function ShowInAccessLogsButton({ entry }: { entry: MutedIpView }) {
+  const value = mutedFilterValue(entry.network)
+  return (
+    <Button asChild variant="ghost" size="icon">
+      <Link
+        to="/access-logs"
+        search={{ ip: [value] }}
+        aria-label={`Show ${value} in Access Logs`}
+        title="Show in Access Logs"
+      >
+        <FileText aria-hidden />
+      </Link>
+    </Button>
+  )
+}
+
 type UnmuteControls = {
   pendingIds: ReadonlySet<string>
   unmute: (entry: MutedIpView) => void
@@ -143,7 +161,7 @@ function MutedIpsTable({
           <TableHead>Network</TableHead>
           <TableHead>Note</TableHead>
           <TableHead>Added</TableHead>
-          <TableHead className="w-12">
+          <TableHead className="w-24">
             <span className="sr-only">Actions</span>
           </TableHead>
         </TableRow>
@@ -161,6 +179,7 @@ function MutedIpsTable({
               {timeAgo(now - Date.parse(entry.createdAt))}
             </TableCell>
             <TableCell className="text-right">
+              <ShowInAccessLogsButton entry={entry} />
               <UnmuteButton entry={entry} controls={controls} />
             </TableCell>
           </TableRow>
@@ -194,6 +213,7 @@ function MutedIpsRows({
               {timeAgo(now - Date.parse(entry.createdAt))}
             </span>
           </span>
+          <ShowInAccessLogsButton entry={entry} />
           <UnmuteButton entry={entry} controls={controls} />
         </li>
       ))}
