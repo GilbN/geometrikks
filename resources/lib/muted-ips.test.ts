@@ -6,6 +6,7 @@ import {
   listVersion,
   markUnconfirmed,
   muteAction,
+  mutedFilterValue,
   mutedIpErrorMessage,
   mutedListPending,
   runUnmute,
@@ -337,5 +338,17 @@ describe("mutedListPending", () => {
   it("is settled with a confirmed version and entries", () => {
     expect(mutedListPending("abcd1234", entries)).toBe(false)
     expect(mutedListPending("empty", [])).toBe(false)
+  })
+})
+
+describe("mutedFilterValue", () => {
+  it("drops the full-length prefix from a single address", () => {
+    expect(mutedFilterValue("203.0.113.7/32")).toBe("203.0.113.7")
+    expect(mutedFilterValue("2001:db8::1/128")).toBe("2001:db8::1")
+  })
+
+  it("keeps ranges whole, an IPv6 /32 included", () => {
+    expect(mutedFilterValue("198.51.100.0/24")).toBe("198.51.100.0/24")
+    expect(mutedFilterValue("2001:db8::/32")).toBe("2001:db8::/32")
   })
 })

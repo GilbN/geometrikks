@@ -343,6 +343,12 @@ export function mutedIpCodeOf(error: unknown): string | undefined {
   return undefined
 }
 
+/** The entry as the IP filter shows it: one address without its /32 or /128. */
+export function mutedFilterValue(network: string): string {
+  const fullLength = network.includes(":") ? "/128" : "/32"
+  return network.endsWith(fullLength) ? network.slice(0, -fullLength.length) : network
+}
+
 export function mutedIpsCountLine(count: number): string {
   return `${count} of ${MUTED_IPS_CAP}`
 }
