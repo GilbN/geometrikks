@@ -34,6 +34,7 @@ from typing import TYPE_CHECKING, cast
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from geometrikks.lib.ip_filters import ip_match_sql
 from geometrikks.lib.time import ensure_utc
 from geometrikks.server.logging import get_logger
 from geometrikks.server.timescale import LATENCY_FILTER, latency_filter
@@ -1295,11 +1296,13 @@ class AnalyticsFilters:
             clauses.append("AND city = ANY(:filter_cities)")
             params["filter_cities"] = list(self.cities)
         if self.ip_addresses:
-            clauses.append("AND ip_address = ANY(CAST(:filter_ips AS inet[]))")
-            params["filter_ips"] = list(self.ip_addresses)
+            clause, ip_params = ip_match_sql("ip_address", self.ip_addresses, "filter_ips")
+            clauses.append(f"AND {clause}")
+            params.update(ip_params)
         if self.ip_exclude:
-            clauses.append("AND NOT (ip_address = ANY(CAST(:filter_ips_exclude AS inet[])))")
-            params["filter_ips_exclude"] = list(self.ip_exclude)
+            clause, ip_params = ip_match_sql("ip_address", self.ip_exclude, "filter_ips_exclude")
+            clauses.append(f"AND NOT ({clause})")
+            params.update(ip_params)
         if self.asns:
             clauses.append("AND autonomous_system_number = ANY(CAST(:filter_asns AS bigint[]))")
             params["filter_asns"] = [int(asn) for asn in self.asns]

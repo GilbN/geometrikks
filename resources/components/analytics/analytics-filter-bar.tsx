@@ -22,7 +22,7 @@ import { useAsnLabel } from "@/hooks/use-asn-label"
 import { usePhoneLayout } from "@/hooks/use-phone-map"
 import { useAccessLogFacets } from "@/lib/queries"
 import { mutedDrawerCounts } from "@/lib/muted-ips"
-import { isValidIp } from "@/lib/crowdsec"
+import { ipFilterHint, isValidIpFilter } from "@/lib/ip-filter-values"
 import {
   countActiveAnalyticsFilters,
   EMPTY_FILTERS,
@@ -137,7 +137,8 @@ export function AnalyticsFilterBar() {
       include={
         <TagInput
           onAdd={addIp("ips")}
-          validate={isValidIp}
+          validate={isValidIpFilter}
+          hint={ipFilterHint}
           placeholder="203.0.113.7"
           className="w-36"
         />
@@ -146,7 +147,8 @@ export function AnalyticsFilterBar() {
         <TagInput
           exclude
           onAdd={addIp("ipsExclude")}
-          validate={isValidIp}
+          validate={isValidIpFilter}
+          hint={ipFilterHint}
           placeholder="Exclude"
           className="w-32"
         />
@@ -249,7 +251,8 @@ export function AnalyticsFilterBar() {
         <FiltersDrawer activeCount={activeCount} clearCount={clearCount} onClear={clear}>
           <TagInput
             onAdd={addIp("ips")}
-            validate={isValidIp}
+            validate={isValidIpFilter}
+            hint={ipFilterHint}
             placeholder="203.0.113.7"
             aria-label="IP address"
             className="w-full"
@@ -305,7 +308,8 @@ export function AnalyticsFilterBar() {
               values={filters.ipsExclude}
               onAdd={addIp("ipsExclude")}
               onRemove={(ip) => removeIp("ipsExclude", ip)}
-              validate={isValidIp}
+              validate={isValidIpFilter}
+              hint={ipFilterHint}
             />
             <FilterListRow
               label="Host"

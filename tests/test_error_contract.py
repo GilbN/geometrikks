@@ -81,7 +81,7 @@ async def test_domain_validation_error_shares_the_envelope():
     assert resp.status_code == 400
     body = resp.json()
     assert body["status_code"] == 400
-    assert "Invalid IP address" in body["detail"]
+    assert "Enter an IP address or CIDR network" in body["detail"]
 
 
 async def test_unauthenticated_api_request_is_native_401_envelope():

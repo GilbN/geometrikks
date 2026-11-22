@@ -12,7 +12,7 @@ GeoMetrikks has three ways to keep your own traffic out of view, each for a diff
 | Feature | Where it lives | What it takes | What happens to rows |
 | --- | --- | --- | --- |
 | Muted IPs | Database, edited in the app | Up to 20 IPs or CIDR ranges | Rows stay stored and appear again when you flip the switch |
-| Exclude IP | Page URL | Single IP addresses | Rows stay stored, and the filter clears when you leave the page unless bookmarked |
+| Exclude IP | Page URL | IPs or CIDR ranges | Rows stay stored, and the filter clears when you leave the page unless bookmarked |
 | `LOGPARSER_IGNORE_IPS` | Environment variable or `.env` | IPs or CIDR ranges | The parser drops matching lines at ingest, so no access log, geo event or debug row is ever stored |
 
 Muted IPs stays separate from Exclude IP and out of page URLs. Exclude your IP on Access Logs and Geo Logs looks up your current address each time you tap it and saves nothing.
@@ -44,7 +44,7 @@ Flipping the switch resets Access Logs and Geo Logs back to page 1. Flipping the
 
 ### Filtering by an explicit IP
 
-Whenever you filter by an IP address on Access Logs, Geo Logs or Analytics, muting turns off for that view so rows from that address still appear. When the switch is on, the desktop chip disables and displays `Off while filtering by IP` under it, and the phone drawer switch disables with the same message. When the switch is already off, both controls stay enabled and read `Muted IPs shown` on desktop and `Shown` on a phone.
+Whenever you filter by an IP address or CIDR range on Access Logs, Geo Logs or Analytics, muting turns off for that view so matching rows still appear. When the switch is on, the desktop chip disables and displays `Off while filtering by IP` under it, and the phone drawer switch disables with the same message. When the switch is already off, both controls stay enabled and read `Muted IPs shown` on desktop and `Shown` on a phone.
 
 ## Retention limits
 

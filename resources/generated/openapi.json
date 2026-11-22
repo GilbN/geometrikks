@@ -9866,12 +9866,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400. Lines that did not parse into an access log line have no value and drop out.",
+            "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400. Lines that did not parse into an access log line have no value and drop out.",
             "in": "query",
             "name": "ipAddressIn",
             "required": false,
             "schema": {
-              "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400. Lines that did not parse into an access log line have no value and drop out.",
+              "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400. Lines that did not parse into an access log line have no value and drop out.",
               "oneOf": [
                 {
                   "items": {
@@ -10410,12 +10410,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressIn",
             "required": false,
             "schema": {
-              "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -10502,12 +10502,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressNotIn",
             "required": false,
             "schema": {
-              "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -11702,12 +11702,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddress",
             "required": false,
             "schema": {
-              "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -11725,12 +11725,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressNotIn",
             "required": false,
             "schema": {
-              "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -12240,12 +12240,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddress",
             "required": false,
             "schema": {
-              "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -12263,12 +12263,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressNotIn",
             "required": false,
             "schema": {
-              "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -12602,12 +12602,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddress",
             "required": false,
             "schema": {
-              "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -12625,12 +12625,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressNotIn",
             "required": false,
             "schema": {
-              "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -12964,12 +12964,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddress",
             "required": false,
             "schema": {
-              "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -12987,12 +12987,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressNotIn",
             "required": false,
             "schema": {
-              "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -13326,12 +13326,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddress",
             "required": false,
             "schema": {
-              "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -13349,12 +13349,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressNotIn",
             "required": false,
             "schema": {
-              "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -13688,12 +13688,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddress",
             "required": false,
             "schema": {
-              "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -13711,12 +13711,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressNotIn",
             "required": false,
             "schema": {
-              "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -14050,12 +14050,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddress",
             "required": false,
             "schema": {
-              "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -14073,12 +14073,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressNotIn",
             "required": false,
             "schema": {
-              "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -16454,12 +16454,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressIn",
             "required": false,
             "schema": {
-              "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -16477,12 +16477,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressNotIn",
             "required": false,
             "schema": {
-              "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -16684,12 +16684,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressIn",
             "required": false,
             "schema": {
-              "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -16707,12 +16707,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressNotIn",
             "required": false,
             "schema": {
-              "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -17057,12 +17057,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressIn",
             "required": false,
             "schema": {
-              "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -17080,12 +17080,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressNotIn",
             "required": false,
             "schema": {
-              "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -17360,12 +17360,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressIn",
             "required": false,
             "schema": {
-              "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -17383,12 +17383,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressNotIn",
             "required": false,
             "schema": {
-              "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -17698,12 +17698,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressIn",
             "required": false,
             "schema": {
-              "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -17721,12 +17721,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressNotIn",
             "required": false,
             "schema": {
-              "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -18003,12 +18003,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressIn",
             "required": false,
             "schema": {
-              "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -18026,12 +18026,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressNotIn",
             "required": false,
             "schema": {
-              "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -18308,12 +18308,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressIn",
             "required": false,
             "schema": {
-              "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -18331,12 +18331,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressNotIn",
             "required": false,
             "schema": {
-              "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -18613,12 +18613,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressIn",
             "required": false,
             "schema": {
-              "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -18636,12 +18636,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressNotIn",
             "required": false,
             "schema": {
-              "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -19098,12 +19098,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressIn",
             "required": false,
             "schema": {
-              "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -19121,12 +19121,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressNotIn",
             "required": false,
             "schema": {
-              "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {

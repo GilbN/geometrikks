@@ -4794,7 +4794,7 @@ export type ApiV1AccessLogDebugListAccessLogDebugData = {
      */
     toTimestamp?: string | null;
     /**
-     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400. Lines that did not parse into an access log line have no value and drop out.
+     * Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400. Lines that did not parse into an access log line have no value and drop out.
      */
     ipAddressIn?: Array<string> | null;
     /**
@@ -4962,7 +4962,7 @@ export type ApiV1AccessLogsListAccessLogsData = {
      */
     methodIn?: Array<string> | null;
     /**
-     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressIn?: Array<string> | null;
     /**
@@ -4978,7 +4978,7 @@ export type ApiV1AccessLogsListAccessLogsData = {
      */
     statusIn?: Array<number> | null;
     /**
-     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
@@ -5350,11 +5350,11 @@ export type ApiV1AnalyticsTimeSeriesGetTimeSeriesData = {
      */
     city?: Array<string> | null;
     /**
-     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddress?: Array<string> | null;
     /**
-     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
@@ -5501,11 +5501,11 @@ export type ApiV1AnalyticsTopAsnsGetTopAsnsData = {
      */
     city?: Array<string> | null;
     /**
-     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddress?: Array<string> | null;
     /**
-     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
@@ -5594,11 +5594,11 @@ export type ApiV1AnalyticsTopCitiesGetTopCitiesData = {
      */
     city?: Array<string> | null;
     /**
-     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddress?: Array<string> | null;
     /**
-     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
@@ -5687,11 +5687,11 @@ export type ApiV1AnalyticsTopCountriesGetTopCountriesData = {
      */
     city?: Array<string> | null;
     /**
-     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddress?: Array<string> | null;
     /**
-     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
@@ -5780,11 +5780,11 @@ export type ApiV1AnalyticsTopIpsGetTopIpsData = {
      */
     city?: Array<string> | null;
     /**
-     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddress?: Array<string> | null;
     /**
-     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
@@ -5873,11 +5873,11 @@ export type ApiV1AnalyticsTopUrlsGetTopUrlsData = {
      */
     city?: Array<string> | null;
     /**
-     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddress?: Array<string> | null;
     /**
-     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
@@ -5966,11 +5966,11 @@ export type ApiV1AnalyticsTopUserAgentsGetTopUserAgentsData = {
      */
     city?: Array<string> | null;
     /**
-     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddress?: Array<string> | null;
     /**
-     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
@@ -7043,11 +7043,11 @@ export type ApiV1GeoEventsListGeoEventsData = {
      */
     toTimestamp?: string | null;
     /**
-     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressIn?: Array<string> | null;
     /**
-     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
@@ -7135,11 +7135,11 @@ export type ApiV1GeoEventsLogsGetGeoLogsData = {
      */
     cityIn?: Array<string> | null;
     /**
-     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressIn?: Array<string> | null;
     /**
-     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
@@ -7246,11 +7246,11 @@ export type ApiV1GeoEventsSummaryGetGeoLogSummaryData = {
      */
     cityIn?: Array<string> | null;
     /**
-     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressIn?: Array<string> | null;
     /**
-     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
@@ -7331,11 +7331,11 @@ export type ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesData = {
      */
     cityIn?: Array<string> | null;
     /**
-     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressIn?: Array<string> | null;
     /**
-     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
@@ -7420,11 +7420,11 @@ export type ApiV1GeoEventsTopAsnsGetGeoLogTopAsnsData = {
      */
     cityIn?: Array<string> | null;
     /**
-     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressIn?: Array<string> | null;
     /**
-     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
@@ -7505,11 +7505,11 @@ export type ApiV1GeoEventsTopCitiesGetGeoLogTopCitiesData = {
      */
     cityIn?: Array<string> | null;
     /**
-     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressIn?: Array<string> | null;
     /**
-     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
@@ -7590,11 +7590,11 @@ export type ApiV1GeoEventsTopCountriesGetGeoLogTopCountriesData = {
      */
     cityIn?: Array<string> | null;
     /**
-     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressIn?: Array<string> | null;
     /**
-     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
@@ -7675,11 +7675,11 @@ export type ApiV1GeoEventsTopIpsGetGeoLogTopIpsData = {
      */
     cityIn?: Array<string> | null;
     /**
-     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressIn?: Array<string> | null;
     /**
-     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
@@ -7835,11 +7835,11 @@ export type ApiV1GeoLocationsGeojsonGetGeojsonData = {
      */
     city?: Array<string> | null;
     /**
-     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressIn?: Array<string> | null;
     /**
-     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**

@@ -13,6 +13,7 @@ from litestar.params import QueryParameter, SkipValidation
 
 from geometrikks.domain.logs.schemas import AccessLogDebugEntry, AccessLogDebugStats
 from geometrikks.domain.logs.services import DEBUG_SORT_COLUMNS, AccessLogDebugService
+from geometrikks.lib.ip_filters import validate_ip_filter
 from geometrikks.lib.pagination import (
     LIMIT_OFFSET_KEY,
     MAX_LOG_PAGE_SIZE,
@@ -21,11 +22,11 @@ from geometrikks.lib.pagination import (
 from geometrikks.lib.parameters import (
     CITY_FILTER_DESCRIPTION,
     COUNTRY_FILTER_DESCRIPTION,
+    IP_FILTER_NOTE,
     REPEAT_NOTE,
     range_end_examples,
     range_start_examples,
 )
-from geometrikks.lib.validation import validate_ip_addresses
 
 _STORED_FROM = "Keep only lines GeoMetrikks stored at or after this time, as ISO 8601 with a timezone."
 _STORED_TO = "Keep only lines GeoMetrikks stored at or before this time, as ISO 8601 with a timezone."
@@ -63,10 +64,10 @@ def provide_debug_time_window(
 
 
 def validated_ips(values: list[str] | None) -> list[str] | None:
-    """Pass through complete IPs; reject free text with a 400."""
+    """Pass through complete IPs and CIDR ranges; reject free text with a 400."""
     if not values:
         return None
-    validate_ip_addresses(values)
+    validate_ip_filter(values)
     return values
 
 
@@ -119,7 +120,7 @@ class AccessLogDebugController(Controller):
             QueryParameter(
                 name="ipAddressIn",
                 description=(
-                    f"Keep only these client IPs. {REPEAT_NOTE} A value that is not an IP gets a 400. {_LINKED_ONLY}"
+                    f"Keep only these client IPs or ranges. {REPEAT_NOTE} {IP_FILTER_NOTE} {_LINKED_ONLY}"
                 ),
                 required=False,
             ),

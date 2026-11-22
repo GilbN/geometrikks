@@ -10,7 +10,6 @@ from advanced_alchemy.extensions.litestar.providers import create_service_depend
 from advanced_alchemy.filters import (
     CollectionFilter,
     FilterTypes,
-    NotInCollectionFilter,
     OnBeforeAfter,
 )
 from advanced_alchemy.service import OffsetPagination
@@ -37,6 +36,10 @@ from geometrikks.domain.geo.schemas import (
 )
 from geometrikks.domain.geo.services import GeoEventService
 from geometrikks.domain.muted_ips.dependencies import provide_muted_networks
+from geometrikks.lib.ip_filters import (
+    ip_match_filter,
+    validate_ip_filter,
+)
 from geometrikks.lib.pagination import (
     LIMIT_OFFSET_KEY,
     MAX_PAGE_SIZE,
@@ -63,7 +66,7 @@ from geometrikks.lib.parameters import (
     range_start_examples,
 )
 from geometrikks.lib.time import ensure_utc
-from geometrikks.lib.validation import validate_ip_addresses, validate_timezone
+from geometrikks.lib.validation import validate_timezone
 
 GEO_EVENT_SORT_FIELDS = (
     "timestamp",
@@ -132,11 +135,11 @@ def provide_geo_event_in_filters(
     """
     result: list[FilterTypes] = []
     if ip_address_in:
-        validate_ip_addresses(ip_address_in)
-        result.append(CollectionFilter(field_name="ip_address", values=ip_address_in))
+        validate_ip_filter(ip_address_in)
+        result.append(ip_match_filter(ip_address_in))
     if ip_address_not_in:
-        validate_ip_addresses(ip_address_not_in)
-        result.append(NotInCollectionFilter(field_name="ip_address", values=ip_address_not_in))
+        validate_ip_filter(ip_address_not_in)
+        result.append(ip_match_filter(ip_address_not_in, exclude=True))
     if server_in:
         result.append(CollectionFilter(field_name="server", values=server_in))
     return result
@@ -157,10 +160,8 @@ def provide_geo_event_filters(
     asn_not_in: AsnNotIn = None,
 ) -> GeoEventFilters:
     """Dimension filters consumed by the aggregate endpoints."""
-    if ip_address_in:
-        validate_ip_addresses(ip_address_in)
-    if ip_address_not_in:
-        validate_ip_addresses(ip_address_not_in)
+    validate_ip_filter(ip_address_in)
+    validate_ip_filter(ip_address_not_in)
     return GeoEventFilters(
         country_codes=country_code_in or None,
         cities=city_in or None,

@@ -114,7 +114,7 @@ async def test_the_flag_off_keeps_everything(client, traffic):
 async def test_an_ip_include_filter_wins(client, traffic):
     await mute(client)
     ips = await get(client, "top-ips", WEEK, excludeMutedIps="true", ipAddress=MUTED)
-    assert [(item["ipAddress"], item["hits"]) for item in ips["items"]] == [(MUTED, 4)]
+    assert [(item["ipAddress"], item["hits"]) for item in ips["items"]] == [(MUTED, 4), (MAPPED, 1)]
 
 
 async def test_an_empty_list_matches_the_flag_off_answer(client, traffic):

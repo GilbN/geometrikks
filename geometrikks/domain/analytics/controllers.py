@@ -61,6 +61,7 @@ from geometrikks.domain.analytics.summary import period_summary
 from geometrikks.domain.drop.dependencies import provide_drop_snapshot
 from geometrikks.domain.drop.snapshot import DropSnapshot
 from geometrikks.domain.muted_ips.dependencies import provide_muted_networks
+from geometrikks.lib.ip_filters import validate_ip_filter
 from geometrikks.lib.parameters import (
     AsnIn,
     AsnNotIn,
@@ -78,7 +79,6 @@ from geometrikks.lib.parameters import (
 from geometrikks.lib.time_ranges import TimeRange, provide_time_range
 from geometrikks.lib.validation import (
     validate_ip_address,
-    validate_ip_addresses,
     validate_timezone,
 )
 
@@ -110,7 +110,7 @@ def _build_filters(
     muted_networks: list[IPv4Network | IPv6Network] | None = None,
 ) -> AnalyticsFilters:
     """Validate filter params; bad IPs become a 400 instead of a DB error."""
-    validate_ip_addresses((ip_address or []) + (ip_address_not_in or []))
+    validate_ip_filter((ip_address or []) + (ip_address_not_in or []))
     return AnalyticsFilters(
         country_codes=country_code or None,
         cities=city or None,

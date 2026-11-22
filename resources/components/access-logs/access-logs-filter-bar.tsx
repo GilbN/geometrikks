@@ -28,7 +28,7 @@ import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { useMyIpExclusion } from "@/hooks/use-my-ip-exclusion"
 import { usePhoneLayout } from "@/hooks/use-phone-map"
 import { mutedDrawerCounts } from "@/lib/muted-ips"
-import { isValidIp } from "@/lib/crowdsec"
+import { ipFilterHint, isValidIpFilter } from "@/lib/ip-filter-values"
 import { HTTP_METHODS } from "@/lib/http-methods"
 import {
   countActiveAccessLogFilters,
@@ -164,7 +164,8 @@ export function AccessLogsFilterBar() {
       include={
         <TagInput
           onAdd={add("ips")}
-          validate={isValidIp}
+          validate={isValidIpFilter}
+          hint={ipFilterHint}
           placeholder="203.0.113.7"
           className="w-36"
         />
@@ -173,7 +174,8 @@ export function AccessLogsFilterBar() {
         <TagInput
           exclude
           onAdd={add("ipsExclude")}
-          validate={isValidIp}
+          validate={isValidIpFilter}
+          hint={ipFilterHint}
           placeholder="Exclude"
           className="w-32"
         />
@@ -333,7 +335,8 @@ export function AccessLogsFilterBar() {
           />
           <TagInput
             onAdd={add("ips")}
-            validate={isValidIp}
+            validate={isValidIpFilter}
+            hint={ipFilterHint}
             placeholder="203.0.113.7"
             aria-label="IP address"
             className="w-full"
@@ -416,7 +419,8 @@ export function AccessLogsFilterBar() {
               values={filters.ipsExclude}
               onAdd={add("ipsExclude")}
               onRemove={(ip) => remove("ipsExclude", ip)}
-              validate={isValidIp}
+              validate={isValidIpFilter}
+              hint={ipFilterHint}
             />
             <FilterListRow
               label="Host"

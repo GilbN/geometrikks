@@ -13,7 +13,6 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from advanced_alchemy.filters import (
     CollectionFilter,
-    NotInCollectionFilter,
     OnBeforeAfter,
 )
 
@@ -25,6 +24,7 @@ from geometrikks.domain.geo.controllers.events import (
     provide_geo_event_time_window,
 )
 from geometrikks.domain.geo.schemas import GeoEventFilters, GeoLogPeriod
+from geometrikks.lib.ip_filters import IpMatchFilter
 
 pytestmark = pytest.mark.anyio
 
@@ -64,12 +64,10 @@ class TestInFilters:
         result = provide_geo_event_in_filters(["10.0.0.1"], ["10.0.0.2"], server_in=["web1"])
         assert len(result) == 3
         include, exclude, server = result
-        assert isinstance(include, CollectionFilter)
-        assert include.field_name == "ip_address"
-        assert include.values == ["10.0.0.1"]
-        assert isinstance(exclude, NotInCollectionFilter)
-        assert exclude.field_name == "ip_address"
-        assert exclude.values == ["10.0.0.2"]
+        assert isinstance(include, IpMatchFilter)
+        assert (include.values, include.exclude) == (["10.0.0.1"], False)
+        assert isinstance(exclude, IpMatchFilter)
+        assert (exclude.values, exclude.exclude) == (["10.0.0.2"], True)
         assert isinstance(server, CollectionFilter)
         assert server.field_name == "server"
         assert server.values == ["web1"]
@@ -88,11 +86,11 @@ class TestInFilters:
 
     def test_invalid_include_ip_raises(self) -> None:
         # ip_address is INET — free text must 400, not fail bind-param encoding.
-        with pytest.raises(DomainValidationError, match="Invalid IP address"):
+        with pytest.raises(DomainValidationError, match="Enter an IP address or CIDR network"):
             provide_geo_event_in_filters(["not-an-ip"], None, None)
 
     def test_invalid_exclude_ip_raises(self) -> None:
-        with pytest.raises(DomainValidationError, match="Invalid IP address"):
+        with pytest.raises(DomainValidationError, match="Enter an IP address or CIDR network"):
             provide_geo_event_in_filters(None, ["not-an-ip"], None)
 
 
@@ -115,9 +113,9 @@ class TestAggregateFilters:
         assert filters.is_active()
 
     def test_invalid_ips_raise_in_both_lists(self) -> None:
-        with pytest.raises(DomainValidationError, match="Invalid IP address"):
+        with pytest.raises(DomainValidationError, match="Enter an IP address or CIDR network"):
             provide_geo_event_filters(None, None, ["bad"], None, None)
-        with pytest.raises(DomainValidationError, match="Invalid IP address"):
+        with pytest.raises(DomainValidationError, match="Enter an IP address or CIDR network"):
             provide_geo_event_filters(None, None, None, ["bad"], None)
 
     def test_only_servers_force_raw(self) -> None:
@@ -176,8 +174,8 @@ class TestFiltersSqlConditions:
         assert "AND NOT (ge.ip_address = ANY(CAST(:filter_ips_excl AS inet[])))" in sql
         assert "AND ge.server = ANY(:filter_servers)" in sql
         assert params["filter_countries"] == ["NO"]  # normalized upper-case
-        assert params["filter_ips"] == ["10.0.0.1"]
-        assert params["filter_ips_excl"] == ["10.0.0.2"]
+        assert params["filter_ips"] == ["10.0.0.1", "::ffff:10.0.0.1"]
+        assert params["filter_ips_excl"] == ["10.0.0.2", "::ffff:10.0.0.2"]
 
     def test_asn_fragments_default_to_the_raw_column(self) -> None:
         sql, params = GeoEventFilters(asn_include=[13335], asn_exclude=[24940]).sql_conditions("ge", "gl")

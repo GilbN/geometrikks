@@ -100,7 +100,7 @@ async def test_domain_validation_error_translates_to_400():
     assert resp.status_code == 400
     body = resp.json()
     assert body["status_code"] == 400
-    assert "Invalid IP address" in body["detail"]
+    assert "Enter an IP address or CIDR network" in body["detail"]
 
 
 def test_channels_plugin_registered() -> None:

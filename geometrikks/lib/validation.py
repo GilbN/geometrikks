@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import ipaddress
 import zoneinfo
-from collections.abc import Iterable
 
 from geometrikks.domain.exceptions import DomainValidationError
 
@@ -32,12 +31,6 @@ def canonical_ip(value: str) -> str | None:
         return str(ipaddress.ip_address(value))
     except ValueError:
         return None
-
-
-def validate_ip_addresses(values: Iterable[str]) -> None:
-    """Validate every value with :func:`validate_ip_address`."""
-    for raw in values:
-        validate_ip_address(raw)
 
 
 def validate_timezone(value: str) -> str:

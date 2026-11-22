@@ -4,7 +4,7 @@
  * city, malformed tri-state. Clicking a row opens the raw-line detail
  * dialog. Pairs with GET /api/v1/access-log-debug/.
  */
-import { memo, useCallback, useEffect, useState } from "react"
+import { memo, useCallback, useEffect, useId, useState } from "react"
 import { useSearch } from "@tanstack/react-router"
 import { CountryFlag, CountryLabel } from "@/components/country-flag"
 import { Columns3, Search } from "lucide-react"
@@ -54,7 +54,7 @@ import {
 } from "@/lib/ip-filter-targets"
 import { useAccessLogDebug, useAccessLogFacets, useCrowdsecLiveUpdates } from "@/lib/queries"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
-import { isValidIp } from "@/lib/crowdsec"
+import { ipFilterHint, isValidIpFilter } from "@/lib/ip-filter-values"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { usePhoneLayout } from "@/hooks/use-phone-map"
 import type { AccessLogDebugEntry, AccessLogDebugSortField, SortOrder } from "@/lib/api"
@@ -386,7 +386,11 @@ export function DebugLogsTable() {
   const [facetsEnabled, setFacetsEnabled] = useState(false)
   const { data: facets } = useAccessLogFacets({ enabled: facetsEnabled })
   const search = useDebouncedValue(searchInput, 300)
-  const ip = useDebouncedValue(ipInput, 300)
+  const ip = useDebouncedValue(ipInput.trim(), 300)
+  const ipDraft = ipInput.trim()
+  const ipInvalid = ipDraft !== "" && !isValidIpFilter(ipDraft)
+  const ipHint = ipInvalid ? ipFilterHint(ipDraft) : null
+  const ipHintId = useId()
 
   // Sorting.
   const [sortField, setSortField] = useState<AccessLogDebugSortField>("createdAt")
@@ -413,8 +417,8 @@ export function DebugLogsTable() {
     currentPage: page,
     pageSize,
     searchString: search || undefined,
-    // Only forward complete IPs; partial text cannot match an INET column.
-    ipAddressIn: ip && isValidIp(ip) ? [ip] : undefined,
+    // Only forward complete values; partial text cannot match an INET column.
+    ipAddressIn: ip && isValidIpFilter(ip) ? [ip] : undefined,
     countryCodeIn: countries.length ? countries : undefined,
     cityIn: cities.length ? cities : undefined,
     malformed: malformedFilter === "all" ? undefined : malformedFilter === "malformed",
@@ -466,14 +470,24 @@ export function DebugLogsTable() {
       </FilterField>
     )
     const ipField = (
-      <FilterField label="IP address">
+      <FilterField label="IP address" className={inDrawer ? "w-full" : "w-36"}>
         <Input
           value={ipInput}
           onChange={(e) => setIpInput(e.target.value)}
           placeholder="203.0.113.7"
-          aria-invalid={ipInput !== "" && !isValidIp(ipInput)}
-          className={cn("h-8 font-mono text-xs", inDrawer ? "w-full" : "w-36")}
+          aria-invalid={ipInvalid}
+          aria-describedby={ipHint ? ipHintId : undefined}
+          className="h-8 w-full font-mono text-xs"
         />
+        {ipHint && (
+          <span
+            id={ipHintId}
+            aria-hidden
+            className="block break-all font-mono text-[11px] text-destructive"
+          >
+            {ipHint}
+          </span>
+        )}
       </FilterField>
     )
     const malformedField = (

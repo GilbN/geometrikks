@@ -44,5 +44,5 @@ class TestValidatedIps:
 
     def test_invalid_ip_raises_validation_error(self) -> None:
         # ip_address is INET on the joined table; free text must 400.
-        with pytest.raises(DomainValidationError, match="Invalid IP address"):
+        with pytest.raises(DomainValidationError, match="Enter an IP address or CIDR network"):
             validated_ips(["not-an-ip"])
