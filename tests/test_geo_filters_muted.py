@@ -4,7 +4,7 @@ from __future__ import annotations
 from ipaddress import ip_network
 
 import pytest
-from advanced_alchemy.filters import CollectionFilter, FilterTypes
+from advanced_alchemy.filters import FilterTypes
 from sqlalchemy import select
 from sqlalchemy.dialects import postgresql
 
@@ -13,6 +13,7 @@ from geometrikks.domain.geo.schemas import GeoEventFilters
 from geometrikks.domain.logs.controllers.access_logs import provide_in_filters
 from geometrikks.domain.logs.models import AccessLog
 from geometrikks.domain.muted_ips.filters import MutedNetworksFilter
+from geometrikks.lib.ip_filters import ip_match_filter
 
 pytestmark = pytest.mark.anyio
 
@@ -55,7 +56,7 @@ async def test_access_log_wrapper_appends_the_filter_without_an_include():
 
 
 async def test_access_log_wrapper_skips_it_when_an_include_is_set():
-    base: list[FilterTypes] = [CollectionFilter(field_name="ip_address", values=["203.0.113.7"])]
+    base: list[FilterTypes] = [ip_match_filter(["203.0.113.7"])]
     assert await provide_in_filters(base, NETS) == base
 
 

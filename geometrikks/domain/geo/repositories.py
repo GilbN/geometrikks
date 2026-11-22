@@ -24,6 +24,7 @@ from advanced_alchemy.repository import SQLAlchemyAsyncRepository
 from sqlalchemy import text
 
 from geometrikks.domain.geo.models import GeoEvent, GeoLocation
+from geometrikks.lib.ip_filters import ip_match_sql
 from geometrikks.lib.time import ensure_utc
 from geometrikks.server.logging import get_logger
 
@@ -270,8 +271,8 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
             to_timestamp: End datetime for filtering events.
             country_codes: Optional ISO country codes to filter to.
             cities: Optional city names to filter to.
-            ip_addresses: Optional IPs to include (caller must validate).
-            ip_addresses_exclude: Optional IPs to exclude (caller must validate).
+            ip_addresses: Optional IPs or CIDR ranges to include (caller must validate).
+            ip_addresses_exclude: Optional IPs or CIDR ranges to exclude (caller must validate).
             servers: Optional servers to filter to.
             asns: Optional autonomous system numbers to filter to.
             asns_exclude: Optional autonomous system numbers to exclude.
@@ -313,11 +314,13 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
         # ge-aliased IP conditions are safe here: an IP filter always forces
         # the RAW branch above, and only that branch joins geo_events as ge.
         if ip_addresses:
-            filters_sql += " AND ge.ip_address = ANY(CAST(:filter_ips AS inet[]))"
-            params["filter_ips"] = list(ip_addresses)
+            clause, ip_params = ip_match_sql("ge.ip_address", ip_addresses, "filter_ips")
+            filters_sql += f" AND {clause}"
+            params.update(ip_params)
         if ip_addresses_exclude:
-            filters_sql += " AND NOT (ge.ip_address = ANY(CAST(:filter_ips_excl AS inet[])))"
-            params["filter_ips_excl"] = list(ip_addresses_exclude)
+            clause, ip_params = ip_match_sql("ge.ip_address", ip_addresses_exclude, "filter_ips_excl")
+            filters_sql += f" AND NOT ({clause})"
+            params.update(ip_params)
         if muted_networks:
             filters_sql += " AND NOT (ge.ip_address <<= ANY(CAST(:muted_networks AS cidr[])))"
             params["muted_networks"] = list(muted_networks)

@@ -19,6 +19,7 @@ from geometrikks.domain.analytics.asn_classification import (
     ASN_CATEGORY_DESCRIPTION,
     AsnCategory,
 )
+from geometrikks.lib.ip_filters import ip_match_sql
 
 EchoedFrom = Annotated[str, msgspec.Meta(description="The request's `fromTimestamp`, echoed as ISO 8601.")]
 EchoedTo = Annotated[str, msgspec.Meta(description="The request's `toTimestamp`, echoed as ISO 8601.")]
@@ -275,8 +276,8 @@ class GeoEventFilters:
         carrying ip_address/server; ``locations_alias`` the joined
         geo_locations alias. ``asn_column`` is the ASN column on
         ``events_alias``: ``autonomous_system_number`` on raw geo_events,
-        ``asn`` on ``combined``. IP lists are cast to inet[] so asyncpg binds
-        them correctly; callers must have validated the IPs first.
+        ``asn`` on ``combined``. Callers must have validated the IP values
+        with ``validate_ip_filter`` first.
         """
         clauses: list[str] = []
         params: dict = {}
@@ -287,13 +288,13 @@ class GeoEventFilters:
             clauses.append(f"AND {locations_alias}.city = ANY(:filter_cities)")
             params["filter_cities"] = list(self.cities)
         if self.ip_include:
-            clauses.append(f"AND {events_alias}.ip_address = ANY(CAST(:filter_ips AS inet[]))")
-            params["filter_ips"] = list(self.ip_include)
+            clause, ip_params = ip_match_sql(f"{events_alias}.ip_address", self.ip_include, "filter_ips")
+            clauses.append(f"AND {clause}")
+            params.update(ip_params)
         if self.ip_exclude:
-            clauses.append(
-                f"AND NOT ({events_alias}.ip_address = ANY(CAST(:filter_ips_excl AS inet[])))"
-            )
-            params["filter_ips_excl"] = list(self.ip_exclude)
+            clause, ip_params = ip_match_sql(f"{events_alias}.ip_address", self.ip_exclude, "filter_ips_excl")
+            clauses.append(f"AND NOT ({clause})")
+            params.update(ip_params)
         if self.effective_muted_networks:
             clauses.append(f"AND NOT ({events_alias}.ip_address <<= ANY(CAST(:muted_networks AS cidr[])))")
             params["muted_networks"] = list(self.effective_muted_networks)

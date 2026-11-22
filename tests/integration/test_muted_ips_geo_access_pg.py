@@ -118,8 +118,8 @@ async def test_access_logs_drop_the_muted_ip_and_count_only_the_rest(client, tra
 async def test_access_logs_include_wins(client, traffic):
     await mute(client)
     body = await get(client, "/access-logs/", {}, ipAddressIn=MUTED, **FLAG)
-    assert body["total"] == 4
-    assert {item["ipAddress"] for item in body["items"]} == {MUTED}
+    assert body["total"] == 5
+    assert {item["ipAddress"] for item in body["items"]} == {MUTED, MAPPED}
 
 
 async def test_geo_logs_endpoints_drop_the_muted_ip(client, traffic):
@@ -164,14 +164,14 @@ async def test_the_flag_off_keeps_everything(client, traffic):
 async def test_geo_ip_include_wins(client, traffic):
     await mute(client)
     ips = await get(client, "/geo-events/top-ips", traffic, ipAddressIn=MUTED, **FLAG)
-    assert {item["ipAddress"]: item["eventCount"] for item in ips["items"]} == {MUTED: 4}
+    assert {item["ipAddress"]: item["eventCount"] for item in ips["items"]} == {MUTED: 4, MAPPED: 1}
 
 
 async def test_geojson_include_wins(client, traffic):
     await mute(client)
     geojson = await get(client, "/geo-locations/geojson", traffic, ipAddressIn=MUTED, **FLAG)
     assert [(feature["properties"]["city"], feature["properties"]["eventCount"]) for feature in geojson["features"]] == [
-        ("Oslo", 4)
+        ("Oslo", 5)
     ]
 
 

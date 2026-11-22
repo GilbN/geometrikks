@@ -35,6 +35,7 @@ from geometrikks.domain.geo.dtos import (
 from geometrikks.domain.geo.models import GeoLocation
 from geometrikks.domain.geo.services import GeoLocationService
 from geometrikks.domain.muted_ips.dependencies import provide_muted_networks
+from geometrikks.lib.ip_filters import validate_ip_filter
 from geometrikks.lib.pagination import LIMIT_OFFSET_KEY, limit_offset_provider
 from geometrikks.lib.parameters import (
     GEO_WHOLE_BUCKETS_NOTE,
@@ -49,7 +50,6 @@ from geometrikks.lib.parameters import (
     ToTimestamp,
 )
 from geometrikks.lib.time import ensure_utc
-from geometrikks.lib.validation import validate_ip_addresses
 from geometrikks.server import runtime
 from geometrikks.server.exceptions import ErrorEnvelope
 from geometrikks.server.logging import get_logger
@@ -143,10 +143,8 @@ class GeoLocationController(Controller):
         """
         from_timestamp = ensure_utc(from_timestamp)
         to_timestamp = ensure_utc(to_timestamp)
-        if ip_address_in:
-            validate_ip_addresses(ip_address_in)
-        if ip_address_not_in:
-            validate_ip_addresses(ip_address_not_in)
+        validate_ip_filter(ip_address_in)
+        validate_ip_filter(ip_address_not_in)
 
         locations_with_counts = await geo_location_service.get_all_with_event_counts(
             from_timestamp, to_timestamp, country_codes=country_code, cities=city,

@@ -34,6 +34,11 @@ from geometrikks.domain.logs.window_headers import (
 )
 from geometrikks.domain.muted_ips.dependencies import provide_muted_networks
 from geometrikks.domain.muted_ips.filters import MutedNetworksFilter
+from geometrikks.lib.ip_filters import (
+    IpMatchFilter,
+    ip_match_filter,
+    validate_ip_filter,
+)
 from geometrikks.lib.pagination import (
     LIMIT_OFFSET_KEY,
     MAX_LOG_PAGE_SIZE,
@@ -55,7 +60,6 @@ from geometrikks.lib.parameters import (
     range_start_examples,
 )
 from geometrikks.lib.time_ranges import Window, relative_range
-from geometrikks.lib.validation import validate_ip_addresses
 
 ACCESS_LOG_SORT_FIELDS = (
     "timestamp",
@@ -211,14 +215,14 @@ def provide_access_log_in_filters(
 
     Raises:
         DomainValidationError: If an ``ipAddressIn``/``ipAddressNotIn`` value
-            is not a valid IP.
+            is not an IP or a CIDR range starting on its network address.
     """
     result: list[FilterTypes] = []
     if method_in:
         result.append(CollectionFilter(field_name="method", values=method_in))
     if ip_address_in:
-        validate_ip_addresses(ip_address_in)
-        result.append(CollectionFilter(field_name="ip_address", values=ip_address_in))
+        validate_ip_filter(ip_address_in)
+        result.append(ip_match_filter(ip_address_in))
     if city_in:
         result.append(CollectionFilter(field_name="city", values=city_in))
     if country_code_in:
@@ -226,8 +230,8 @@ def provide_access_log_in_filters(
     if status_in:
         result.append(CollectionFilter(field_name="status_code", values=status_in))
     if ip_address_not_in:
-        validate_ip_addresses(ip_address_not_in)
-        result.append(NotInCollectionFilter(field_name="ip_address", values=ip_address_not_in))
+        validate_ip_filter(ip_address_not_in)
+        result.append(ip_match_filter(ip_address_not_in, exclude=True))
     if host_in:
         result.append(CollectionFilter(field_name="host", values=host_in))
     if host_not_in:
@@ -275,7 +279,7 @@ async def provide_in_filters(
 ) -> list[FilterTypes]:
     """Adds the muted list to the IN filters, unless the request names an IP to include."""
     if muted_networks is None or any(
-        isinstance(item, CollectionFilter) and item.field_name == "ip_address" for item in base_in_filters
+        isinstance(item, IpMatchFilter) and not item.exclude for item in base_in_filters
     ):
         return base_in_filters
     return cast(list[FilterTypes], [*base_in_filters, MutedNetworksFilter(muted_networks)])

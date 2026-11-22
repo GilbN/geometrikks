@@ -31,7 +31,7 @@ class TestSqlConditions:
     def test_exclude_only_emits_negated_any(self) -> None:
         clause, params = AnalyticsFilters(ip_exclude=["10.0.0.1"]).sql_conditions()
         assert "NOT (ip_address = ANY(CAST(:filter_ips_exclude AS inet[])))" in clause
-        assert params == {"filter_ips_exclude": ["10.0.0.1"]}
+        assert params == {"filter_ips_exclude": ["10.0.0.1", "::ffff:10.0.0.1"]}
 
     def test_all_dimensions_emit_all_clauses(self) -> None:
         clause, params = AnalyticsFilters(
@@ -58,7 +58,7 @@ class TestBuildFilters:
         assert _build_filters(None, None, None, []).ip_exclude is None
 
     def test_invalid_excluded_ip_raises(self) -> None:
-        with pytest.raises(DomainValidationError, match="Invalid IP address"):
+        with pytest.raises(DomainValidationError, match="Enter an IP address or CIDR network"):
             _build_filters(None, None, None, ["not-an-ip"])
 
 

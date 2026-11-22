@@ -19,6 +19,7 @@ from geometrikks.domain.logs.schemas import (
     CountryFacet,
     ParseErrorCount,
 )
+from geometrikks.lib.ip_filters import ip_match_clause
 from geometrikks.server.logging import get_logger
 
 logger = get_logger(__name__)
@@ -185,7 +186,7 @@ class AccessLogDebugService(SQLAlchemyAsyncRepositoryService[AccessLogDebug]):
         )
 
         if ip_addresses:
-            stmt = stmt.where(AccessLogDebug.ip_address.in_(ip_addresses))
+            stmt = stmt.where(ip_match_clause(AccessLogDebug.ip_address, ip_addresses))
         if country_codes:
             stmt = stmt.where(AccessLogDebug.country_code.in_(country_codes))
         if cities:

@@ -316,11 +316,13 @@ export function FilterExcludedIpRows({
   onAdd,
   onRemove,
   validate,
+  hint,
 }: {
   values: string[]
   onAdd: (value: string) => void
   onRemove: (value: string) => void
   validate: (value: string) => boolean
+  hint?: (value: string) => string | null
 }) {
   return (
     <>
@@ -340,11 +342,12 @@ export function FilterExcludedIpRows({
           </span>
         </div>
       ))}
-      <div className={ROW}>
-        <span>IP</span>
+      <div className={cn(ROW, "h-auto min-h-11 items-start py-0.5")}>
+        <span className="leading-10">IP</span>
         <TagInput
           onAdd={onAdd}
           validate={validate}
+          hint={hint}
           placeholder={values.length > 0 ? "Add" : "None"}
           aria-label="Exclude IP"
           className="min-w-0 flex-1"

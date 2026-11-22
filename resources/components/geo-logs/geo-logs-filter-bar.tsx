@@ -26,7 +26,7 @@ import { useMyIpExclusion } from "@/hooks/use-my-ip-exclusion"
 import { usePhoneLayout } from "@/hooks/use-phone-map"
 import { useGeoEventFacets } from "@/lib/queries"
 import { mutedDrawerCounts } from "@/lib/muted-ips"
-import { isValidIp } from "@/lib/crowdsec"
+import { ipFilterHint, isValidIpFilter } from "@/lib/ip-filter-values"
 import {
   countActiveGeoLogFilters,
   EMPTY_GEO_LOG_FILTERS,
@@ -119,7 +119,8 @@ export function GeoLogsFilterBar() {
       include={
         <TagInput
           onAdd={addIp("ips")}
-          validate={isValidIp}
+          validate={isValidIpFilter}
+          hint={ipFilterHint}
           placeholder="203.0.113.7"
           className="w-36"
         />
@@ -128,7 +129,8 @@ export function GeoLogsFilterBar() {
         <TagInput
           exclude
           onAdd={addIp("ipsExclude")}
-          validate={isValidIp}
+          validate={isValidIpFilter}
+          hint={ipFilterHint}
           placeholder="Exclude"
           className="w-32"
         />
@@ -219,7 +221,8 @@ export function GeoLogsFilterBar() {
         <FiltersDrawer activeCount={activeCount} clearCount={clearCount} onClear={clear}>
           <TagInput
             onAdd={addIp("ips")}
-            validate={isValidIp}
+            validate={isValidIpFilter}
+            hint={ipFilterHint}
             placeholder="203.0.113.7"
             aria-label="IP address"
             className="w-full"
@@ -275,7 +278,8 @@ export function GeoLogsFilterBar() {
               values={filters.ipsExclude}
               onAdd={addIp("ipsExclude")}
               onRemove={(ip) => removeIp("ipsExclude", ip)}
-              validate={isValidIp}
+              validate={isValidIpFilter}
+              hint={ipFilterHint}
             />
             <FilterListRow<number>
               label="ASN"

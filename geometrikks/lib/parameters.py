@@ -45,7 +45,10 @@ def local_days_edge_note(start_name: str, end_name: str) -> str:
 
 
 REPEAT_NOTE = "Repeat the parameter to pass more than one."
-_IP_CHECK = "A value that is not an IP gets a 400."
+IP_FILTER_NOTE = (
+    "Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, "
+    "or a value that is neither, gets a 400."
+)
 COUNTRY_FILTER_DESCRIPTION = (
     f"Keep only these countries, as uppercase two-letter ISO 3166-1 codes such as `NO`. {REPEAT_NOTE}"
 )
@@ -147,7 +150,7 @@ IpAddressFilter = Annotated[
     list[str] | None,
     QueryParameter(
         name="ipAddress",
-        description=f"Keep only these client IPs. {REPEAT_NOTE} {_IP_CHECK}",
+        description=f"Keep only these client IPs or ranges. {REPEAT_NOTE} {IP_FILTER_NOTE}",
         required=False,
     ),
 ]
@@ -156,7 +159,7 @@ IpAddressExcludeFilter = Annotated[
     list[str] | None,
     QueryParameter(
         name="ipAddressNotIn",
-        description=f"Leave out these client IPs. {REPEAT_NOTE} {_IP_CHECK}",
+        description=f"Leave out these client IPs or ranges. {REPEAT_NOTE} {IP_FILTER_NOTE}",
         required=False,
     ),
 ]
@@ -175,7 +178,7 @@ IpAddressIn = Annotated[
     list[str] | None,
     QueryParameter(
         name="ipAddressIn",
-        description=f"Keep only these client IPs. {REPEAT_NOTE} {_IP_CHECK}",
+        description=f"Keep only these client IPs or ranges. {REPEAT_NOTE} {IP_FILTER_NOTE}",
         required=False,
     ),
 ]
@@ -184,7 +187,7 @@ IpAddressNotIn = Annotated[
     list[str] | None,
     QueryParameter(
         name="ipAddressNotIn",
-        description=f"Leave out these client IPs. {REPEAT_NOTE} {_IP_CHECK}",
+        description=f"Leave out these client IPs or ranges. {REPEAT_NOTE} {IP_FILTER_NOTE}",
         required=False,
     ),
 ]
