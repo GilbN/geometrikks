@@ -1,6 +1,7 @@
 """Agent schema gate: bundled head inspection and the wait loop."""
 from __future__ import annotations
 
+import sys
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -14,6 +15,18 @@ def test_bundled_head_revision_is_a_hash() -> None:
     head = schema_wait.bundled_head_revision()
     assert isinstance(head, str) and len(head) >= 8
     assert head in schema_wait.known_revisions()
+
+
+def test_revision_lookups_leave_sys_path_alone() -> None:
+    schema_wait.bundled_head_revision()
+    path_length = len(sys.path)
+
+    for _ in range(5):
+        head = schema_wait.bundled_head_revision()
+        schema_wait.known_revisions()
+        schema_wait.bundled_revision_doc(head)
+
+    assert len(sys.path) == path_length
 
 
 def _walk_skipping_head():

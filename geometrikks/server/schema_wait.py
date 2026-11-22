@@ -9,6 +9,7 @@ alembic config or touches the database until a function is called.
 from __future__ import annotations
 
 import asyncio
+from functools import cache
 from typing import TYPE_CHECKING, Literal
 
 from sqlalchemy import text
@@ -23,12 +24,16 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
+@cache
 def _script_directory() -> ScriptDirectory:
     """Build the bundled migrations' ScriptDirectory.
 
     Mirrors migrations.py's AlembicAsyncConfig construction (same relative
     "alembic.ini" / "migrations" paths, resolved from the process cwd) but
     via the plain alembic API, since nothing here executes migrations.
+
+    Cached because every ``ScriptDirectory.from_config`` call prepends
+    alembic.ini's ``prepend_sys_path`` entries to ``sys.path`` again.
     """
     from alembic.config import Config
     from alembic.script import ScriptDirectory
