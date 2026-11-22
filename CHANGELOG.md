@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Settings > About no longer loads slower the longer the server has been running. Every refresh of Settings > About or Settings > Status made later About loads slower, by about a third of a second after a day with Status open, and other requests waited while it ran.
 - Opening an IP's sheet or menu no longer downloads the whole CrowdSec ban list again.
 - Large responses come back faster when the browser reaches GeoMetrikks over plain http. The browser then asks for gzip, which the server now compresses at level 4 instead of 9. The CrowdSec ban list with 40,000 IPs took 236 ms to compress before and 55 ms now.
 - Settings > Agents no longer says ingestion on an instance is not running for up to 30 seconds after the instance restarts. While it starts up, its Ingestion row reads Starting, and the instance reports in again as soon as ingestion runs.
