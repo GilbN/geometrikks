@@ -1,8 +1,10 @@
 # Chrome Web Store listing: GeoMetrikks for Chrome
 
-> Last updated: 2026-11-20
+> Last updated: 2026-11-23
 
 What goes into the Chrome Developer Dashboard for each upload. The zip comes from `bun run ext:build && bun run ext:check-dist && bun run ext:zip`, or from the GitHub release, which carries `geometrikks-chrome-<version>.zip`. This file is not in the zip.
+
+**Listing URL:** https://chromewebstore.google.com/detail/dbgmoojbpbmpodfmhjimkfhibjkjniel
 
 ## Store listing
 
@@ -134,7 +136,7 @@ Check that it loads before each submission. Its content must match the table abo
 
 ## Distribution
 
-**Visibility:** Unlisted until GeoMetrikks 0.26.0 is released, since site stats need it. Then switch to Public.
+**Visibility:** Public, switched from Unlisted on 2026-11-23 after the GeoMetrikks 0.26.0 release. The change is pending Chrome Web Store review as of that date, so the listing stays unlisted until review passes, though the link works.
 
 **Regions:** All regions
 
@@ -157,13 +159,12 @@ Check that it loads before each submission. Its content must match the table abo
 - [ ] https://geometrikks.dev/chrome-extension/privacy loads and matches the data table above.
 - [ ] The screenshots and promo tiles in `extension/store/` are uploaded.
 - [ ] The dashboard's test instructions hold the text under "Test instructions" below.
-- [ ] Once the listing exists, add its Chrome Web Store URL to this file, and change the install line in `site/content/docs/next/features/chrome-extension.mdx` to link it.
 
 ## Version history
 
 | Version | Date | Changes | Status |
 | --- | --- | --- | --- |
-| 0.1.0 | 2026-11-19 | First release: IP lookup from the popup, the right-click menu and the `gmk` keyword; ban and unban through CrowdSec; site stats for the tab's host; read-only mode for Read keys. | Draft |
+| 0.1.0 | 2026-11-19 | First release: IP lookup from the popup, the right-click menu and the `gmk` keyword; ban and unban through CrowdSec; site stats for the tab's host; read-only mode for Read keys. | Published |
 
 Every upload needs a higher `version` in `extension/manifest.json` than the published one.
 
