@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `GET /api/v1/crowdsec/alerts/daily` returns daily CrowdSec alert counts for scripts, and `GET /api/v1/crowdsec/stats` adds the active decision split and the count of decisions expiring soon.
+
+### Changed
+
+- The Security page replaces its four top tiles with one summary of active decisions, alerts per day for the last 7 days and the top scenarios. Manual bans now show their reason in Top scenarios instead of "manual-ban". Alerts per day needs `CROWDSEC_MACHINE_ID` and `CROWDSEC_MACHINE_PASSWORD`, like the Alerts tab.
+
 ## [0.26.0] - 2026-11-23
 
 ### Added

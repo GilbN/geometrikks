@@ -32,6 +32,17 @@
       ],
       "uri": "/api/v1/auth/connection"
     },
+    "count_alerts_per_day": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "days": "number | undefined",
+        "tz": "string | undefined"
+      },
+      "uri": "/api/v1/crowdsec/alerts/daily"
+    },
     "create_api_key": {
       "method": "post",
       "methods": [

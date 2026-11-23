@@ -104,6 +104,9 @@ import type {
   ApiV1CrowdsecAlertsAlertIdGetAlertData,
   ApiV1CrowdsecAlertsAlertIdGetAlertErrors,
   ApiV1CrowdsecAlertsAlertIdGetAlertResponses,
+  ApiV1CrowdsecAlertsDailyCountAlertsPerDayData,
+  ApiV1CrowdsecAlertsDailyCountAlertsPerDayErrors,
+  ApiV1CrowdsecAlertsDailyCountAlertsPerDayResponses,
   ApiV1CrowdsecAlertsListAlertsData,
   ApiV1CrowdsecAlertsListAlertsErrors,
   ApiV1CrowdsecAlertsListAlertsResponses,
@@ -1284,6 +1287,40 @@ export const apiV1CrowdsecAlertsListAlerts = <
   });
 
 /**
+ * Count CrowdSec alerts per day
+ *
+ * Returns how many alerts started on each of the last `days` days, today included, without the community blocklist pulls. An alert counts on the day of its first event, or of when the LAPI stored it when it has no first event. One LAPI request reads at most 2000 alerts. Answers 403 when the server has no CrowdSec machine credentials, CROWDSEC_MACHINE_ID and CROWDSEC_MACHINE_PASSWORD.
+ */
+export const apiV1CrowdsecAlertsDailyCountAlertsPerDay = <
+  ThrowOnError extends boolean = false,
+>(
+  options?: Options<
+    ApiV1CrowdsecAlertsDailyCountAlertsPerDayData,
+    ThrowOnError
+  >,
+): RequestResult<
+  ApiV1CrowdsecAlertsDailyCountAlertsPerDayResponses,
+  ApiV1CrowdsecAlertsDailyCountAlertsPerDayErrors,
+  ThrowOnError
+> =>
+  (options?.client ?? client).get<
+    ApiV1CrowdsecAlertsDailyCountAlertsPerDayResponses,
+    ApiV1CrowdsecAlertsDailyCountAlertsPerDayErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+      { scheme: "bearer", type: "http" },
+    ],
+    url: "/api/v1/crowdsec/alerts/daily",
+    ...options,
+  });
+
+/**
  * Count the scenarios among recent CrowdSec alerts
  *
  * Returns the scenarios among the newest 500 alerts that match `since` and `kind`, with how many of those alerts each one has, the most first. Scenarios with the same count sort by name. Answers 403 when the server has no CrowdSec machine credentials, CROWDSEC_MACHINE_ID and CROWDSEC_MACHINE_PASSWORD.
@@ -1651,7 +1688,7 @@ export const apiV1CrowdsecDropNetworksListDropNetworks = <
 /**
  * Count the active CrowdSec decisions by origin and scenario
  *
- * Returns how many decisions are active across every origin, blocklists included, with the count per origin and the ten scenarios with the most decisions. The counts come from the decision stream the server polls, so a change can take up to `CROWDSEC_STREAM_POLL_INTERVAL` seconds to show.
+ * Returns how many decisions are active across every origin, blocklists included, with the count per origin, the split into bans, ranges, captchas and other types, how many expire within `expiringSoonHours` hours and the ten scenarios with the most decisions. The counts come from the decision stream the server polls, so a change can take up to `CROWDSEC_STREAM_POLL_INTERVAL` seconds to show.
  */
 export const apiV1CrowdsecStatsGetStats = <
   ThrowOnError extends boolean = false,

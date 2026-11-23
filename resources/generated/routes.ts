@@ -25,6 +25,7 @@ export type RouteName =
   | 'ban_networks'
   | 'check_ip'
   | 'connection'
+  | 'count_alerts_per_day'
   | 'create_api_key'
   | 'create_muted_ip'
   | 'create_reports'
@@ -121,6 +122,7 @@ export interface RoutePathParams {
   'ban_networks': Record<string, never>;
   'check_ip': Record<string, never>;
   'connection': Record<string, never>;
+  'count_alerts_per_day': Record<string, never>;
   'create_api_key': Record<string, never>;
   'create_muted_ip': Record<string, never>;
   'create_reports': Record<string, never>;
@@ -239,6 +241,10 @@ export interface RouteQueryParams {
     ipAddress: string;
   };
   'connection': Record<string, never>;
+  'count_alerts_per_day': {
+    days?: number;
+    tz?: string;
+  };
   'create_api_key': Record<string, never>;
   'create_muted_ip': Record<string, never>;
   'create_reports': Record<string, never>;
@@ -712,6 +718,13 @@ export const routeDefinitions = {
     method: 'get',
     pathParams: [] as const,
     queryParams: [] as const,
+  },
+  'count_alerts_per_day': {
+    path: '/api/v1/crowdsec/alerts/daily',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: ['days', 'tz'] as const,
   },
   'create_api_key': {
     path: '/api/v1/auth/api-keys',

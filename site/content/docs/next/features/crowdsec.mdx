@@ -70,7 +70,7 @@ In `cscli machines list` and the CrowdSec console, the `geometrikks` machine can
 
 ## The Security page
 
-The Security page appears in the sidebar once `CROWDSEC_LAPI_URL` and `CROWDSEC_BOUNCER_API_KEY` are set. Stat cards sit at the top: active decisions, local bans, the top scenario, and the LAPI state with whether ban and unban are on. Below them the page shows one table at a time, in tabs:
+The Security page appears in the sidebar once `CROWDSEC_LAPI_URL` and `CROWDSEC_BOUNCER_API_KEY` are set. A [summary](#the-summary) of the active decisions, alerts per day and the top scenarios sits at the top, with a pill for the LAPI state. Below them the page shows one table at a time, in tabs:
 
 - **Decisions**, the active decisions. Local shows decisions from `crowdsec`, `cscli` and `geometrikks`. All origins adds the community blocklist (CAPI) and the lists you subscribe to, and Crowd (CAPI) shows only those. The community blocklist can hold tens of thousands of decisions, which is why Local is the default.
 - **Alerts**, the alert history, with machine credentials. Without them the tab says the history needs `CROWDSEC_MACHINE_ID` and `CROWDSEC_MACHINE_PASSWORD`.
@@ -79,9 +79,21 @@ The Security page appears in the sidebar once `CROWDSEC_LAPI_URL` and `CROWDSEC_
 
 The open tab is in the URL, such as `/security?tab=alerts`, so a reload or a shared link opens the same tab. Decisions, the first tab, needs no `tab` in the URL. A link to `/security#drop-networks` opens the DROP tab. A link to a tab the page doesn't show opens the first tab.
 
-With AbuseIPDB reporting on and CrowdSec not set up, Security stays in the navigation and shows only the Reports table, without the stat cards or a tab bar.
+With AbuseIPDB reporting on and CrowdSec not set up, Security stays in the navigation and shows only the Reports table, without the summary, the LAPI pill or a tab bar.
 
 Select an alert to open its context, events and decisions. In the Banned map popup, a decision's scenario name opens its alert too. A blocklist decision has no alert of its own to open, because CrowdSec pulls those in bulk.
+
+### The summary
+
+The summary has three parts:
+
+- **Active decisions** shows the total across every origin, blocklists included, then three lines. The first splits the decisions into bans, ranges, captchas and other types. A decision on a range counts as a range whatever its type. The second counts how many expire within 4 hours. The third says who made them. `crowdsec` and `appsec` count as detected by CrowdSec, `CAPI` and `lists` as blocklists, and every other origin, such as `geometrikks`, `cscli`, `console` and `cscli-import`, as set by hand.
+- **Alerts, last 7 days** needs machine credentials, like the Alerts tab. It shows one column per day in your browser's timezone, with today highlighted, and refreshes every 5 minutes. An alert counts on the day of its first event, the time the Alerts tab's time filter uses. The Alerts tab rows show when the LAPI stored each alert, so an alert that reached the LAPI late can show a row time on a different day than its column. Each refresh reads at most 2,000 alerts. With more, the total shows a plus, such as "2,000+", and some days count short, the oldest most.
+- **Top scenarios** lists the scenarios with the most active decisions, 4 on desktop and 3 on a phone. A decision made in GeoMetrikks shows a ban or captcha tag and the reason you gave instead of "manual-ban". Hover a row for the full scenario name.
+
+A "LAPI connected" pill beside the page title, or on the decisions card on a phone, says whether ban and unban are on. While the LAPI is unreachable, the pill hides and a red banner says the page shows the last known data.
+
+Scripts get the same numbers from the `split` and `expiringSoon` fields of `GET /api/v1/crowdsec/stats` and from `GET /api/v1/crowdsec/alerts/daily?days=7&tz=Europe/Oslo`. The [API reference](../reference/api/index.mdx) has the details.
 
 ### Bot detection
 

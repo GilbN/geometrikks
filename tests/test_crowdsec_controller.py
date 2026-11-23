@@ -441,6 +441,33 @@ async def test_stats_count_the_poller_decisions_without_asking_the_lapi():
     assert service.calls == []
 
 
+async def test_stats_split_the_decisions_and_count_the_ones_expiring_soon():
+    service = FakeCrowdSec([
+        make_decision(id=1, duration="3h59m"),
+        make_decision(id=2, duration="4h0m1s"),
+        make_decision(id=3, scope="Range", value="10.0.0.0/24", duration="167h"),
+        make_decision(id=4, scope="Range", value="10.0.1.0/24", type="captcha", duration="1h"),
+        make_decision(id=5, type="captcha", duration="4h"),
+        make_decision(id=6, type="throttle", duration="20h"),
+        make_decision(id=7, scope="Country", value="XX", duration="20h"),
+        # A bouncer's own type that happens to share a name with the range bucket.
+        make_decision(id=8, type="range", duration="20h"),
+    ])
+    async with AsyncTestClient(app=make_app(service)) as client:
+        body = (await client.get("/api/v1/crowdsec/stats")).json()
+    assert body["split"] == {"bans": 3, "ranges": 2, "captchas": 1, "other": 2}
+    assert body["expiringSoon"] == 3
+    assert body["expiringSoonHours"] == 4
+
+
+async def test_stats_split_is_all_zero_without_decisions():
+    async with AsyncTestClient(app=make_app(FakeCrowdSec([]))) as client:
+        body = (await client.get("/api/v1/crowdsec/stats")).json()
+    assert body["total"] == 0
+    assert body["split"] == {"bans": 0, "ranges": 0, "captchas": 0, "other": 0}
+    assert body["expiringSoon"] == 0
+
+
 POLLER_DECISIONS = [
     make_decision(id=1, value="45.148.10.80", origin="CAPI", scenario="crowdsecurity/http-probing"),
     make_decision(id=2, value="5.6.7.8", origin="crowdsec", scenario="crowdsecurity/ssh-bf"),
@@ -1114,6 +1141,139 @@ async def test_alert_scenarios_403_without_machine_credentials(monkeypatch, tmp_
     service = AlertFakeCrowdSec()
     async with AsyncTestClient(app=make_app(service)) as client:
         assert (await client.get("/api/v1/crowdsec/alerts/scenarios")).status_code == 403
+    assert service.alert_calls == []
+
+
+# -- alerts per day --------------------------------------------------------
+
+
+def alert_started(alert_id: int, start_at: str | None, created_at: str = "2026-07-20T10:00:00Z"):
+    alert = make_alert()
+    alert.id = alert_id
+    alert.start_at = start_at
+    alert.created_at = created_at
+    return alert
+
+
+@pytest.fixture
+def frozen_now(monkeypatch):
+    from geometrikks.domain.security import controllers
+
+    now = datetime(2026, 7, 20, 12, 0, tzinfo=UTC)
+
+    class FrozenDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return now if tz is None else now.astimezone(tz)
+
+    monkeypatch.setattr(controllers, "datetime", FrozenDateTime)
+    return now
+
+
+async def test_alerts_per_day_count_by_first_event_in_the_timezone(monkeypatch, frozen_now):
+    enable_write(monkeypatch)
+    service = AlertFakeCrowdSec([
+        # Stored today, but its first event was two days ago.
+        alert_started(1, "2026-07-18T09:00:00Z"),
+        # 23:30 UTC on the 19th is the 20th in Oslo.
+        alert_started(2, "2026-07-19T23:30:00Z"),
+        # No first event: the stored time counts.
+        alert_started(3, None, created_at="2026-07-19T08:00:00Z"),
+        # From a machine whose clock runs ahead.
+        alert_started(4, "2026-07-21T01:00:00Z"),
+        alert_started(5, "2026-07-10T01:00:00Z"),
+        # The same alert again, as the LAPI's offset paging can send it.
+        alert_started(1, "2026-07-18T09:00:00Z"),
+    ])
+    async with AsyncTestClient(app=make_app(service)) as client:
+        resp = await client.get("/api/v1/crowdsec/alerts/daily", params={"days": 3, "tz": "Europe/Oslo"})
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "days": [
+            {"date": "2026-07-18", "count": 1},
+            {"date": "2026-07-19", "count": 1},
+            {"date": "2026-07-20", "count": 2},
+        ],
+        "total": 4,
+        "capped": False,
+    }
+    # Midnight on the 18th in Oslo is 22:00 UTC on the 17th, 62 hours back, plus 5 minutes of margin.
+    assert service.alert_calls == [{"limit": 2001, "since": f"{62 * 3600 + 300}s"}]
+
+
+async def test_alerts_per_day_follow_local_midnight_across_a_clock_change(monkeypatch):
+    from geometrikks.domain.security import controllers
+
+    enable_write(monkeypatch)
+    now = datetime(2026, 10, 26, 12, 0, tzinfo=UTC)
+
+    class AfterClockChange(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return now if tz is None else now.astimezone(tz)
+
+    monkeypatch.setattr(controllers, "datetime", AfterClockChange)
+    service = AlertFakeCrowdSec([
+        # 00:30 on the 25th in Oslo, still summer time.
+        alert_started(1, "2026-10-24T22:30:00Z"),
+        # 00:30 on the 26th in Oslo, winter time since 03:00 on the 25th.
+        alert_started(2, "2026-10-25T23:30:00Z"),
+    ])
+    async with AsyncTestClient(app=make_app(service)) as client:
+        body = (await client.get("/api/v1/crowdsec/alerts/daily", params={"days": 3, "tz": "Europe/Oslo"})).json()
+    assert body["days"] == [
+        {"date": "2026-10-24", "count": 0},
+        {"date": "2026-10-25", "count": 1},
+        {"date": "2026-10-26", "count": 1},
+    ]
+    # Midnight on the 24th in Oslo, summer time, is 22:00 UTC on the 23rd.
+    assert service.alert_calls == [{"limit": 2001, "since": f"{62 * 3600 + 300}s"}]
+
+
+async def test_alerts_per_day_are_all_zero_without_alerts(monkeypatch, frozen_now):
+    enable_write(monkeypatch)
+    async with AsyncTestClient(app=make_app(AlertFakeCrowdSec([]))) as client:
+        body = (await client.get("/api/v1/crowdsec/alerts/daily", params={"days": 2})).json()
+    assert body == {
+        "days": [{"date": "2026-07-19", "count": 0}, {"date": "2026-07-20", "count": 0}],
+        "total": 0,
+        "capped": False,
+    }
+
+
+async def test_alerts_per_day_404_when_disabled():
+    async with AsyncTestClient(app=make_app(None)) as client:
+        assert (await client.get("/api/v1/crowdsec/alerts/daily")).status_code == 404
+
+
+async def test_alerts_per_day_say_when_the_window_holds_more_than_one_request_reads(monkeypatch, frozen_now):
+    from geometrikks.domain.security import controllers
+
+    enable_write(monkeypatch)
+    monkeypatch.setattr(controllers, "DAILY_ALERT_LIMIT", 2)
+    service = AlertFakeCrowdSec([alert_started(n, "2026-07-20T09:00:00Z") for n in range(1, 4)])
+    async with AsyncTestClient(app=make_app(service)) as client:
+        body = (await client.get("/api/v1/crowdsec/alerts/daily", params={"days": 1})).json()
+    assert body == {"days": [{"date": "2026-07-20", "count": 2}], "total": 2, "capped": True}
+
+
+@pytest.mark.parametrize("params", [{"tz": "Mars/Olympus"}, {"days": 0}, {"days": 32}])
+async def test_alerts_per_day_validate_days_and_timezone(monkeypatch, params):
+    enable_write(monkeypatch)
+    service = AlertFakeCrowdSec([])
+    async with AsyncTestClient(app=make_app(service)) as client:
+        resp = await client.get("/api/v1/crowdsec/alerts/daily", params=params)
+    assert resp.status_code == 400
+    assert service.alert_calls == []
+
+
+async def test_alerts_per_day_403_without_machine_credentials(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("CROWDSEC_LAPI_URL", "http://crowdsec:8080")
+    monkeypatch.setenv("CROWDSEC_BOUNCER_API_KEY", "key")
+    service = AlertFakeCrowdSec()
+    async with AsyncTestClient(app=make_app(service)) as client:
+        assert (await client.get("/api/v1/crowdsec/alerts/daily")).status_code == 403
     assert service.alert_calls == []
 
 

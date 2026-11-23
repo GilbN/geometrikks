@@ -72,6 +72,7 @@ import {
   fetchCrowdsecStats,
   fetchCrowdsecDecisions,
   fetchCrowdsecAlerts,
+  fetchCrowdsecAlertsPerDay,
   fetchCrowdsecAlertScenarios,
   fetchCrowdsecAlert,
   fetchCrowdsecDecisionAlert,
@@ -153,6 +154,7 @@ import { useAnalyticsFilters } from "./analytics-filters-context"
 import { useGeoLogFilters } from "./geo-log-filters-context"
 import { CLOSE_TRY_AGAIN_LATER } from "./websocket"
 import { ALERT_PAGE_SIZE } from "./crowdsec-alerts"
+import { refreshCrowdsecAfterWrite } from "./crowdsec-refresh"
 import { isClientError } from "./crowdsec-errors"
 import {
   DEFAULT_MUTED_SCOPE,
@@ -207,6 +209,7 @@ export const queryKeys = {
       ["crowdsec", "banned-locations", params, refreshKey] as const,
     decisions: (params: Record<string, unknown>) => ["crowdsec", "decisions", params] as const,
     alerts: (params: Record<string, unknown>) => ["crowdsec", "alerts", params] as const,
+    alertsPerDay: (days: number) => ["crowdsec", "alerts-per-day", days] as const,
     alertScenarios: (params: Record<string, unknown>) =>
       ["crowdsec", "alert-scenarios", params] as const,
     alert: (id: number) => ["crowdsec", "alert", id] as const,
@@ -776,7 +779,7 @@ export function useBannedLocations(
   })
 }
 
-/** Decision counts by origin + top scenarios for the Security stat cards. */
+/** Decision counts, their split and the top scenarios for the Security summary. */
 export function useCrowdsecStats() {
   const { data: status } = useCrowdsecStatus()
   return useQuery({
@@ -864,6 +867,20 @@ export function useCrowdsecAlertScenarios(
   })
 }
 
+/** Alerts per day for the Security summary. Each fetch reads up to 2000
+ *  alerts from the LAPI, so it refreshes less often than the stats. */
+export function useCrowdsecAlertsPerDay(days: number) {
+  const { data: status } = useCrowdsecStatus()
+  return useQuery({
+    queryKey: queryKeys.crowdsec.alertsPerDay(days),
+    queryFn: ({ signal }) => fetchCrowdsecAlertsPerDay(days, signal),
+    enabled: status?.writeEnabled === true,
+    staleTime: 5 * 60_000,
+    refetchInterval: 5 * 60_000,
+    retry: (failureCount, error) => !isClientError(error) && failureCount < 1,
+  })
+}
+
 /** Detail for the alert sheet. Fetches once a row opens it. */
 export function useCrowdsecAlert(id: number | null) {
   return useQuery({
@@ -890,7 +907,7 @@ export function useBanIp() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: banIp,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["crowdsec"] }),
+    onSuccess: () => refreshCrowdsecAfterWrite(queryClient),
   })
 }
 
@@ -899,7 +916,7 @@ export function useUnbanIp() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: unbanIp,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["crowdsec"] }),
+    onSuccess: () => refreshCrowdsecAfterWrite(queryClient),
   })
 }
 

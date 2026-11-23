@@ -873,6 +873,24 @@
         "title": "AlertContextView",
         "type": "object"
       },
+      "AlertDayCount": {
+        "description": "How many alerts started on one day.",
+        "properties": {
+          "count": {
+            "type": "integer"
+          },
+          "date": {
+            "description": "The day in the requested timezone, as `YYYY-MM-DD`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "count",
+          "date"
+        ],
+        "title": "AlertDayCount",
+        "type": "object"
+      },
       "AlertDecisionView": {
         "description": "A decision an alert made, still in force or expired.",
         "properties": {
@@ -1305,6 +1323,32 @@
           "value"
         ],
         "title": "AlertView",
+        "type": "object"
+      },
+      "AlertsPerDayView": {
+        "description": "Alerts per day over the last days, oldest day first.",
+        "properties": {
+          "capped": {
+            "description": "True when the LAPI returned more than 2000 alerts. The counts then cover the 2000 it stored last, and any day can count short, the oldest days most.",
+            "type": "boolean"
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/AlertDayCount"
+            },
+            "type": "array"
+          },
+          "total": {
+            "description": "The sum of `days`.",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "capped",
+          "days",
+          "total"
+        ],
+        "title": "AlertsPerDayView",
         "type": "object"
       },
       "AnalyticsSettingsView": {
@@ -2372,6 +2416,16 @@
             },
             "type": "array"
           },
+          "expiringSoon": {
+            "description": "Decisions with `expiringSoonHours` hours or less left.",
+            "type": "integer"
+          },
+          "expiringSoonHours": {
+            "type": "integer"
+          },
+          "split": {
+            "$ref": "#/components/schemas/DecisionSplit"
+          },
           "topScenarios": {
             "description": "The ten scenarios with the most decisions, the most first.",
             "items": {
@@ -2385,6 +2439,9 @@
         },
         "required": [
           "byOrigin",
+          "expiringSoon",
+          "expiringSoonHours",
+          "split",
           "topScenarios",
           "total"
         ],
@@ -2764,6 +2821,35 @@
           "type"
         ],
         "title": "DecisionGroupView",
+        "type": "object"
+      },
+      "DecisionSplit": {
+        "description": "The active decisions by what they do. Each decision counts once.",
+        "properties": {
+          "bans": {
+            "description": "Bans on anything but a range.",
+            "type": "integer"
+          },
+          "captchas": {
+            "description": "Captchas on anything but a range.",
+            "type": "integer"
+          },
+          "other": {
+            "description": "Every other type, such as `throttle`, on anything but a range.",
+            "type": "integer"
+          },
+          "ranges": {
+            "description": "Decisions on a range, of any type.",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bans",
+          "captchas",
+          "other",
+          "ranges"
+        ],
+        "title": "DecisionSplit",
         "type": "object"
       },
       "DecisionView": {
@@ -15088,6 +15174,106 @@
         ]
       }
     },
+    "/api/v1/crowdsec/alerts/daily": {
+      "get": {
+        "deprecated": false,
+        "description": "Returns how many alerts started on each of the last `days` days, today included, without the community blocklist pulls. An alert counts on the day of its first event, or of when the LAPI stored it when it has no first event. One LAPI request reads at most 2000 alerts. Answers 403 when the server has no CrowdSec machine credentials, CROWDSEC_MACHINE_ID and CROWDSEC_MACHINE_PASSWORD.",
+        "operationId": "ApiV1CrowdsecAlertsDailyCountAlertsPerDay",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Days to count, from 1 to 31. Defaults to 7.",
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 7,
+              "description": "Days to count, from 1 to 31. Defaults to 7.",
+              "maximum": 31.0,
+              "minimum": 1.0,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "An IANA timezone such as `Europe/Oslo`. Days start at midnight in it. An unknown zone gets a 400. Defaults to UTC.",
+            "in": "query",
+            "name": "tz",
+            "required": false,
+            "schema": {
+              "default": "UTC",
+              "description": "An IANA timezone such as `Europe/Oslo`. Days start at midnight in it. An unknown zone gets a 400. Defaults to UTC.",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertsPerDayView"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "code": "validation_failed",
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code",
+                    "code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "Count CrowdSec alerts per day",
+        "tags": [
+          "CrowdSec"
+        ]
+      }
+    },
     "/api/v1/crowdsec/alerts/scenarios": {
       "get": {
         "deprecated": false,
@@ -16168,7 +16354,7 @@
     "/api/v1/crowdsec/stats": {
       "get": {
         "deprecated": false,
-        "description": "Returns how many decisions are active across every origin, blocklists included, with the count per origin and the ten scenarios with the most decisions. The counts come from the decision stream the server polls, so a change can take up to `CROWDSEC_STREAM_POLL_INTERVAL` seconds to show.",
+        "description": "Returns how many decisions are active across every origin, blocklists included, with the count per origin, the split into bans, ranges, captchas and other types, how many expire within `expiringSoonHours` hours and the ten scenarios with the most decisions. The counts come from the decision stream the server polls, so a change can take up to `CROWDSEC_STREAM_POLL_INTERVAL` seconds to show.",
         "operationId": "ApiV1CrowdsecStatsGetStats",
         "responses": {
           "200": {
