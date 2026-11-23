@@ -1,56 +1,60 @@
 import type { DecisionSplit, OriginCount } from "@/generated/api/types.gen"
 import { formatNumber } from "@/lib/format-number"
+import { scenarioName } from "@/lib/scenario-name"
 
-/** Origins of decisions someone set by hand, from GeoMetrikks or cscli. */
-const MANUAL_ORIGINS = new Set(["geometrikks", "cscli"])
-
-export interface SplitPart {
-  key: keyof DecisionSplit
+/** A count and the words that follow it, such as 12 and "bans". */
+export interface CountPhrase {
   count: number
-  label: string
-  /** Background colour of the part's bar segment and legend dot. */
-  className: string
+  words: string
 }
 
-const PARTS: readonly {
-  key: keyof DecisionSplit
-  one: string
-  many: string
-  className: string
-}[] = [
-  { key: "bans", one: "ban", many: "bans", className: "bg-red-500" },
-  { key: "ranges", one: "range", many: "ranges", className: "bg-orange-500" },
-  { key: "captchas", one: "captcha", many: "captchas", className: "bg-amber-500" },
-  { key: "other", one: "other", many: "other", className: "bg-muted-foreground/60" },
-]
+const phrase = (count: number, one: string, many: string): CountPhrase => ({
+  count,
+  words: count === 1 ? one : many,
+})
 
-/** The parts of the split that hold a decision, in bar order. */
-export function splitParts(split: DecisionSplit): SplitPart[] {
-  return PARTS.filter((part) => split[part.key] > 0).map((part) => ({
-    key: part.key,
-    count: split[part.key],
-    label: `${formatNumber(split[part.key])} ${split[part.key] === 1 ? part.one : part.many}`,
-    className: part.className,
-  }))
+/** The parts of the split that hold a decision: bans, ranges, captchas, other. */
+export function splitPhrases(split: DecisionSplit): CountPhrase[] {
+  return [
+    phrase(split.bans, "ban", "bans"),
+    phrase(split.ranges, "range", "ranges"),
+    phrase(split.captchas, "captcha", "captchas"),
+    phrase(split.other, "other", "other"),
+  ].filter((part) => part.count > 0)
 }
 
-/** "3 expire within 4 hours", or null when there is no decision to expire. */
-export function expiryText(total: number, expiringSoon: number, hours: number): string | null {
-  if (total === 0) return null
+/** How many decisions expire soon. A count of 0 reads as "None expire". */
+export function expiryPhrase(expiringSoon: number, hours: number): CountPhrase {
   const within = `within ${hours} ${hours === 1 ? "hour" : "hours"}`
-  if (expiringSoon === 0) return `none expire ${within}`
-  return `${formatNumber(expiringSoon)} ${expiringSoon === 1 ? "expires" : "expire"} ${within}`
+  return phrase(expiringSoon, `expires ${within}`, `expire ${within}`)
 }
 
-export function setByHandCount(byOrigin: readonly OriginCount[]): number {
-  return byOrigin
-    .filter((origin) => MANUAL_ORIGINS.has(origin.origin))
+const MANUAL_ORIGINS = new Set(["geometrikks", "cscli"])
+const COMMUNITY_ORIGINS = new Set(["CAPI", "lists"])
+
+const originTotal = (byOrigin: readonly OriginCount[], origins: ReadonlySet<string>) =>
+  byOrigin
+    .filter((origin) => origins.has(origin.origin))
     .reduce((sum, origin) => sum + origin.count, 0)
+
+/** Who made the decisions: someone by hand (GeoMetrikks or cscli), CrowdSec's
+ *  own scenarios, or the community blocklists. */
+export function originPhrases(byOrigin: readonly OriginCount[]): CountPhrase[] {
+  return [
+    { count: originTotal(byOrigin, MANUAL_ORIGINS), words: "set by hand" },
+    { count: originTotal(byOrigin, new Set(["crowdsec"])), words: "detected by CrowdSec" },
+    { count: originTotal(byOrigin, COMMUNITY_ORIGINS), words: "from blocklists" },
+  ].filter((part) => part.count > 0)
 }
 
-/** The day of the month in a `YYYY-MM-DD` date. */
-export function dayOfMonth(date: string): number {
-  return Number(date.slice(8, 10))
+const WEEKDAY = new Intl.DateTimeFormat(undefined, { weekday: "short" })
+const WEEKDAY_INITIAL = new Intl.DateTimeFormat(undefined, { weekday: "narrow" })
+
+/** The weekday of a `YYYY-MM-DD` date, as a short name and as an initial. */
+export function weekday(date: string): { short: string; initial: string } {
+  const [year, month, day] = date.split("-").map(Number)
+  const at = new Date(year, month - 1, day, 12)
+  return { short: WEEKDAY.format(at), initial: WEEKDAY_INITIAL.format(at) }
 }
 
 /** The week's total, with a plus when the server stopped counting. */
@@ -60,8 +64,22 @@ export function alertTotalText(total: number, capped: boolean): string {
 
 const COMPACT = new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 })
 
-/** A day's count above its bar, short enough for seven bars on a phone. Empty for zero. */
+/** A day's count above its column, short enough for seven columns on a phone. */
 export function barLabel(count: number): string {
-  if (!count) return ""
   return count < 1000 ? formatNumber(count) : COMPACT.format(count)
+}
+
+export interface ScenarioRow {
+  /** The decision type of a manual decision, such as `ban`, else null. */
+  manualType: string | null
+  label: string
+}
+
+/** One Top scenarios row. A manual decision shows its reason, and any
+ *  other scenario shows its name. */
+export function scenarioRow(scenario: string): ScenarioRow {
+  const { name, author, reason } = scenarioName(scenario)
+  if (author === "geometrikks" && name.startsWith("manual-"))
+    return { manualType: name.slice("manual-".length), label: reason ?? "Set by hand" }
+  return { manualType: null, label: name }
 }

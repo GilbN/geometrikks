@@ -2,55 +2,64 @@ import { describe, expect, it } from "vite-plus/test"
 import {
   alertTotalText,
   barLabel,
-  dayOfMonth,
-  expiryText,
-  setByHandCount,
-  splitParts,
+  weekday,
+  expiryPhrase,
+  scenarioRow,
+  originPhrases,
+  splitPhrases,
 } from "./security-summary"
 import { formatNumber } from "./format-number"
 
-describe("splitParts", () => {
-  it("keeps the parts that hold a decision, in bar order, with their own plural", () => {
-    const parts = splitParts({ bans: 12, ranges: 1, captchas: 0, other: 2 })
-    expect(parts.map((part) => part.label)).toEqual(["12 bans", "1 range", "2 other"])
+describe("splitPhrases", () => {
+  it("keeps the parts that hold a decision, each with its own plural", () => {
+    expect(splitPhrases({ bans: 12, ranges: 1, captchas: 0, other: 2 })).toEqual([
+      { count: 12, words: "bans" },
+      { count: 1, words: "range" },
+      { count: 2, words: "other" },
+    ])
   })
 
   it("is empty without decisions", () => {
-    expect(splitParts({ bans: 0, ranges: 0, captchas: 0, other: 0 })).toEqual([])
+    expect(splitPhrases({ bans: 0, ranges: 0, captchas: 0, other: 0 })).toEqual([])
   })
 })
 
-describe("expiryText", () => {
+describe("expiryPhrase", () => {
   it("counts the decisions expiring soon", () => {
-    expect(expiryText(14, 3, 4)).toBe("3 expire within 4 hours")
-    expect(expiryText(14, 1, 4)).toBe("1 expires within 4 hours")
-  })
-
-  it("says none when nothing expires soon", () => {
-    expect(expiryText(14, 0, 4)).toBe("none expire within 4 hours")
-  })
-
-  it("says nothing without decisions", () => {
-    expect(expiryText(0, 0, 4)).toBeNull()
+    expect(expiryPhrase(3, 4)).toEqual({ count: 3, words: "expire within 4 hours" })
+    expect(expiryPhrase(1, 4)).toEqual({ count: 1, words: "expires within 4 hours" })
+    expect(expiryPhrase(0, 4)).toEqual({ count: 0, words: "expire within 4 hours" })
   })
 })
 
-describe("setByHandCount", () => {
-  it("adds the GeoMetrikks and cscli origins", () => {
+describe("originPhrases", () => {
+  it("counts by hand, detected and blocklist decisions, leaving out empty ones", () => {
     expect(
-      setByHandCount([
+      originPhrases([
         { origin: "crowdsec", count: 9 },
         { origin: "geometrikks", count: 2 },
         { origin: "cscli", count: 1 },
         { origin: "CAPI", count: 400 },
+        { origin: "lists", count: 20 },
       ]),
-    ).toBe(3)
+    ).toEqual([
+      { count: 3, words: "set by hand" },
+      { count: 9, words: "detected by CrowdSec" },
+      { count: 420, words: "from blocklists" },
+    ])
+    expect(originPhrases([{ origin: "crowdsec", count: 4 }])).toEqual([
+      { count: 4, words: "detected by CrowdSec" },
+    ])
   })
 })
 
 describe("alert days", () => {
-  it("reads the day of the month", () => {
-    expect(dayOfMonth("2026-11-07")).toBe(7)
+  it("names the weekday of a date", () => {
+    const monday = new Date(2026, 10, 23, 12)
+    expect(weekday("2026-11-23")).toEqual({
+      short: monday.toLocaleDateString(undefined, { weekday: "short" }),
+      initial: monday.toLocaleDateString(undefined, { weekday: "narrow" }),
+    })
   })
 
   it("marks a total the server stopped counting", () => {
@@ -60,13 +69,33 @@ describe("alert days", () => {
 })
 
 describe("barLabel", () => {
-  it("leaves a quiet day blank and shortens a busy one", () => {
-    expect(barLabel(0)).toBe("")
+  it("writes a quiet day out and shortens a busy one", () => {
+    expect(barLabel(0)).toBe("0")
     expect(barLabel(412)).toBe("412")
     expect(barLabel(1200)).toBe(
       new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 }).format(
         1200,
       ),
     )
+  })
+})
+
+describe("scenarioRow", () => {
+  it("labels a manual decision with its type and reason", () => {
+    expect(scenarioRow("geometrikks/manual-ban: Repeated probing")).toEqual({
+      manualType: "ban",
+      label: "Repeated probing",
+    })
+    expect(scenarioRow("geometrikks/manual-captcha: manual captcha from GeoMetrikks")).toEqual({
+      manualType: "captcha",
+      label: "Set by hand",
+    })
+  })
+
+  it("shows any other scenario by name", () => {
+    expect(scenarioRow("crowdsecurity/http-probing")).toEqual({
+      manualType: null,
+      label: "http-probing",
+    })
   })
 })
