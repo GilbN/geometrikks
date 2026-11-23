@@ -27,4 +27,16 @@ describe("formatRowTime", () => {
   it("returns a dash for an unparseable value", () => {
     expect(formatRowTime("not a date", { now: NOW })).toBe("-")
   })
+
+  it("reads 24-hour in the short format", () => {
+    expect(formatRowTime(new Date(2026, 9, 28, 21, 4, 5), { now: NOW, format: "short24" })).toBe(
+      "21:04:05",
+    )
+    expect(formatRowTime(new Date(2026, 9, 15, 9, 4, 5), { now: NOW, format: "short24" })).toBe(
+      "Oct 15 09:04",
+    )
+    expect(formatRowTime(new Date(2025, 11, 31, 23, 0, 0), { now: NOW, format: "short24" })).toBe(
+      "Dec 31 2025 23:00",
+    )
+  })
 })

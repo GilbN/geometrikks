@@ -10,12 +10,13 @@
  * geo-logs. The tab and the visible-column set stay local: a mode and a
  * per-device preference, not part of the shared view.
  */
+import { defaultPageSize, useTableView } from "@/lib/table-view"
 import { useCallback, useState } from "react"
 import { createFileRoute } from "@tanstack/react-router"
 import { History, Radio } from "lucide-react"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { PageHeader } from "@/components/page-header"
-import { AccessLogsTable } from "@/components/access-logs/access-logs-table"
+import { ACCESS_LOGS_TABLE_ID, AccessLogsTable } from "@/components/access-logs/access-logs-table"
 import { AccessLogsFilterBar } from "@/components/access-logs/access-logs-filter-bar"
 import { LiveTail } from "@/components/access-logs/live-tail"
 import { AccessLogFiltersProvider } from "@/lib/access-log-filters-context"
@@ -31,7 +32,6 @@ import { dropDefault } from "@/lib/url-filters"
 import { useMutedPage } from "@/lib/use-muted-page"
 import type { AccessLogSortField, SortOrder } from "@/lib/api"
 
-const DEFAULT_PAGE_SIZE = 20
 const DEFAULT_SORT: AccessLogSortField = "timestamp"
 const DEFAULT_ORDER: SortOrder = "desc"
 
@@ -62,8 +62,10 @@ function AccessLogsPage() {
 
   const { muted, toggleMuted } = useMutedPage(filters.ips.length > 0, patchSearch)
 
+  const { density } = useTableView(ACCESS_LOGS_TABLE_ID)
+  const defaultSize = defaultPageSize(density)
   const page = search.page ?? 1
-  const pageSize = search.pageSize ?? DEFAULT_PAGE_SIZE
+  const pageSize = search.pageSize ?? defaultSize
   const sortField = search.sort ?? DEFAULT_SORT
   const sortOrder = search.order ?? DEFAULT_ORDER
 
@@ -72,9 +74,8 @@ function AccessLogsPage() {
     [patchSearch],
   )
   const onPageSizeChange = useCallback(
-    (next: number) =>
-      patchSearch({ pageSize: dropDefault(next, DEFAULT_PAGE_SIZE), page: undefined }),
-    [patchSearch],
+    (next: number) => patchSearch({ pageSize: dropDefault(next, defaultSize), page: undefined }),
+    [patchSearch, defaultSize],
   )
   const onSortChange = useCallback(
     (field: AccessLogSortField, order: SortOrder) =>

@@ -7,4 +7,10 @@ describe("formatBytes", () => {
     expect(formatBytes(1024 ** 5)).toBe("1.0 PB")
     expect(formatBytes(1024 ** 6)).toBe("1.0 EB")
   })
+
+  it("counts whole bytes below a kilobyte", () => {
+    expect(formatBytes(455)).toBe("455 B")
+    expect(formatBytes(0)).toBe("0 B")
+    expect(formatBytes(1536)).toBe("1.5 KB")
+  })
 })

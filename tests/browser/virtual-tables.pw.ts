@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test"
+import { expect, test, type Page } from "@playwright/test"
 import type { AccessLog } from "../../resources/lib/api"
 import type { AccessLogDebugEntry, GeoLogEntry } from "../../resources/generated/api/types.gen"
 
@@ -52,6 +52,20 @@ const debugRows: AccessLogDebugEntry[] = accessRows.map((row) => ({
   parseError: null,
 }))
 
+/** Opens a table's View menu at its field list. */
+async function openFields(page: Page) {
+  await page.getByRole("button", { name: "View", exact: true }).click()
+  const trigger = page.getByRole("menuitem", { name: "Visible fields" })
+  await trigger.click()
+  const first = page.getByRole("menuitemcheckbox").first()
+  await expect(first).toBeVisible()
+  // Move sideways into the list first. A diagonal jump up the tall list
+  // crosses the parent menu's items, and Radix closes the submenu.
+  const from = (await trigger.boundingBox())!
+  const to = (await first.boundingBox())!
+  await page.mouse.move(to.x + to.width / 2, from.y + from.height / 2, { steps: 5 })
+}
+
 const longText =
   "a detailed value that should use the available column space without an arbitrary text limit"
 const truncationCases = [
@@ -101,13 +115,17 @@ for (const fixture of truncationCases) {
       (url) => url.pathname.replace(/\/$/, "") === fixture.endpoint,
       (route) => route.fulfill({ json: { items: [item], total: 1, limit: 20, offset: 0 } }),
     )
+    // One field per column. The combined layout shares cells by design.
+    await page.addInitScript(() =>
+      localStorage.setItem("geometrikks-table-view-access-logs", '{"layout":"separate"}'),
+    )
     await page.goto(`/${fixture.path}`)
     const table = page.locator("table[aria-rowcount]")
     await expect(table).toHaveAttribute("aria-rowcount", "2")
     await page.evaluate(() => document.fonts.ready)
 
     for (const field of fixture.fields) {
-      await page.getByRole("button", { name: "Columns", exact: true }).click()
+      await openFields(page)
       const target = page.getByRole("menuitemcheckbox", { name: field.label, exact: true })
       if ((await target.getAttribute("aria-checked")) !== "true") await target.click()
       const choices = page.getByRole("menuitemcheckbox")
@@ -143,7 +161,7 @@ for (const fixture of truncationCases) {
     }
 
     // With every column enabled, text still truncates at the cell boundary.
-    await page.getByRole("button", { name: "Columns", exact: true }).click()
+    await openFields(page)
     for (const choice of await page.getByRole("menuitemcheckbox").all()) {
       if ((await choice.getAttribute("aria-checked")) !== "true") await choice.click()
     }
@@ -430,7 +448,7 @@ for (const fixture of [
     await expect(dialog).toHaveAttribute("aria-modal", "true")
     const behindDialog = mobile
       ? page.getByRole("button", { name: /^Sort by/, includeHidden: true })
-      : page.getByRole("button", { name: "Columns", exact: true, includeHidden: true })
+      : page.getByRole("button", { name: "View", exact: true, includeHidden: true })
     await behindDialog.evaluate((button: HTMLElement) => button.focus())
     await expect
       .poll(() => dialog.evaluate((element) => element.contains(document.activeElement)))
@@ -500,15 +518,47 @@ for (const fixture of [
     await expect.poll(() => table.evaluate((element) => element.parentElement!.scrollTop)).toBe(0)
 
     const columnCount = await table.locator("th").count()
-    await page.getByRole("button", { name: "Columns", exact: true }).click()
+    await openFields(page)
     await page.getByRole("menuitemcheckbox").first().click()
     await page.keyboard.press("Escape")
     await expect(table.locator("th")).toHaveCount(columnCount - 1)
-    await page.getByRole("button", { name: "Columns", exact: true }).click()
+    await openFields(page)
     await page.getByRole("menuitemcheckbox").first().click()
     await page.keyboard.press("Escape")
     await expect(table.locator("th")).toHaveCount(columnCount)
     expect(errors).toEqual([])
+  })
+}
+
+// A laptop, and a phone held sideways, which also gets the wide table.
+for (const device of [
+  { name: "a laptop", use: { viewport: { width: 1280, height: 720 } } },
+  {
+    name: "a phone held sideways",
+    use: { viewport: { width: 932, height: 430 }, hasTouch: true, isMobile: true },
+  },
+]) {
+  test.describe(`on ${device.name}`, () => {
+    test.use(device.use)
+
+    test("the combined Request column keeps room for the path", async ({ page }) => {
+      await page.route(
+        (url) => url.pathname.replace(/\/$/, "") === "/api/v1/access-logs",
+        (route) =>
+          route.fulfill({
+            json: { items: accessRows.slice(0, 20), total: 20, limit: 50, offset: 0 },
+          }),
+      )
+      await page.goto("/access-logs")
+      const table = page.locator("table[aria-rowcount]")
+      await expect(table).toHaveAttribute("aria-rowcount", "21")
+      const request = table.getByRole("columnheader", { name: /Request/ })
+      expect((await request.boundingBox())!.width).toBeGreaterThanOrEqual(250)
+      const path = table
+        .locator('tr[data-index="0"]')
+        .getByText(accessRows[0].url!, { exact: true })
+      expect((await path.boundingBox())!.width).toBeGreaterThan(40)
+    })
   })
 }
 

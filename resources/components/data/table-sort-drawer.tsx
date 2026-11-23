@@ -1,6 +1,7 @@
 /**
  * Sorting for a narrow table, which has no header row to click. The trigger
- * names the current sort, and the drawer lists the sortable fields and the order.
+ * names the current sort, and the drawer lists the sortable fields and the
+ * order. It also holds the time format, the one View choice a phone has.
  */
 import { useId, useState } from "react"
 import { ArrowDown, ArrowUp } from "lucide-react"
@@ -18,6 +19,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { sortOrderLabel, type SortOption } from "@/components/data/sort-options"
 import { useOverlayEntry } from "@/lib/overlay-history"
+import { useTimeFormat, type TimeFormat } from "@/lib/table-view"
 
 export function TableSortDrawer<F extends string>({
   options,
@@ -33,6 +35,7 @@ export function TableSortDrawer<F extends string>({
   const current = options.find((option) => option.field === sortField) ?? options[0]
   const orderLabel = sortOrderLabel(current.kind, sortOrder)
   const [open, setOpen] = useState(false)
+  const [timeFormat, setTimeFormat] = useTimeFormat()
   const overlayId = useId()
   useOverlayEntry(`sort-drawer-${overlayId}`, open, () => setOpen(false))
   return (
@@ -50,9 +53,9 @@ export function TableSortDrawer<F extends string>({
       </DrawerTrigger>
       <DrawerContent>
         <DrawerHeader>
-          <DrawerTitle>Sort</DrawerTitle>
+          <DrawerTitle>Sort and view</DrawerTitle>
           <DrawerDescription className="sr-only">
-            Choose the field and order the rows are sorted by.
+            Choose the field and order the rows are sorted by, and how times read.
           </DrawerDescription>
         </DrawerHeader>
         <div className="flex flex-col gap-4 overflow-y-auto overscroll-contain px-4 pb-6">
@@ -90,6 +93,22 @@ export function TableSortDrawer<F extends string>({
                 </label>
               ))}
             </RadioGroup>
+          </FilterField>
+          <FilterField label="Time" group>
+            <ToggleGroup
+              type="single"
+              variant="outline"
+              value={timeFormat}
+              onValueChange={(value) => value && setTimeFormat(value as TimeFormat)}
+              className="w-full"
+            >
+              <ToggleGroupItem value="short24" className="flex-1">
+                24-hour
+              </ToggleGroupItem>
+              <ToggleGroupItem value="browser" className="flex-1">
+                Browser
+              </ToggleGroupItem>
+            </ToggleGroup>
           </FilterField>
         </div>
       </DrawerContent>
