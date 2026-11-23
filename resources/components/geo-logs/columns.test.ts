@@ -1,10 +1,12 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 
 import { resolveVisibleColumns } from "@/lib/column-visibility"
 import { GEO_LOG_COLUMNS } from "./columns"
 
 const defaults = (mobile: boolean) =>
-  GEO_LOG_COLUMNS.filter((c) => resolveVisibleColumns(GEO_LOG_COLUMNS, {}, mobile).has(c.key)).map((c) => c.key)
+  GEO_LOG_COLUMNS.filter((c) => resolveVisibleColumns(GEO_LOG_COLUMNS, {}, mobile).has(c.key)).map(
+    (c) => c.key,
+  )
 
 describe("geo log columns", () => {
   it("has unique keys and a label for each", () => {
@@ -18,7 +20,9 @@ describe("geo log columns", () => {
   })
 
   it("shows every desktop default on desktop", () => {
-    expect(defaults(false)).toEqual(GEO_LOG_COLUMNS.filter((c) => c.defaultVisible).map((c) => c.key))
+    expect(defaults(false)).toEqual(
+      GEO_LOG_COLUMNS.filter((c) => c.defaultVisible).map((c) => c.key),
+    )
   })
 
   it("labels the servers column", () => {

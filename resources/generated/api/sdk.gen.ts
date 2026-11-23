@@ -209,6 +209,14 @@ import type {
   ApiV1LogsTailTailData,
   ApiV1LogsTailTailErrors,
   ApiV1LogsTailTailResponses,
+  ApiV1MutedIpsCreateMutedIpData,
+  ApiV1MutedIpsCreateMutedIpErrors,
+  ApiV1MutedIpsCreateMutedIpResponses,
+  ApiV1MutedIpsEntryIdDeleteMutedIpData,
+  ApiV1MutedIpsEntryIdDeleteMutedIpErrors,
+  ApiV1MutedIpsEntryIdDeleteMutedIpResponses,
+  ApiV1MutedIpsListMutedIpsData,
+  ApiV1MutedIpsListMutedIpsResponses,
   ApiV1ReportsAbuseContactGetAbuseContactData,
   ApiV1ReportsAbuseContactGetAbuseContactErrors,
   ApiV1ReportsAbuseContactGetAbuseContactResponses,
@@ -266,7 +274,7 @@ export type Options<
 /**
  * List the IPs on AbuseIPDB's blacklist
  *
- * Returns GeoMetrikks' copy of AbuseIPDB's blacklist, which the scheduler downloads every ABUSEIPDB_BLACKLIST_REFRESH_HOURS hours, 24 by default, or reads from ABUSEIPDB_BLACKLIST_FILE. Read from the local database; nothing leaves the server. `ips` is empty and both times are null with ABUSEIPDB_BLACKLIST_ENABLED=false, before the first download, and when the list is more than 72 hours old. With a file, `refreshedAt` is when the file was last written. The list is for your own use, and AbuseIPDB forbids republishing it.
+ * Returns GeoMetrikks' copy of AbuseIPDB's blacklist, which the scheduler downloads every ABUSEIPDB_BLACKLIST_REFRESH_HOURS hours, 24 by default, or reads from ABUSEIPDB_BLACKLIST_FILE. Read from the local database; nothing leaves the server. `ips` is empty and both times are null with ABUSEIPDB_BLACKLIST_ENABLED=false, before the first download, and when the list is more than 72 hours old. With a file, `refreshedAt` is when the file was last written. The list is for your own use, and AbuseIPDB forbids republishing it. The answer carries `Cache-Control: private, max-age=300` and an `ETag` that changes with the list. With the feature off, before the first download and once the list expires, it carries `no-cache` and no `ETag` instead. A request whose `If-None-Match` names the current `ETag` gets a 304 with no body.
  */
 export const apiV1AbuseipdbBlacklistGetBlacklist = <
   ThrowOnError extends boolean = false,
@@ -744,7 +752,7 @@ export const apiV1AnalyticsSummaryGetSummary = <
 /**
  * Get request metrics per hour or day
  *
- * Returns requests, bytes, status classes, error rate and latency for each bucket that has requests, oldest first. Without filters it reads the hourly or daily aggregates at any range length, and those reads count whole hours or UTC days, from the one that holds `startDate` through the last one that starts before `endDate`. With `granularity=daily` and a `tz` other than UTC on a range of 30 days or less, those reads count local days instead. They start at the local midnight of the day holding `startDate` and run through the last hour that starts before `endDate`. A country, city, IP or ASN filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default. On that filtered path `tz` sets local days at any range length. `totalGeoEvents` is always 0 here, and `/api/v1/analytics/geo-time-series` has the geo series.
+ * Returns requests, bytes, status classes, error rate and latency for each bucket that has requests, oldest first. Without filters it reads the hourly or daily aggregates at any range length, and those reads count whole hours or UTC days, from the one that holds `startDate` through the last one that starts before `endDate`. With `granularity=daily` and a `tz` other than UTC on a range of 30 days or less, those reads count local days instead. They start at the local midnight of the day holding `startDate` and run through the last hour that starts before `endDate`. A country, city, IP, ASN or host filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default. Excluding a host counts as a host filter. On that filtered path `tz` sets local days at any range length. `totalGeoEvents` is always 0 here, and `/api/v1/analytics/geo-time-series` has the geo series.
  */
 export const apiV1AnalyticsTimeSeriesGetTimeSeries = <
   ThrowOnError extends boolean = false,
@@ -809,7 +817,7 @@ export const apiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeries = <
 /**
  * List the networks that send the most requests
  *
- * Returns autonomous systems ordered by hits, each with a category. `categories` adds up every ASN in the range, not only the top `limit`. `totalRequests` and `totalBytes` count every request, so requests without ASN data count in them but in no category. A country, city, IP or ASN filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.
+ * Returns autonomous systems ordered by hits, each with a category. `categories` adds up every ASN in the range, not only the top `limit`. `totalRequests` and `totalBytes` count every request, so requests without ASN data count in them but in no category. A country, city, IP, ASN or host filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default. Excluding a host counts as a host filter.
  */
 export const apiV1AnalyticsTopAsnsGetTopAsns = <
   ThrowOnError extends boolean = false,
@@ -840,7 +848,7 @@ export const apiV1AnalyticsTopAsnsGetTopAsns = <
 /**
  * List the cities with the most requests
  *
- * Returns cities ordered by hits, with the number of distinct client IPs from each. Requests without a city are left out, and cities with the same name in different countries count as one. An ASN filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.
+ * Returns cities ordered by hits, with the number of distinct client IPs from each. Requests without a city are left out, and cities with the same name in different countries count as one. An ASN or host filter, include or exclude, makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.
  */
 export const apiV1AnalyticsTopCitiesGetTopCities = <
   ThrowOnError extends boolean = false,
@@ -871,7 +879,7 @@ export const apiV1AnalyticsTopCitiesGetTopCities = <
 /**
  * List the countries with the most requests
  *
- * Returns countries ordered by hits, with the number of distinct client IPs from each. Requests without a country are left out. An ASN filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.
+ * Returns countries ordered by hits, with error hits and the number of distinct client IPs from each. Requests without a country are left out. An ASN or host filter, include or exclude, makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.
  */
 export const apiV1AnalyticsTopCountriesGetTopCountries = <
   ThrowOnError extends boolean = false,
@@ -905,7 +913,7 @@ export const apiV1AnalyticsTopCountriesGetTopCountries = <
 /**
  * List the client IPs with the most requests
  *
- * Returns client IPs ordered by hits, with error hits, bytes and the IP's country and city. A country, city or IP filter reads the per-IP aggregates, so unlike the URL and user agent lists it reaches past ANALYTICS_RAW_RETENTION_DAYS. An ASN filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.
+ * Returns client IPs ordered by hits, with error hits, bytes and the IP's country and city, plus the number of distinct IPs in the range. For ranges over 24 hours with neither an ASN nor a host filter, a country, city or IP filter reads the per-IP aggregates, so unlike the URL and user agent lists it reaches past ANALYTICS_RAW_RETENTION_DAYS. An ASN or host filter, include or exclude, makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.
  */
 export const apiV1AnalyticsTopIpsGetTopIps = <
   ThrowOnError extends boolean = false,
@@ -936,7 +944,7 @@ export const apiV1AnalyticsTopIpsGetTopIps = <
 /**
  * List the most requested URLs
  *
- * Returns host and path pairs ordered by hits, with error hits, bytes and the average request time. Lines without a path are left out. A country, city, IP or ASN filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.
+ * Returns URLs ordered by hits, with error hits, bytes and the average request time. With one `hostIn` host or none, each row is a host and path pair. With two or more different hosts, each row is one URL (path plus query string) counted across those hosts, and `host` is null. Lines without a path are left out. Above 24 hours, a host filter on its own, include or exclude, reads the URL aggregates as an unfiltered request does, so it reaches past ANALYTICS_RAW_RETENTION_DAYS. A country, city, IP or ASN filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.
  */
 export const apiV1AnalyticsTopUrlsGetTopUrls = <
   ThrowOnError extends boolean = false,
@@ -967,7 +975,7 @@ export const apiV1AnalyticsTopUrlsGetTopUrls = <
 /**
  * List the most common user agents
  *
- * Returns user agent strings ordered by hits. Lines without a user agent are left out. A country, city, IP or ASN filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.
+ * Returns user agent strings ordered by hits. Lines without a user agent are left out. A country, city, IP, ASN or host filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default. Excluding a host counts as a host filter.
  */
 export const apiV1AnalyticsTopUserAgentsGetTopUserAgents = <
   ThrowOnError extends boolean = false,
@@ -1411,7 +1419,7 @@ export const apiV1CrowdsecBanNetworksBanNetworks = <
 /**
  * List every IP under an active decision
  *
- * Returns each IP that holds an `Ip` decision from any origin, once, with the strongest decision type on it. `ban` beats `captcha`, which beats the rest. `/banned-ranges` lists the Range decisions.
+ * Returns each IP that holds an `Ip` decision from any origin, once, with the strongest decision type on it. `ban` beats `captcha`, which beats the rest. `/banned-ranges` lists the Range decisions. The list comes from the decision stream the server polls, so a change can take up to `CROWDSEC_STREAM_POLL_INTERVAL` seconds to show.
  */
 export const apiV1CrowdsecBannedIpsListBannedIps = <
   ThrowOnError extends boolean = false,
@@ -1476,7 +1484,7 @@ export const apiV1CrowdsecBannedLocationsListBannedLocations = <
 /**
  * List every range under an active decision
  *
- * Returns each CIDR that holds a Range decision from any origin, once, with the strongest decision type on it and when that decision ends. GeoMetrikks bans a single-address DROP network with an `Ip` decision, so that network shows as its /32 or /128 while the decision lasts.
+ * Returns each CIDR that holds a Range decision from any origin, once, with the strongest decision type on it and when that decision ends. GeoMetrikks bans a single-address DROP network with an `Ip` decision, so that network shows as its /32 or /128 while the decision lasts. The ranges come from the decision stream the server polls, so a change can take up to `CROWDSEC_STREAM_POLL_INTERVAL` seconds to show.
  */
 export const apiV1CrowdsecBannedRangesListBannedRanges = <
   ThrowOnError extends boolean = false,
@@ -1510,7 +1518,7 @@ export const apiV1CrowdsecBannedRangesListBannedRanges = <
 /**
  * List active CrowdSec decisions, one row per target
  *
- * Returns the active decisions grouped by target, in the order the LAPI lists them, paged with `currentPage` and `pageSize`. `total` counts targets, not decisions. The country, city and 24-hour request count come from GeoMetrikks' own access logs of the last 30 days, and the GeoIP database fills in the place for an IP the logs do not locate.
+ * Returns the active decisions grouped by target, in the order the LAPI lists them, paged with `currentPage` and `pageSize`. `total` counts targets, not decisions. The country, city and 24-hour request count come from GeoMetrikks' own access logs of the last 30 days, and the GeoIP database fills in the place for an IP the logs do not locate. The decisions come from the decision stream the server polls, so a change can take up to `CROWDSEC_STREAM_POLL_INTERVAL` seconds to show.
  */
 export const apiV1CrowdsecDecisionsListDecisions = <
   ThrowOnError extends boolean = false,
@@ -1643,7 +1651,7 @@ export const apiV1CrowdsecDropNetworksListDropNetworks = <
 /**
  * Count the active CrowdSec decisions by origin and scenario
  *
- * Returns how many decisions are active across every origin, blocklists included, with the count per origin and the ten scenarios with the most decisions.
+ * Returns how many decisions are active across every origin, blocklists included, with the count per origin and the ten scenarios with the most decisions. The counts come from the decision stream the server polls, so a change can take up to `CROWDSEC_STREAM_POLL_INTERVAL` seconds to show.
  */
 export const apiV1CrowdsecStatsGetStats = <
   ThrowOnError extends boolean = false,
@@ -2476,6 +2484,97 @@ export const apiV1LogsTailTail = <ThrowOnError extends boolean = false>(
   });
 
 /**
+ * List muted IPs
+ *
+ * Returns every muted IP and range, oldest first.
+ */
+export const apiV1MutedIpsListMutedIps = <ThrowOnError extends boolean = false>(
+  options?: Options<ApiV1MutedIpsListMutedIpsData, ThrowOnError>,
+): RequestResult<ApiV1MutedIpsListMutedIpsResponses, unknown, ThrowOnError> =>
+  (options?.client ?? client).get<
+    ApiV1MutedIpsListMutedIpsResponses,
+    unknown,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+      { scheme: "bearer", type: "http" },
+    ],
+    url: "/api/v1/muted-ips",
+    ...options,
+  });
+
+/**
+ * Mute an IP or range
+ *
+ * Adds an IP or CIDR range to the muted list. Stores the network in CIDR form and rejects CIDR ranges with host bits set. An invalid network or a note over the length limit gets a 400. An entry already on the list, or a full list, gets a 409. Send the body as `application/json`.
+ */
+export const apiV1MutedIpsCreateMutedIp = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<ApiV1MutedIpsCreateMutedIpData, ThrowOnError>,
+): RequestResult<
+  ApiV1MutedIpsCreateMutedIpResponses,
+  ApiV1MutedIpsCreateMutedIpErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).post<
+    ApiV1MutedIpsCreateMutedIpResponses,
+    ApiV1MutedIpsCreateMutedIpErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+      { scheme: "bearer", type: "http" },
+    ],
+    url: "/api/v1/muted-ips",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+
+/**
+ * Unmute an IP or range
+ *
+ * Removes one entry from the muted list.
+ */
+export const apiV1MutedIpsEntryIdDeleteMutedIp = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<ApiV1MutedIpsEntryIdDeleteMutedIpData, ThrowOnError>,
+): RequestResult<
+  ApiV1MutedIpsEntryIdDeleteMutedIpResponses,
+  ApiV1MutedIpsEntryIdDeleteMutedIpErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).delete<
+    ApiV1MutedIpsEntryIdDeleteMutedIpResponses,
+    ApiV1MutedIpsEntryIdDeleteMutedIpErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+      { scheme: "bearer", type: "http" },
+    ],
+    url: "/api/v1/muted-ips/{entry_id}",
+    ...options,
+  });
+
+/**
  * Build an abuse report for an IP or an ASN
  *
  * Returns what an abuse desk needs about one IP, or about the busiest IPs of one ASN, in the range: request counts, the busiest hour or day, the top paths and user agents, the newest log lines and CrowdSec data. Times are in UTC, and the raw access logs it reads go back ANALYTICS_RAW_RETENTION_DAYS days, 180 by default. The report leaves out the Host header, server name, referrer and remote user of each line, and the machine name and message of each alert. Your host names and public addresses become `[redacted]` in URLs and user agents. In a query string, the whole value of a parameter that names one of your hosts or carries a credential, such as `token` or `api_key`, also becomes `[redacted]`.
@@ -2590,7 +2689,7 @@ export const apiV1StatsStats = <ThrowOnError extends boolean = false>(
 /**
  * Get version, runtime and database details
  *
- * Returns the app version and image, the Python and library versions, the PostgreSQL, TimescaleDB and PostGIS versions, the schema migration, and the state of the GeoLite2 databases and DROP lists. When the database is unreachable, every database field is null except `migrationHead`, the newest migration this build ships.
+ * Returns the app version and image, the Python and library versions, the PostgreSQL, TimescaleDB and PostGIS versions, the schema migration, and the state of the GeoLite2 databases, the DROP lists and the AbuseIPDB blacklist. When the database is unreachable, every database field is null except `migrationHead`, the newest migration this build ships.
  */
 export const apiV1SystemAboutGetAbout = <ThrowOnError extends boolean = false>(
   options?: Options<ApiV1SystemAboutGetAboutData, ThrowOnError>,

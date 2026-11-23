@@ -8,6 +8,7 @@ from litestar import Litestar
 from geometrikks.config.settings import Settings
 from geometrikks.domain.instances.schemas import (
     ERROR_MESSAGE_MAX_CHARS,
+    DatabaseLinkReport,
     HeartbeatPayload,
     JobReport,
     LastErrorReport,
@@ -64,6 +65,7 @@ def build_payload(
     failed_batches_5m: int | None,
     recent_starts: list[datetime],
     name_conflict_at: datetime | None,
+    database_link: DatabaseLinkReport | None = None,
 ) -> HeartbeatPayload:
     ingestion_service = runtime.get_ingestion_service(app)
     health_response = build_health_response(
@@ -129,4 +131,5 @@ def build_payload(
         server_names=settings.ingest_server_names(),
         sources=sources,
         instance_name_source=settings.instance_name_source,
+        database_link=database_link,
     )

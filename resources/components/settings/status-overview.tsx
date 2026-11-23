@@ -48,7 +48,11 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { MonoChip, StateLine, StatusLed } from "@/components/settings/status-led"
 import { StatusPhone, type StatusTile } from "@/components/settings/status-phone"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { agentAdvisoryCards, agentsNeedingAttention, agentSummary } from "@/components/settings/agents-logic"
+import {
+  agentAdvisoryCards,
+  agentsNeedingAttention,
+  agentSummary,
+} from "@/components/settings/agents-logic"
 import {
   accessLogFiles,
   accessLogUnavailableLabel,
@@ -123,7 +127,9 @@ function ServerLocationLine({ row }: { row: ServerLocationRow }) {
       onError: (error) => {
         // The generated client throws the parsed error body.
         const status =
-          typeof error === "object" && error !== null && "status_code" in error ? error.status_code : undefined
+          typeof error === "object" && error !== null && "status_code" in error
+            ? error.status_code
+            : undefined
         if (status === 404) {
           setConfirming(false)
           return
@@ -285,7 +291,11 @@ export function StatusOverview() {
   // failed refetch; the advisory cards do not, since that answer may be stale.
   const agentOverview = agentSummary(instances)
   const agentCards = instancesError ? [] : agentAdvisoryCards(instances)
-  const overall = overallState(health, healthError, instancesError ? 0 : agentsNeedingAttention(instances).length)
+  const overall = overallState(
+    health,
+    healthError,
+    instancesError ? 0 : agentsNeedingAttention(instances).length,
+  )
   const bottomCardsBefore = (agentOverview ? 1 : 0) + (locationRows.length > 0 ? 1 : 0)
 
   // Card bodies, shared by the desktop cards and the phone tiles' drawers.
@@ -347,9 +357,7 @@ export function StatusOverview() {
               <>
                 <StatusLed tone={state.tone} />
                 <span className="font-medium">{state.label}</span>
-                {state.detail && (
-                  <span className="text-muted-foreground">{state.detail}</span>
-                )}
+                {state.detail && <span className="text-muted-foreground">{state.detail}</span>}
               </>
             )
           })()}
@@ -358,42 +366,46 @@ export function StatusOverview() {
       {/* A disabled parser tails nothing by design, so the file list
           (which would only say "No access logs configured.") is noise. */}
       {health?.ingestion.status !== "disabled" && (
-      <div className="space-y-2 border-t pt-3">
-        <p className="text-xs font-medium text-muted-foreground">Access log sources</p>
-        {filesError && <p className="text-xs text-muted-foreground">File list unavailable.</p>}
-        {!filesError && stats !== undefined && !statsError && access.length === 0 && lokiSources.length === 0 && (
-          <p className="text-xs text-muted-foreground">No access logs configured.</p>
-        )}
-        {access.map((f) => (
-          <div key={f.name} className="flex items-center gap-2 text-xs">
-            <StatusLed tone={f.available ? "emerald" : "red"} />
-            <MonoChip>{f.name}</MonoChip>
-            {f.available ? (
-              <span className="ml-auto text-muted-foreground tabular-nums">
-                {formatSize(f.sizeBytes)}
-                {f.modifiedAt && ` · ${new Date(f.modifiedAt).toLocaleString()}`}
-              </span>
-            ) : (
-              <span className="ml-auto text-red-500">{accessLogUnavailableLabel(f, health)}</span>
+        <div className="space-y-2 border-t pt-3">
+          <p className="text-xs font-medium text-muted-foreground">Access log sources</p>
+          {filesError && <p className="text-xs text-muted-foreground">File list unavailable.</p>}
+          {!filesError &&
+            stats !== undefined &&
+            !statsError &&
+            access.length === 0 &&
+            lokiSources.length === 0 && (
+              <p className="text-xs text-muted-foreground">No access logs configured.</p>
             )}
-          </div>
-        ))}
-        {lokiSources.map((source) => (
-          <div key={source.label} className="flex items-center gap-2 text-xs">
-            <StatusLed tone={source.available ? "emerald" : "red"} />
-            <MonoChip>{source.query}</MonoChip>
-            <span className="text-muted-foreground">{source.server}</span>
-            <span className="ml-auto text-muted-foreground tabular-nums">
-              {source.logFormat ?? "format pending"} · {source.parsedLines.toLocaleString()} lines
-              {!source.available && (
-                <span className="ml-2 text-red-500">
-                  {source.reason === "rejected" ? "rejected" : "unreachable"}
+          {access.map((f) => (
+            <div key={f.name} className="flex items-center gap-2 text-xs">
+              <StatusLed tone={f.available ? "emerald" : "red"} />
+              <MonoChip>{f.name}</MonoChip>
+              {f.available ? (
+                <span className="ml-auto text-muted-foreground tabular-nums">
+                  {formatSize(f.sizeBytes)}
+                  {f.modifiedAt && ` · ${new Date(f.modifiedAt).toLocaleString()}`}
                 </span>
+              ) : (
+                <span className="ml-auto text-red-500">{accessLogUnavailableLabel(f, health)}</span>
               )}
-            </span>
-          </div>
-        ))}
-      </div>
+            </div>
+          ))}
+          {lokiSources.map((source) => (
+            <div key={source.label} className="flex items-center gap-2 text-xs">
+              <StatusLed tone={source.available ? "emerald" : "red"} />
+              <MonoChip>{source.query}</MonoChip>
+              <span className="text-muted-foreground">{source.server}</span>
+              <span className="ml-auto text-muted-foreground tabular-nums">
+                {source.logFormat ?? "format pending"} · {source.parsedLines.toLocaleString()} lines
+                {!source.available && (
+                  <span className="ml-2 text-red-500">
+                    {source.reason === "rejected" ? "rejected" : "unreachable"}
+                  </span>
+                )}
+              </span>
+            </div>
+          ))}
+        </div>
       )}
     </>
   )
@@ -405,16 +417,14 @@ export function StatusOverview() {
           <div className="space-y-1 text-xs text-muted-foreground">
             <p>
               {dbInfo.sizeBytes !== null && (
-                <span className="font-medium text-foreground">
-                  {formatSize(dbInfo.sizeBytes)}
-                </span>
+                <span className="font-medium text-foreground">{formatSize(dbInfo.sizeBytes)}</span>
               )}{" "}
               total · PostgreSQL {dbInfo.postgresVersion?.split(" ")[0]} · TimescaleDB{" "}
               {dbInfo.timescaledbVersion}
             </p>
             <p>
-              Raw events kept {dbInfo.retentionDays} days, debug lines{" "}
-              {dbInfo.debugRetentionDays} days
+              Raw events kept {dbInfo.retentionDays} days, debug lines {dbInfo.debugRetentionDays}{" "}
+              days
             </p>
             {compressionSummary(dbInfo.hypertables) && (
               <p>Compression {compressionSummary(dbInfo.hypertables)}</p>
@@ -460,9 +470,7 @@ export function StatusOverview() {
       )}
       <div className="flex items-center gap-2">
         {crowdsec?.enabled && (
-          <Badge variant="outline">
-            {crowdsec.writeEnabled ? "write enabled" : "read only"}
-          </Badge>
+          <Badge variant="outline">{crowdsec.writeEnabled ? "write enabled" : "read only"}</Badge>
         )}
         {crowdsecStats && (
           <Link
@@ -581,7 +589,10 @@ export function StatusOverview() {
         title: "Ingestion",
         description: "Access log tailing and parsing pipeline",
         state: ingestionState(health, healthError),
-        sub: stats && !statsError ? `${stats.totalParsedLines.toLocaleString()} lines parsed` : undefined,
+        sub:
+          stats && !statsError
+            ? `${stats.totalParsedLines.toLocaleString()} lines parsed`
+            : undefined,
         body: ingestionBody,
       },
       {
@@ -599,7 +610,9 @@ export function StatusOverview() {
         title: "GeoIP",
         description: "MaxMind GeoLite2 databases",
         state: geoipState(health),
-        sub: health?.geoip.dbBuildDate ? `City built ${relativeTime(health.geoip.dbBuildDate, now)}` : undefined,
+        sub: health?.geoip.dbBuildDate
+          ? `City built ${relativeTime(health.geoip.dbBuildDate, now)}`
+          : undefined,
         body: geoipBody,
       },
       {
@@ -678,7 +691,9 @@ export function StatusOverview() {
           title: verdictTitle(overall, problems.length),
           detail: overall.detail,
           meta: health
-            ? [uptime, `Updated ${new Date(health.timestamp).toLocaleTimeString()}`].filter(Boolean).join(" · ")
+            ? [uptime, `Updated ${new Date(health.timestamp).toLocaleTimeString()}`]
+                .filter(Boolean)
+                .join(" · ")
             : undefined,
         }}
         problems={problems}
@@ -690,7 +705,13 @@ export function StatusOverview() {
   return (
     <div className="space-y-4">
       {advisoryCards(health).map((card) => (
-        <Card key={card.id} className={cn("border-l-2", card.tone === "red" ? "border-l-red-500" : "border-l-amber-500")}>
+        <Card
+          key={card.id}
+          className={cn(
+            "border-l-2",
+            card.tone === "red" ? "border-l-red-500" : "border-l-amber-500",
+          )}
+        >
           <CardContent className="space-y-1 pt-4">
             <div className="flex items-center gap-2 text-sm font-medium">
               <StatusLed tone={card.tone} />
@@ -698,7 +719,9 @@ export function StatusOverview() {
             </div>
             {card.detail && <p className="text-xs text-muted-foreground">{card.detail}</p>}
             {card.remedy && (
-              <code className="block w-fit whitespace-pre-line rounded bg-muted px-2 py-1 text-xs">{card.remedy}</code>
+              <code className="block w-fit whitespace-pre-line rounded bg-muted px-2 py-1 text-xs">
+                {card.remedy}
+              </code>
             )}
             {card.docsUrl && (
               <a
@@ -719,7 +742,10 @@ export function StatusOverview() {
         return (
           <Card
             key={`agent-${card.instanceName}`}
-            className={cn("border-l-2", card.tone === "red" ? "border-l-red-500" : "border-l-amber-500")}
+            className={cn(
+              "border-l-2",
+              card.tone === "red" ? "border-l-red-500" : "border-l-amber-500",
+            )}
           >
             <CardContent className="space-y-1 pt-4">
               <div className="flex items-center gap-2 text-sm font-medium">
@@ -770,9 +796,7 @@ export function StatusOverview() {
               <CardTitle className="text-base">Authentication</CardTitle>
             </div>
           </CardHeader>
-          <CardContent className="space-y-2">
-            {authBody}
-          </CardContent>
+          <CardContent className="space-y-2">{authBody}</CardContent>
         </Card>
       </div>
 
@@ -787,9 +811,7 @@ export function StatusOverview() {
               </div>
             </div>
           </CardHeader>
-          <CardContent className="space-y-3">
-            {ingestionBody}
-          </CardContent>
+          <CardContent className="space-y-3">{ingestionBody}</CardContent>
         </Card>
 
         <Card>
@@ -802,9 +824,7 @@ export function StatusOverview() {
               </div>
             </div>
           </CardHeader>
-          <CardContent className="space-y-3">
-            {databaseBody}
-          </CardContent>
+          <CardContent className="space-y-3">{databaseBody}</CardContent>
         </Card>
 
         <Card>
@@ -817,9 +837,7 @@ export function StatusOverview() {
               </div>
             </div>
           </CardHeader>
-          <CardContent className="space-y-2">
-            {geoipBody}
-          </CardContent>
+          <CardContent className="space-y-2">{geoipBody}</CardContent>
         </Card>
 
         <Card>
@@ -832,9 +850,7 @@ export function StatusOverview() {
               </div>
             </div>
           </CardHeader>
-          <CardContent className="space-y-2">
-            {crowdsecBody}
-          </CardContent>
+          <CardContent className="space-y-2">{crowdsecBody}</CardContent>
         </Card>
 
         <Card>
@@ -852,9 +868,7 @@ export function StatusOverview() {
               </div>
             </div>
           </CardHeader>
-          <CardContent className="space-y-2">
-            {schedulerBody}
-          </CardContent>
+          <CardContent className="space-y-2">{schedulerBody}</CardContent>
         </Card>
 
         <Card>
@@ -869,9 +883,7 @@ export function StatusOverview() {
               </div>
             </div>
           </CardHeader>
-          <CardContent>
-            {liveFeedBody}
-          </CardContent>
+          <CardContent>{liveFeedBody}</CardContent>
         </Card>
       </div>
 
@@ -887,9 +899,7 @@ export function StatusOverview() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent>
-              {agentsBody}
-            </CardContent>
+            <CardContent>{agentsBody}</CardContent>
           </Card>
         )}
 
@@ -900,13 +910,13 @@ export function StatusOverview() {
                 <SectionIcon icon={MapPin} />
                 <div>
                   <CardTitle className="text-base">Server locations</CardTitle>
-                  <CardDescription>Where each server sits on the map and where its live routes land</CardDescription>
+                  <CardDescription>
+                    Where each server sits on the map and where its live routes land
+                  </CardDescription>
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="space-y-2">
-              {locationsBody}
-            </CardContent>
+            <CardContent className="space-y-2">{locationsBody}</CardContent>
           </Card>
         )}
 
@@ -925,9 +935,7 @@ export function StatusOverview() {
               </div>
             </div>
           </CardHeader>
-          <CardContent className="space-y-2">
-            {recentErrorsBody}
-          </CardContent>
+          <CardContent className="space-y-2">{recentErrorsBody}</CardContent>
         </Card>
       </div>
     </div>

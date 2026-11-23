@@ -32,20 +32,31 @@ export function PageHeader({
         "flex min-w-0 flex-wrap items-start justify-between gap-3",
         !meta && !actions && !subtitleOnPhone && "phone:sr-only",
         subtitleOnPhone && "phone:flex-nowrap phone:items-center",
-        className
+        className,
       )}
     >
       <div className={cn("min-w-0 space-y-1", subtitleOnPhone && "phone:flex-1")}>
         <div className="flex min-w-0 flex-wrap items-center gap-3">
-          <h1 className="min-w-0 break-words text-xl font-[650] tracking-[-0.01em] phone:sr-only">{title}</h1>
+          <h1 className="min-w-0 break-words text-xl font-[650] tracking-[-0.01em] phone:sr-only">
+            {title}
+          </h1>
           {meta}
         </div>
         {subtitle && (
-          <p className={cn("text-[13px] text-muted-foreground", !subtitleOnPhone && "phone:sr-only")}>{subtitle}</p>
+          <p
+            className={cn("text-[13px] text-muted-foreground", !subtitleOnPhone && "phone:sr-only")}
+          >
+            {subtitle}
+          </p>
         )}
       </div>
       {actions && (
-        <div className={cn("flex min-w-0 flex-wrap items-center gap-2", subtitleOnPhone && "phone:shrink-0")}>
+        <div
+          className={cn(
+            "flex min-w-0 flex-wrap items-center gap-2",
+            subtitleOnPhone && "phone:shrink-0",
+          )}
+        >
           {actions}
         </div>
       )}

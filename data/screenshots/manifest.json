@@ -469,6 +469,32 @@
         }
       }
     },
+    "muted-ips": {
+      "title": "Muted IPs",
+      "alt": "The Muted IPs settings page with the form for adding an IP or CIDR range, above a table of three saved entries with their notes.",
+      "variants": {
+        "desktop-dark": {
+          "file": "muted-ips-desktop-dark.webp",
+          "width": 2160,
+          "height": 1350
+        },
+        "desktop-light": {
+          "file": "muted-ips-desktop-light.webp",
+          "width": 2160,
+          "height": 1350
+        },
+        "phone-dark": {
+          "file": "muted-ips-phone-dark.webp",
+          "width": 786,
+          "height": 1704
+        },
+        "phone-light": {
+          "file": "muted-ips-phone-light.webp",
+          "width": 786,
+          "height": 1704
+        }
+      }
+    },
     "live": {
       "title": "Live map",
       "alt": "The map in live mode, with arcs carrying incoming requests to the servers and a readout of the live request rate.",

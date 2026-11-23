@@ -103,10 +103,7 @@ function itemById(id: NavId): NavItem {
   return found
 }
 
-export function slotFour(
-  status: { enabled?: boolean } | undefined,
-  isError: boolean,
-): SlotFour {
+export function slotFour(status: { enabled?: boolean } | undefined, isError: boolean): SlotFour {
   if (status === undefined) return isError ? "analytics" : null
   return status.enabled === true ? "security" : "analytics"
 }

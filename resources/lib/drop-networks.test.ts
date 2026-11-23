@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 import type { BanNetworkResult, DropFeedView } from "@/generated/api/types.gen"
 import {
   bulkBanConfirmText,
@@ -36,14 +36,20 @@ describe("dropNetworksSummary", () => {
 
   it("uses the singular for one of each", () => {
     expect(
-      dropNetworksSummary({ totalNetworks: 1, totalIps: 1, totalHits: 1, bannedNetworks: 1, decisionsAvailable: true }),
+      dropNetworksSummary({
+        totalNetworks: 1,
+        totalIps: 1,
+        totalHits: 1,
+        bannedNetworks: 1,
+        decisionsAvailable: true,
+      }),
     ).toEqual({ networks: "1", detail: "network · 1 IP · 1 hit · 1 already banned" })
   })
 
   it("leaves out the ban count when CrowdSec could not be asked", () => {
-    expect(dropNetworksSummary({ ...totals, bannedNetworks: 0, decisionsAvailable: false }).detail).toBe(
-      "networks · 1,130 IPs · 73,935 hits",
-    )
+    expect(
+      dropNetworksSummary({ ...totals, bannedNetworks: 0, decisionsAvailable: false }).detail,
+    ).toBe("networks · 1,130 IPs · 73,935 hits")
   })
 })
 
@@ -74,7 +80,9 @@ describe("bulkBanConfirmText", () => {
   })
 
   it("promises only the capped count in the title past the cap", () => {
-    expect(bulkBanConfirmText(1250, "1 hour", 90).title).toBe("Ban 1,000 of 1,250 DROP networks for 1 hour?")
+    expect(bulkBanConfirmText(1250, "1 hour", 90).title).toBe(
+      "Ban 1,000 of 1,250 DROP networks for 1 hour?",
+    )
     expect(bulkBanConfirmText(1000, "1 hour", 90).title).toBe("Ban 1,000 DROP networks for 1 hour?")
   })
 
@@ -84,7 +92,11 @@ describe("bulkBanConfirmText", () => {
 })
 
 describe("focusTarget", () => {
-  const element = (isConnected: boolean, disabled?: boolean) => ({ isConnected, disabled, focus: () => {} })
+  const element = (isConnected: boolean, disabled?: boolean) => ({
+    isConnected,
+    disabled,
+    focus: () => {},
+  })
 
   it("skips missing, detached and disabled elements", () => {
     const fallback = element(true)
@@ -101,25 +113,52 @@ describe("focusTarget", () => {
   })
 })
 
-const ok = (network: string): BanNetworkResult => ({ network, ok: true, error: null, alreadyBanned: false })
-const already = (network: string): BanNetworkResult => ({ network, ok: true, error: null, alreadyBanned: true })
-const failed = (network: string, error: string): BanNetworkResult => ({ network, ok: false, error, alreadyBanned: false })
+const ok = (network: string): BanNetworkResult => ({
+  network,
+  ok: true,
+  error: null,
+  alreadyBanned: false,
+})
+const already = (network: string): BanNetworkResult => ({
+  network,
+  ok: true,
+  error: null,
+  alreadyBanned: true,
+})
+const failed = (network: string, error: string): BanNetworkResult => ({
+  network,
+  ok: false,
+  error,
+  alreadyBanned: false,
+})
 
 describe("bulk ban results", () => {
-  const results = [ok("192.0.2.0/24"), failed("198.51.100.0/24", "CrowdSec LAPI is unreachable"), already("203.0.113.0/24"), ok("2001:db8::/32")]
+  const results = [
+    ok("192.0.2.0/24"),
+    failed("198.51.100.0/24", "CrowdSec LAPI is unreachable"),
+    already("203.0.113.0/24"),
+    ok("2001:db8::/32"),
+  ]
 
   it("counts banned, already banned and failed networks", () => {
-    expect(bulkBanResultCounts(results)).toEqual({ banned: 2, alreadyBanned: 1, failed: 1, notAttempted: 0 })
+    expect(bulkBanResultCounts(results)).toEqual({
+      banned: 2,
+      alreadyBanned: 1,
+      failed: 1,
+      notAttempted: 0,
+    })
   })
 
   it("reports the counts in one line", () => {
     expect(bulkBanResultText(bulkBanResultCounts(results), "4 hours")).toBe(
       "Banned 2 networks for 4 hours. 1 was already banned. 1 failed.",
     )
-    expect(bulkBanResultText({ banned: 1, alreadyBanned: 0, failed: 0, notAttempted: 0 }, "Forever")).toBe("Banned 1 network for good.")
-    expect(bulkBanResultText({ banned: 0, alreadyBanned: 2, failed: 3, notAttempted: 0 }, "1 hour")).toBe(
-      "Banned 0 networks for 1 hour. 2 were already banned. 3 failed.",
-    )
+    expect(
+      bulkBanResultText({ banned: 1, alreadyBanned: 0, failed: 0, notAttempted: 0 }, "Forever"),
+    ).toBe("Banned 1 network for good.")
+    expect(
+      bulkBanResultText({ banned: 0, alreadyBanned: 2, failed: 3, notAttempted: 0 }, "1 hour"),
+    ).toBe("Banned 0 networks for 1 hour. 2 were already banned. 3 failed.")
   })
 
   it("counts the networks a stopped run did not attempt apart from the failures", () => {
@@ -134,15 +173,21 @@ describe("bulk ban results", () => {
     expect(bulkBanResultText(counts, "24 hours")).toBe(
       "Banned 1 network for 24 hours. 1 failed. 2 were not attempted.",
     )
-    expect(bulkBanResultText({ banned: 3, alreadyBanned: 0, failed: 0, notAttempted: 1 }, "24 hours")).toBe(
-      "Banned 3 networks for 24 hours. 1 was not attempted.",
-    )
+    expect(
+      bulkBanResultText({ banned: 3, alreadyBanned: 0, failed: 0, notAttempted: 1 }, "24 hours"),
+    ).toBe("Banned 3 networks for 24 hours. 1 was not attempted.")
   })
 
   it("titles the outcome by its worst result", () => {
-    expect(bulkBanResultTitle({ banned: 1, alreadyBanned: 0, failed: 1, notAttempted: 2 })).toBe("Some bans failed")
-    expect(bulkBanResultTitle({ banned: 3, alreadyBanned: 0, failed: 0, notAttempted: 1 })).toBe("The run stopped early")
-    expect(bulkBanResultTitle({ banned: 3, alreadyBanned: 1, failed: 0, notAttempted: 0 })).toBe("Networks banned")
+    expect(bulkBanResultTitle({ banned: 1, alreadyBanned: 0, failed: 1, notAttempted: 2 })).toBe(
+      "Some bans failed",
+    )
+    expect(bulkBanResultTitle({ banned: 3, alreadyBanned: 0, failed: 0, notAttempted: 1 })).toBe(
+      "The run stopped early",
+    )
+    expect(bulkBanResultTitle({ banned: 3, alreadyBanned: 1, failed: 0, notAttempted: 0 })).toBe(
+      "Networks banned",
+    )
   })
 
   it("lists failures first, then already banned, then bans", () => {
@@ -182,7 +227,11 @@ describe("dropLastSeenText", () => {
 
   it("shows a daily bucket start as its date, since the time is unknown", () => {
     expect(dropLastSeenText("2026-10-20T00:00:00Z", now)).toBe(
-      new Date(Date.UTC(2026, 9, 20)).toLocaleDateString(undefined, { day: "numeric", month: "short", timeZone: "UTC" }),
+      new Date(Date.UTC(2026, 9, 20)).toLocaleDateString(undefined, {
+        day: "numeric",
+        month: "short",
+        timeZone: "UTC",
+      }),
     )
   })
 })
@@ -191,19 +240,30 @@ describe("rangeDecisionText", () => {
   const now = Date.parse("2026-11-01T12:00:00Z")
 
   it("names the decision and its time left", () => {
-    expect(rangeDecisionText({ type: "ban", expiresAt: "2026-11-08T11:00:00Z", value: "192.0.2.0/24" }, now)).toBe(
-      "Banned · 6d 23h left",
-    )
-    expect(rangeDecisionText({ type: "captcha", expiresAt: "2026-11-01T12:47:00Z", value: "192.0.2.0/24" }, now)).toBe(
-      "Captcha · 47m left",
-    )
+    expect(
+      rangeDecisionText(
+        { type: "ban", expiresAt: "2026-11-08T11:00:00Z", value: "192.0.2.0/24" },
+        now,
+      ),
+    ).toBe("Banned · 6d 23h left")
+    expect(
+      rangeDecisionText(
+        { type: "captcha", expiresAt: "2026-11-01T12:47:00Z", value: "192.0.2.0/24" },
+        now,
+      ),
+    ).toBe("Captcha · 47m left")
   })
 
   it("reads a ten year ban as Forever and an unknown expiry as the type alone", () => {
-    expect(rangeDecisionText({ type: "ban", expiresAt: "2036-10-29T12:00:00Z", value: "192.0.2.0/24" }, now)).toBe(
-      "Banned · Forever",
+    expect(
+      rangeDecisionText(
+        { type: "ban", expiresAt: "2036-10-29T12:00:00Z", value: "192.0.2.0/24" },
+        now,
+      ),
+    ).toBe("Banned · Forever")
+    expect(rangeDecisionText({ type: "ban", expiresAt: null, value: "192.0.2.0/24" }, now)).toBe(
+      "Banned",
     )
-    expect(rangeDecisionText({ type: "ban", expiresAt: null, value: "192.0.2.0/24" }, now)).toBe("Banned")
   })
 })
 
@@ -213,13 +273,27 @@ describe("dropNetworkFreshness", () => {
   const now = Date.parse("2026-11-01T12:00:00Z")
 
   it("dates the figures by the newer network list and ignores ASN-DROP", () => {
-    const feeds = [feed("v4", "2026-10-31T06:00:00Z"), feed("v6", "2026-11-01T06:00:00Z"), feed("asn", "2026-11-01T11:00:00Z")]
-    expect(dropNetworkFreshness({ feeds }, now)).toEqual({ updatedAt: "2026-11-01T06:00:00Z", stale: false })
+    const feeds = [
+      feed("v4", "2026-10-31T06:00:00Z"),
+      feed("v6", "2026-11-01T06:00:00Z"),
+      feed("asn", "2026-11-01T11:00:00Z"),
+    ]
+    expect(dropNetworkFreshness({ feeds }, now)).toEqual({
+      updatedAt: "2026-11-01T06:00:00Z",
+      stale: false,
+    })
   })
 
   it("is stale once neither network list has downloaded for a week", () => {
-    const feeds = [feed("v4", "2026-10-20T06:00:00Z"), feed("v6", null), feed("asn", "2026-11-01T11:00:00Z")]
-    expect(dropNetworkFreshness({ feeds }, now)).toEqual({ updatedAt: "2026-10-20T06:00:00Z", stale: true })
+    const feeds = [
+      feed("v4", "2026-10-20T06:00:00Z"),
+      feed("v6", null),
+      feed("asn", "2026-11-01T11:00:00Z"),
+    ]
+    expect(dropNetworkFreshness({ feeds }, now)).toEqual({
+      updatedAt: "2026-10-20T06:00:00Z",
+      stale: true,
+    })
     expect(dropNetworkFreshness(undefined, now)).toEqual({ updatedAt: null, stale: false })
   })
 })

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 import { withRawValues } from "./chart-tooltip"
 
 describe("withRawValues", () => {
@@ -14,7 +14,10 @@ describe("withRawValues", () => {
 
   it("ignores function data keys and missing payloads", () => {
     const fn = () => 1
-    const items = [{ dataKey: fn, value: 3, payload: { raw: {} } }, { dataKey: "v", value: 1 }]
+    const items = [
+      { dataKey: fn, value: 3, payload: { raw: {} } },
+      { dataKey: "v", value: 1 },
+    ]
     expect(withRawValues(items)).toEqual(items)
     expect(withRawValues(undefined)).toBeUndefined()
   })

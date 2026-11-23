@@ -243,7 +243,7 @@ class FileSource:
             return 0
         return size
 
-    async def lines(self, stop: asyncio.Event) -> AsyncGenerator[str, None]:
+    async def lines(self, stop: asyncio.Event) -> AsyncGenerator[str]:
         """Async generator that tails the log file and yields each new line.
 
         This is a native async implementation using aiofiles for non-blocking I/O.

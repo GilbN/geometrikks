@@ -3,6 +3,7 @@
  *  amber and healthy, each by name, so nothing here re-sorts. */
 import type {
   Advisory,
+  DatabaseLinkReport,
   HealthResponse,
   HeadIdentityView,
   InstanceView,
@@ -47,7 +48,8 @@ const PROBLEM_KINDS: ProblemKind[] = [
   // agent's own report says its writes are failing now.
   {
     matches: ({ id, severity }) =>
-      id === "instance-writes-failing" || (id === "ingestion-write-failures" && severity === "critical"),
+      id === "instance-writes-failing" ||
+      (id === "ingestion-write-failures" && severity === "critical"),
     label: "with failing writes",
   },
   { matches: ({ id }) => OUT_OF_DATE_IDS.has(id), label: "out of date" },
@@ -115,7 +117,10 @@ export function agentSummary(response: InstancesResponse | undefined): AgentSumm
   if (agents.some((agent) => agent.status === "critical")) tone = "red"
   else if (agents.some((agent) => agent.status === "warning")) tone = "amber"
   if (kindParts.length === 0) {
-    return { tone, line: agents.length === 1 ? `${agentCount}, healthy` : `${agentCount}, all healthy` }
+    return {
+      tone,
+      line: agents.length === 1 ? `${agentCount}, healthy` : `${agentCount}, all healthy`,
+    }
   }
   return { tone, line: [agentCount, ...kindParts].join(", ") }
 }
@@ -209,6 +214,7 @@ export function agentIngestionState(
 ): CardState {
   if (!ingestion) return { tone: "muted", label: "unknown" }
   if (ingestion.status === "disabled") return { tone: "muted", label: "turned off" }
+  if (ingestion.status === "starting") return { tone: "muted", label: "starting" }
   if (!ingestion.running) return { tone: "amber", label: "not running" }
   if ((failedLastFiveMinutes ?? 0) > 0) return { tone: "red", label: "running, writes failing" }
   if ((ingestion.unavailableSources ?? []).length > 0) {
@@ -241,7 +247,10 @@ export function shortVersion(version: string): string {
 /** A few words for a problem, for a list row that has no room for the
  *  sentence. Problems the head computes get fixed wording; forwarded ones
  *  keep their own summary. */
-export function problemHeadline(problem: Pick<Advisory, "id" | "summary" | "severity">, instanceName: string): string {
+export function problemHeadline(
+  problem: Pick<Advisory, "id" | "summary" | "severity">,
+  instanceName: string,
+): string {
   switch (problem.id) {
     case "instance-not-checking-in":
       return "Not checking in"
@@ -262,7 +271,10 @@ export function problemHeadline(problem: Pick<Advisory, "id" | "summary" | "seve
       return "Health report unreadable"
   }
   const summary = withoutFinalPeriod(problem.summary)
-  if (problem.id === "instance-ingestion-degraded" && summary.startsWith(`Ingestion on ${instanceName} `)) {
+  if (
+    problem.id === "instance-ingestion-degraded" &&
+    summary.startsWith(`Ingestion on ${instanceName} `)
+  ) {
     return "Ingestion not running"
   }
   const namePrefix = `${instanceName} `
@@ -282,7 +294,8 @@ export function instanceRowLine(instance: InstanceView): TextPart[] {
   const [worstProblem, ...otherProblems] = instance.problems
   if (worstProblem) {
     const parts: TextPart[] = [{ text: problemHeadline(worstProblem, instance.instanceName) }]
-    if (otherProblems.length > 0) parts.push({ text: `${countText(otherProblems.length, "more problem")}` })
+    if (otherProblems.length > 0)
+      parts.push({ text: `${countText(otherProblems.length, "more problem")}` })
     return parts
   }
   const parts: TextPart[] = [{ text: "Healthy" }]
@@ -296,13 +309,19 @@ export function instanceRowLine(instance: InstanceView): TextPart[] {
   } else {
     parts.push({ text: `${countText(linesLastFiveMinutes, "line")} in 5 min` })
   }
-  if (failedLastFiveMinutes > 0) parts.push({ text: `${failedLastFiveMinutes.toLocaleString()} failed`, tone: "red" })
+  if (failedLastFiveMinutes > 0)
+    parts.push({ text: `${failedLastFiveMinutes.toLocaleString()} failed`, tone: "red" })
   return parts
 }
 
 /** The line under the agent's name in its details: when it was last seen,
- *  how long it has run and whether its version matches the head's. */
-export function instanceHeaderLine(instance: InstanceView, head: HeadIdentityView, checkedAtMs: number): TextPart[][] {
+ *  how long it has run, whether its version matches the head's, and its
+ *  database connection when it reports one. */
+export function instanceHeaderLine(
+  instance: InstanceView,
+  head: HeadIdentityView,
+  checkedAtMs: number,
+): TextPart[][] {
   const seen = relativeTime(instance.lastSeen, checkedAtMs)
   const drift = versionTone(instance, head)
   const version: TextPart[] = drift
@@ -312,11 +331,51 @@ export function instanceHeaderLine(instance: InstanceView, head: HeadIdentityVie
         { text: shortVersion(head.appVersion), nowrap: true },
       ]
     : [{ text: shortVersion(instance.appVersion), nowrap: true }]
+  const databaseLink = databaseLinkState(instance.payload?.databaseLink)
+  // Non-breaking up to the state, so a wrapped line never ends on "database" or "connection".
+  const connection: TextPart[][] = databaseLink
+    ? [[{ text: `database\u00a0connection\u00a0${databaseLink.text}` }]]
+    : []
   if (!instance.checkingIn) {
-    return [[{ text: `Last seen ${seen}`, tone: "red" }], version, [{ text: "details from its last heartbeat" }]]
+    return [
+      [{ text: `Last seen ${seen}`, tone: "red" }],
+      version,
+      ...connection,
+      [{ text: "details from its last heartbeat" }],
+    ]
   }
   const uptime = formatUptime(instance.startedAt, checkedAtMs)
-  return [[{ text: `Seen ${seen}` }], ...(uptime ? [[{ text: uptime }]] : []), version]
+  return [
+    [{ text: `Seen ${seen}` }],
+    ...(uptime ? [[{ text: uptime }]] : []),
+    version,
+    ...connection,
+  ]
+}
+
+export type LinkLock = "verified" | "encrypted" | "open"
+
+export interface DatabaseLinkState {
+  text: string
+  hint: string
+  lock: LinkLock
+}
+
+/** Null for an instance on a release that doesn't report its link. */
+export function databaseLinkState(
+  link: DatabaseLinkReport | null | undefined,
+): DatabaseLinkState | null {
+  if (!link) return null
+  let lock: LinkLock = "open"
+  let text = "not encrypted"
+  if (link.encrypted && link.serverVerified) {
+    lock = "verified"
+    text = "encrypted, server verified"
+  } else if (link.encrypted) {
+    lock = "encrypted"
+    text = "encrypted"
+  }
+  return { text, hint: `Database connection ${text}`, lock }
 }
 
 /** Why the version is colored, in words. */
@@ -369,13 +428,23 @@ function ingestionSection(instance: InstanceView): DetailSection {
   const health = instance.health
   const title = "Ingestion"
   if (!health) {
-    return { id: "ingestion", title, tone: "muted", summary: [{ text: "Unknown" }, { text: "no readable health report" }] }
+    return {
+      id: "ingestion",
+      title,
+      tone: "muted",
+      summary: [{ text: "Unknown" }, { text: "no readable health report" }],
+    }
   }
   const failedLastFiveMinutes = instance.payload?.failed5M ?? 0
   const state = agentIngestionState(health.ingestion, failedLastFiveMinutes)
   const parsedLines = { text: countText(health.ingestion.parsedLines, "line") }
   if (!instance.checkingIn) {
-    return { id: "ingestion", title, tone: "muted", summary: [{ text: `${capitalize(state.label)} when last seen` }, parsedLines] }
+    return {
+      id: "ingestion",
+      title,
+      tone: "muted",
+      summary: [{ text: `${capitalize(state.label)} when last seen` }, parsedLines],
+    }
   }
   return {
     id: "ingestion",
@@ -383,7 +452,9 @@ function ingestionSection(instance: InstanceView): DetailSection {
     tone: state.tone,
     summary: [
       { text: capitalize(state.label), tone: partTone(state.tone) },
-      failedLastFiveMinutes > 0 ? { text: `${failedLastFiveMinutes.toLocaleString()} failed in 5 min` } : parsedLines,
+      failedLastFiveMinutes > 0
+        ? { text: `${failedLastFiveMinutes.toLocaleString()} failed in 5 min` }
+        : parsedLines,
     ],
   }
 }
@@ -395,19 +466,31 @@ function lastErrorSection(instance: InstanceView): DetailSection | null {
   // minutes means writes are still failing.
   const failingNow = (instance.payload?.failed5M ?? 0) > 0
   const tone = liveTone(failingNow ? "red" : "amber", instance.checkingIn)
-  return { id: "last-error", title: "Last error", tone, summary: [{ text: errorHeadline(message) }] }
+  return {
+    id: "last-error",
+    title: "Last error",
+    tone,
+    summary: [{ text: errorHeadline(message) }],
+  }
 }
 
 function sourcesSection(instance: InstanceView, ingestionShowsLines: boolean): DetailSection {
   const sources = instance.payload?.sources ?? []
   const title = "Sources"
-  if (sources.length === 0) return { id: "sources", title, tone: "muted", summary: [{ text: "None reported" }] }
+  if (sources.length === 0)
+    return { id: "sources", title, tone: "muted", summary: [{ text: "None reported" }] }
   const unavailableCount = sources.filter((source) => !source.available).length
   const tone = liveTone(unavailableCount > 0 ? "red" : "emerald", instance.checkingIn)
   if (sources.length === 1) {
     const [source] = sources
     const label = { text: source.label || "unnamed source" }
-    if (!source.available) return { id: "sources", title, tone, summary: [label, { text: sourceReasonLabel(source.reason), tone: partTone(tone) }] }
+    if (!source.available)
+      return {
+        id: "sources",
+        title,
+        tone,
+        summary: [label, { text: sourceReasonLabel(source.reason), tone: partTone(tone) }],
+      }
     // The Ingestion line already counts the lines when nothing fails.
     const second = ingestionShowsLines
       ? { text: source.logFormat || "format pending" }
@@ -431,7 +514,8 @@ function sourcesSection(instance: InstanceView, ingestionShowsLines: boolean): D
 function jobsSection(instance: InstanceView, nowMs: number): DetailSection {
   const jobs = instance.payload?.jobs ?? []
   const title = "Scheduled jobs"
-  if (jobs.length === 0) return { id: "jobs", title, tone: "muted", summary: [{ text: "None reported" }] }
+  if (jobs.length === 0)
+    return { id: "jobs", title, tone: "muted", summary: [{ text: "None reported" }] }
   const failedJobs = jobs.filter((job) => job.lastStatus === "error")
   const countsByLabel = new Map<string, number>()
   for (const job of jobs) {
@@ -447,7 +531,8 @@ function jobsSection(instance: InstanceView, nowMs: number): DetailSection {
   } else if (failedJobs.length > 1) {
     summary.push({ text: `${failedJobs.length.toLocaleString()} failed` })
   }
-  for (const [label, count] of countsByLabel) summary.push({ text: `${count.toLocaleString()} ${label}` })
+  for (const [label, count] of countsByLabel)
+    summary.push({ text: `${count.toLocaleString()} ${label}` })
   let tone: LedTone = "muted"
   if (failedJobs.length > 0) tone = "red"
   else if (jobs.some((job) => job.lastStatus === "missed")) tone = "amber"
@@ -464,25 +549,45 @@ function geoipSection(instance: InstanceView, nowMs: number): DetailSection {
   const title = "GeoIP"
   if (!geoip) return { id: "geoip", title, tone: "muted", summary: [{ text: "Unknown" }] }
   if (!geoip.available) {
-    if (!instance.checkingIn) return { id: "geoip", title, tone: "muted", summary: [{ text: "City not loaded when last seen" }] }
+    if (!instance.checkingIn)
+      return {
+        id: "geoip",
+        title,
+        tone: "muted",
+        summary: [{ text: "City not loaded when last seen" }],
+      }
     return { id: "geoip", title, tone: "red", summary: [{ text: "City not loaded", tone: "red" }] }
   }
-  const built = geoip.dbBuildDate ? ` built ${formatShortDate(geoip.dbBuildDate)}, ${relativeTime(geoip.dbBuildDate, nowMs)}` : " loaded"
+  const built = geoip.dbBuildDate
+    ? ` built ${formatShortDate(geoip.dbBuildDate)}, ${relativeTime(geoip.dbBuildDate, nowMs)}`
+    : " loaded"
   const summary: TextPart[] = geoip.asnAvailable
     ? [{ text: `City and ASN${built}` }]
     : [{ text: `City${built}` }, { text: "ASN not loaded" }]
-  if (!instance.checkingIn) return { id: "geoip", title, tone: "muted", summary: [{ text: "Loaded when last seen" }, ...summary] }
+  if (!instance.checkingIn)
+    return {
+      id: "geoip",
+      title,
+      tone: "muted",
+      summary: [{ text: "Loaded when last seen" }, ...summary],
+    }
   return { id: "geoip", title, tone: "emerald", summary }
 }
 
 function instanceSection(instance: InstanceView): DetailSection {
   const health = instance.health
   const schemaWait = schemaWaitState(health?.schemaWait)
-  const summary: TextPart[] = [{ text: instance.mode }, { text: `migration ${instance.schemaRevision}` }]
+  const summary: TextPart[] = [
+    { text: instance.mode },
+    { text: `migration ${instance.schemaRevision}` },
+  ]
   let tone: LedTone = "muted"
   if (health) {
     const reachable = health.database.reachable
-    summary.push({ text: reachable ? "database reachable" : "database unreachable", tone: reachable ? undefined : "red" })
+    summary.push({
+      text: reachable ? "database reachable" : "database unreachable",
+      tone: reachable ? undefined : "red",
+    })
     tone = reachable ? "emerald" : "red"
     if (schemaWait && tone === "emerald" && schemaWait.tone !== "emerald") tone = schemaWait.tone
     if (schemaWait?.tone === "red") tone = "red"
@@ -498,7 +603,12 @@ function serverLocationsSection(instance: InstanceView): DetailSection {
   const serverLocations = instance.serverLocations
   const title = "Server locations"
   if (serverLocations.length === 0) {
-    return { id: "server-locations", title, tone: "muted", summary: [{ text: "None recorded yet" }] }
+    return {
+      id: "server-locations",
+      title,
+      tone: "muted",
+      summary: [{ text: "None recorded yet" }],
+    }
   }
   if (serverLocations.length === 1) {
     const [serverLocation] = serverLocations
@@ -538,8 +648,12 @@ export function instanceDetailSections(instance: InstanceView, nowMs: number): D
     instanceSection(instance),
     serverLocationsSection(instance),
   ].filter((section): section is DetailSection => section !== null)
-  const needsAttention = (section: DetailSection) => section.tone === "red" || section.tone === "amber"
-  return [...sections.filter(needsAttention), ...sections.filter((section) => !needsAttention(section))]
+  const needsAttention = (section: DetailSection) =>
+    section.tone === "red" || section.tone === "amber"
+  return [
+    ...sections.filter(needsAttention),
+    ...sections.filter((section) => !needsAttention(section)),
+  ]
 }
 
 /** How far to scroll, up when negative, so a deep-linked row and its
@@ -591,7 +705,9 @@ export function deepLinkedInstance(
  *  parsed error body. */
 export function removeFailureMessage(error: unknown, instanceName: string): string | null {
   const status =
-    typeof error === "object" && error !== null && "status_code" in error ? error.status_code : undefined
+    typeof error === "object" && error !== null && "status_code" in error
+      ? error.status_code
+      : undefined
   if (status === 404) return null
   return `Could not remove ${instanceName}. Try again.`
 }

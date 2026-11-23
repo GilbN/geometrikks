@@ -26,10 +26,17 @@ export function AbuseIpdbBadge({ ip }: { ip: string }) {
   if (check.isError) {
     return (
       <>
-        <Button variant="outline" size="xs" disabled={check.isFetching} onClick={() => void check.refetch()}>
+        <Button
+          variant="outline"
+          size="xs"
+          disabled={check.isFetching}
+          onClick={() => void check.refetch()}
+        >
           Retry AbuseIPDB check
         </Button>
-        <span className="text-xs text-red-500">{errorDetail(check.error, "The check failed; AbuseIPDB may be unreachable.")}</span>
+        <span className="text-xs text-red-500">
+          {errorDetail(check.error, "The check failed; AbuseIPDB may be unreachable.")}
+        </span>
       </>
     )
   }
@@ -44,14 +51,19 @@ export function AbuseIpdbBadge({ ip }: { ip: string }) {
     ]
     const title = [
       `${result.abuseConfidenceScore}% confidence from ${formatNumber(result.numDistinctUsers)} ${result.numDistinctUsers === 1 ? "reporter" : "reporters"}`,
-      result.lastReportedAt ? `last reported ${agoText(result.lastReportedAt, Date.now())}` : "never reported",
+      result.lastReportedAt
+        ? `last reported ${agoText(result.lastReportedAt, Date.now())}`
+        : "never reported",
       result.usageType,
     ]
     return (
       <BadgeHint hint={title.filter(Boolean).join(" · ")} hover="tooltip">
         <Badge
           variant="outline"
-          className={cn("h-auto max-w-full cursor-help whitespace-normal break-words text-left", TONE_CLASS[abuseScoreTone(result.abuseConfidenceScore)])}
+          className={cn(
+            "h-auto max-w-full cursor-help whitespace-normal break-words text-left",
+            TONE_CLASS[abuseScoreTone(result.abuseConfidenceScore)],
+          )}
         >
           {label.filter(Boolean).join(" · ")}
         </Badge>

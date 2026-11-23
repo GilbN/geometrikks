@@ -43,8 +43,8 @@ export type ChartOptionsState = {
   view: ChartViewSpec
   scale: ChartScale
   isDefault: { view: boolean; scale: boolean }
-  setView(id: string): void
-  setScale(scale: ChartScale): void
+  setView: (id: string) => void
+  setScale: (scale: ChartScale) => void
 }
 
 type StorageLike = Pick<Storage, "getItem" | "setItem">
@@ -66,7 +66,10 @@ function browserStorage(): StorageLike | undefined {
   }
 }
 
-export function loadChartOptions(chartId: string, storage: StorageLike | undefined = browserStorage()): unknown {
+export function loadChartOptions(
+  chartId: string,
+  storage: StorageLike | undefined = browserStorage(),
+): unknown {
   if (unsaved.has(chartId)) return memory.get(chartId)
   try {
     const text = storage?.getItem(chartOptionsStorageKey(chartId))
@@ -102,9 +105,12 @@ function findView(spec: ChartOptionsSpec, id: unknown): ChartViewSpec {
 
 /** Valid view and valid scale; the scale may not be allowed by the view. */
 export function parseChartOptions(spec: ChartOptionsSpec, stored: unknown): ChartOptions {
-  const record = typeof stored === "object" && stored !== null ? (stored as Record<string, unknown>) : {}
+  const record =
+    typeof stored === "object" && stored !== null ? (stored as Record<string, unknown>) : {}
   const view = findView(spec, record.view)
-  const scale = SCALES.includes(record.scale as ChartScale) ? (record.scale as ChartScale) : view.scales[0]
+  const scale = SCALES.includes(record.scale as ChartScale)
+    ? (record.scale as ChartScale)
+    : view.scales[0]
   return { view: view.id, scale }
 }
 
@@ -112,10 +118,15 @@ export function parseChartOptions(spec: ChartOptionsSpec, stored: unknown): Char
 export function resolveChartOptions(spec: ChartOptionsSpec, stored: unknown): ChartOptions {
   const parsed = parseChartOptions(spec, stored)
   const view = findView(spec, parsed.view)
-  return { view: view.id, scale: view.scales.includes(parsed.scale) ? parsed.scale : view.scales[0] }
+  return {
+    view: view.id,
+    scale: view.scales.includes(parsed.scale) ? parsed.scale : view.scales[0],
+  }
 }
 
-export function chartOptionChips(state: Pick<ChartOptionsState, "view" | "scale" | "isDefault">): string[] {
+export function chartOptionChips(
+  state: Pick<ChartOptionsState, "view" | "scale" | "isDefault">,
+): string[] {
   const chips: string[] = []
   if (!state.isDefault.view) chips.push(state.view.chip ?? state.view.label)
   if (!state.isDefault.scale) chips.push(CHART_SCALE_CHIPS[state.scale])
@@ -127,7 +138,9 @@ export function chartOptionsLabel(title: string, chips: readonly string[]): stri
 }
 
 export function useChartOptions(chartId: string, spec: ChartOptionsSpec): ChartOptionsState {
-  const [stored, setStored] = useState<ChartOptions>(() => parseChartOptions(spec, loadChartOptions(chartId)))
+  const [stored, setStored] = useState<ChartOptions>(() =>
+    parseChartOptions(spec, loadChartOptions(chartId)),
+  )
   const resolved = resolveChartOptions(spec, stored)
   const view = findView(spec, resolved.view)
   const update = (next: ChartOptions) => {

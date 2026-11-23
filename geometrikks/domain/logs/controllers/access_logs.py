@@ -3,13 +3,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Annotated
+from ipaddress import IPv4Network, IPv6Network
+from typing import Annotated, cast
 
-from litestar import Controller, Request, get
-from litestar.datastructures import ResponseHeader
-from litestar.di import NamedDependency, Provide
-from litestar.params import QueryParameter, SkipValidation
-from sqlalchemy import or_
 from advanced_alchemy.extensions.litestar.providers import create_service_dependencies
 from advanced_alchemy.filters import (
     CollectionFilter,
@@ -20,25 +16,28 @@ from advanced_alchemy.filters import (
     OnBeforeAfter,
 )
 from advanced_alchemy.service import OffsetPagination
+from litestar import Controller, Request, get
+from litestar.datastructures import ResponseHeader
+from litestar.di import NamedDependency, Provide
+from litestar.params import QueryParameter, SkipValidation
+from sqlalchemy import or_
 
+from geometrikks.domain.exceptions import DomainValidationError
+from geometrikks.domain.logs.dtos import AccessLogDTO
 from geometrikks.domain.logs.models import AccessLog
 from geometrikks.domain.logs.schemas import AccessLogFacets
 from geometrikks.domain.logs.services import AccessLogService
-from geometrikks.domain.logs.dtos import AccessLogDTO
 from geometrikks.domain.logs.sorting import nulls_last_for_timings
-from geometrikks.domain.logs.window_headers import AccessLogRangeHeaders, RANGE_HEADERS_STATE_KEY
-from geometrikks.lib.parameters import (
-    range_end_examples,
-    range_start_examples,
-    AsnIn,
-    AsnNotIn,
-    CITY_FILTER_DESCRIPTION,
-    COUNTRY_FILTER_DESCRIPTION,
-    IpAddressIn,
-    IpAddressNotIn,
-    REPEAT_NOTE,
-    ServerIn,
-    ServerNotIn,
+from geometrikks.domain.logs.window_headers import (
+    RANGE_HEADERS_STATE_KEY,
+    AccessLogRangeHeaders,
+)
+from geometrikks.domain.muted_ips.dependencies import provide_muted_networks
+from geometrikks.domain.muted_ips.filters import MutedNetworksFilter
+from geometrikks.lib.ip_filters import (
+    IpMatchFilter,
+    ip_match_filter,
+    validate_ip_filter,
 )
 from geometrikks.lib.pagination import (
     LIMIT_OFFSET_KEY,
@@ -47,9 +46,20 @@ from geometrikks.lib.pagination import (
     limit_offset_provider,
     order_by_provider,
 )
-from geometrikks.lib.validation import validate_ip_addresses
+from geometrikks.lib.parameters import (
+    CITY_FILTER_DESCRIPTION,
+    COUNTRY_FILTER_DESCRIPTION,
+    REPEAT_NOTE,
+    AsnIn,
+    AsnNotIn,
+    IpAddressIn,
+    IpAddressNotIn,
+    ServerIn,
+    ServerNotIn,
+    range_end_examples,
+    range_start_examples,
+)
 from geometrikks.lib.time_ranges import Window, relative_range
-from geometrikks.domain.exceptions import DomainValidationError
 
 ACCESS_LOG_SORT_FIELDS = (
     "timestamp",
@@ -205,14 +215,14 @@ def provide_access_log_in_filters(
 
     Raises:
         DomainValidationError: If an ``ipAddressIn``/``ipAddressNotIn`` value
-            is not a valid IP.
+            is not an IP or a CIDR range starting on its network address.
     """
     result: list[FilterTypes] = []
     if method_in:
         result.append(CollectionFilter(field_name="method", values=method_in))
     if ip_address_in:
-        validate_ip_addresses(ip_address_in)
-        result.append(CollectionFilter(field_name="ip_address", values=ip_address_in))
+        validate_ip_filter(ip_address_in)
+        result.append(ip_match_filter(ip_address_in))
     if city_in:
         result.append(CollectionFilter(field_name="city", values=city_in))
     if country_code_in:
@@ -220,8 +230,8 @@ def provide_access_log_in_filters(
     if status_in:
         result.append(CollectionFilter(field_name="status_code", values=status_in))
     if ip_address_not_in:
-        validate_ip_addresses(ip_address_not_in)
-        result.append(NotInCollectionFilter(field_name="ip_address", values=ip_address_not_in))
+        validate_ip_filter(ip_address_not_in)
+        result.append(ip_match_filter(ip_address_not_in, exclude=True))
     if host_in:
         result.append(CollectionFilter(field_name="host", values=host_in))
     if host_not_in:
@@ -263,6 +273,18 @@ def provide_access_log_in_filters(
     return result
 
 
+async def provide_in_filters(
+    base_in_filters: NamedDependency[SkipValidation[list[FilterTypes]]],
+    muted_networks: NamedDependency[SkipValidation[list[IPv4Network | IPv6Network] | None]],
+) -> list[FilterTypes]:
+    """Adds the muted list to the IN filters, unless the request names an IP to include."""
+    if muted_networks is None or any(
+        isinstance(item, IpMatchFilter) and not item.exclude for item in base_in_filters
+    ):
+        return base_in_filters
+    return cast(list[FilterTypes], [*base_in_filters, MutedNetworksFilter(muted_networks)])
+
+
 class AccessLogController(Controller):
     """Access log endpoints
 
@@ -296,7 +318,9 @@ class AccessLogController(Controller):
             note="A sort by `request_time` or `upstream_response_time` puts lines without a timing last.",
         ),
         "time_window": Provide(provide_access_log_time_window, sync_to_thread=False),
-        "in_filters": Provide(provide_access_log_in_filters, sync_to_thread=False),
+        "base_in_filters": Provide(provide_access_log_in_filters, sync_to_thread=False),
+        "in_filters": Provide(provide_in_filters),
+        "muted_networks": Provide(provide_muted_networks),
     }
 
     @get(

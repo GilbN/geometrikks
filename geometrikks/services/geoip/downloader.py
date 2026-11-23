@@ -9,9 +9,9 @@ auth and never logged.
 
 from __future__ import annotations
 
+import asyncio
 import tarfile
 import tempfile
-import time
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
@@ -30,10 +30,28 @@ logger = get_logger(__name__)
 DOWNLOAD_URL_TEMPLATE = "https://download.maxmind.com/geoip/databases/{edition}/download"
 CITY_EDITION = "GeoLite2-City"
 ASN_EDITION = "GeoLite2-ASN"
+# The scheduled refresh retries a request that never reached MaxMind. Startup
+# makes one attempt, because it awaits the download before the app comes up.
+SCHEDULED_ATTEMPTS = 3
+RETRY_WAITS_SECONDS = (30.0, 120.0)
+_RETRYABLE = (httpx2.ConnectError, httpx2.ConnectTimeout)
+# Module-level so tests can replace the wait.
+_sleep = asyncio.sleep
 
 
 class GeoIPDownloadError(Exception):
     """Download or extraction failed."""
+
+    def __init__(self, message: str, *, retryable: bool = False) -> None:
+        super().__init__(message)
+        self.retryable = retryable
+
+
+def _download_error(edition: str, exc: httpx2.HTTPError) -> GeoIPDownloadError:
+    return GeoIPDownloadError(
+        f"MaxMind download failed ({edition}): {exc}",
+        retryable=isinstance(exc, _RETRYABLE),
+    )
 
 
 @dataclass
@@ -53,7 +71,7 @@ class RefreshResult:
         ]
 
 
-def has_credentials(settings: "GeoIPSettings") -> bool:
+def has_credentials(settings: GeoIPSettings) -> bool:
     # SecretStr("") is truthy, so the key must be unwrapped before testing.
     return bool(
         settings.account_id
@@ -81,7 +99,7 @@ def database_is_stale(db_path: Path, max_age_days: int) -> bool:
 
 
 
-async def _fetch_tarball(settings: "GeoIPSettings", edition: str) -> bytes:
+async def _fetch_tarball(settings: GeoIPSettings, edition: str) -> bytes:
     """GET the tar.gz with basic auth; module-level for test monkeypatching."""
     try:
         async with httpx2.AsyncClient(
@@ -99,7 +117,27 @@ async def _fetch_tarball(settings: "GeoIPSettings", edition: str) -> bytes:
             response.raise_for_status()
             return response.content
     except httpx2.HTTPError as exc:
-        raise GeoIPDownloadError(f"MaxMind download failed ({edition}): {exc}") from exc
+        raise _download_error(edition, exc) from exc
+
+
+async def _fetch_with_retries(settings: GeoIPSettings, edition: str, attempts: int) -> bytes:
+    attempt = 1
+    while True:
+        try:
+            return await _fetch_tarball(settings, edition)
+        except GeoIPDownloadError as exc:
+            if not exc.retryable or attempt >= attempts:
+                raise
+            wait_seconds = RETRY_WAITS_SECONDS[min(attempt, len(RETRY_WAITS_SECONDS)) - 1]
+            logger.warning(
+                "geoip_download_retrying",
+                edition=edition,
+                attempt=attempt,
+                wait_seconds=wait_seconds,
+                error=str(exc),
+            )
+            await _sleep(wait_seconds)
+            attempt += 1
 
 
 def _extract_mmdb(tarball: bytes, dest: Path) -> None:
@@ -133,11 +171,11 @@ def _extract_mmdb(tarball: bytes, dest: Path) -> None:
 
 
 async def download_database(
-    settings: "GeoIPSettings", *, edition: str, db_path: Path
+    settings: GeoIPSettings, *, edition: str, db_path: Path, attempts: int = 1
 ) -> Path:
     """Download + extract one edition; raises GeoIPDownloadError."""
     logger.info("Downloading %s from MaxMind...", edition)
-    tarball = await _fetch_tarball(settings, edition)
+    tarball = await _fetch_with_retries(settings, edition, attempts)
     _extract_mmdb(tarball, db_path)
     logger.success(  # ty: ignore[unresolved-attribute]
         "geoip_database_refreshed", edition=edition, path=str(db_path)
@@ -146,10 +184,11 @@ async def download_database(
 
 
 async def ensure_geoip_database(
-    settings: "GeoIPSettings",
+    settings: GeoIPSettings,
     *,
     force: bool = False,
     errors: list[str] | None = None,
+    attempts: int = 1,
 ) -> bool:
     """Make the mmdb present-and-fresh if possible. Returns usability.
 
@@ -189,7 +228,7 @@ async def ensure_geoip_database(
 
     try:
         await download_database(
-            settings, edition=CITY_EDITION, db_path=settings.db_path
+            settings, edition=CITY_EDITION, db_path=settings.db_path, attempts=attempts
         )
         return True
     except GeoIPDownloadError as exc:
@@ -207,10 +246,11 @@ async def ensure_geoip_database(
 
 
 async def ensure_asn_database(
-    settings: "GeoIPSettings",
+    settings: GeoIPSettings,
     *,
     force: bool = False,
     errors: list[str] | None = None,
+    attempts: int = 1,
 ) -> bool:
     """Download or refresh the GeoLite2-ASN mmdb when possible; never raises.
 
@@ -248,7 +288,7 @@ async def ensure_asn_database(
 
     try:
         await download_database(
-            settings, edition=ASN_EDITION, db_path=settings.asn_db_path
+            settings, edition=ASN_EDITION, db_path=settings.asn_db_path, attempts=attempts
         )
         return True
     except GeoIPDownloadError as exc:
@@ -264,20 +304,24 @@ async def ensure_asn_database(
 
 
 async def refresh_geoip_databases(
-    settings: "GeoIPSettings", *, force: bool = False
+    settings: GeoIPSettings, *, force: bool = False
 ) -> RefreshResult:
     """Scheduler entry point: refresh City always, ASN when enabled.
 
     Looked up through the module (not captured references) so tests can
     monkeypatch the ensure functions.
     """
-    from geometrikks.services.geoip import downloader as _self
+    from geometrikks.services.geoip import downloader as _self  # noqa: PLW0406
 
     city_errors: list[str] = []
     asn_errors: list[str] = []
-    await _self.ensure_geoip_database(settings, force=force, errors=city_errors)
+    await _self.ensure_geoip_database(
+        settings, force=force, errors=city_errors, attempts=SCHEDULED_ATTEMPTS
+    )
     if settings.asn_enabled:
-        await _self.ensure_asn_database(settings, force=force, errors=asn_errors)
+        await _self.ensure_asn_database(
+            settings, force=force, errors=asn_errors, attempts=SCHEDULED_ATTEMPTS
+        )
     return RefreshResult(
         city_error=city_errors[0] if city_errors else None,
         asn_error=asn_errors[0] if asn_errors else None,

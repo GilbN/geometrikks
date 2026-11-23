@@ -20,7 +20,8 @@ export type DropNetworkRange = (typeof DROP_NETWORK_RANGES)[number]
  */
 export const MAX_BULK_BAN_NETWORKS: number = BanNetworksRequestSchema.properties.networks.maxItems
 
-export const DROP_NETWORKS_STALE_NOTE = "The DROP network lists are out of date. No download has worked for 7 days."
+export const DROP_NETWORKS_STALE_NOTE =
+  "The DROP network lists are out of date. No download has worked for 7 days."
 
 const DROP_STALE_AFTER_MS = 7 * 24 * 60 * 60 * 1000
 
@@ -30,7 +31,9 @@ export function counted(count: number, singular: string, plural: string): string
 }
 
 /** A phone row's second line: "AS48090 · 30 IPs", or "30 IPs" without an ASN. */
-export function dropNetworkPhoneText(dropNetwork: Pick<DropNetworkTrafficView, "asn" | "ips">): string {
+export function dropNetworkPhoneText(
+  dropNetwork: Pick<DropNetworkTrafficView, "asn" | "ips">,
+): string {
   const ips = counted(dropNetwork.ips, "IP", "IPs")
   return dropNetwork.asn === null ? ips : `AS${dropNetwork.asn} · ${ips}`
 }
@@ -41,7 +44,10 @@ type DropNetworkTotals = Pick<
 >
 
 /** "138" and "networks · 1,130 IPs · 73,935 hits · 3 already banned". The ban count needs CrowdSec's answer. */
-export function dropNetworksSummary(totals: DropNetworkTotals): { networks: string; detail: string } {
+export function dropNetworksSummary(totals: DropNetworkTotals): {
+  networks: string
+  detail: string
+} {
   const parts = [
     totals.totalNetworks === 1 ? "network" : "networks",
     counted(totals.totalIps, "IP", "IPs"),
@@ -51,7 +57,9 @@ export function dropNetworksSummary(totals: DropNetworkTotals): { networks: stri
   return { networks: formatNumber(totals.totalNetworks), detail: parts.join(" · ") }
 }
 
-export function unbannedNetworkCount(totals: Pick<DropNetworksResponse, "totalNetworks" | "bannedNetworks">): number {
+export function unbannedNetworkCount(
+  totals: Pick<DropNetworksResponse, "totalNetworks" | "bannedNetworks">,
+): number {
   return Math.max(0, totals.totalNetworks - totals.bannedNetworks)
 }
 
@@ -71,7 +79,12 @@ export function bulkBanConfirmText(
   return { title: `Ban ${networks} ${forDuration(durationLabel)}?`, description }
 }
 
-export type BulkBanResultCounts = { banned: number; alreadyBanned: number; failed: number; notAttempted: number }
+export type BulkBanResultCounts = {
+  banned: number
+  alreadyBanned: number
+  failed: number
+  notAttempted: number
+}
 
 /** Matches BULK_BAN_NOT_ATTEMPTED_ERRORS in geometrikks/domain/security/controllers.py. */
 const NOT_ATTEMPTED_PREFIX = "not attempted:"
@@ -91,7 +104,9 @@ const wasOrWere = (count: number) => `${formatNumber(count)} ${count === 1 ? "wa
 
 /** "Banned 135 networks for 24 hours. 1 was already banned. 2 failed. 40 were not attempted." */
 export function bulkBanResultText(counts: BulkBanResultCounts, durationLabel: string): string {
-  const sentences = [`Banned ${counted(counts.banned, "network", "networks")} ${forDuration(durationLabel)}.`]
+  const sentences = [
+    `Banned ${counted(counts.banned, "network", "networks")} ${forDuration(durationLabel)}.`,
+  ]
   if (counts.alreadyBanned > 0) sentences.push(`${wasOrWere(counts.alreadyBanned)} already banned.`)
   if (counts.failed > 0) sentences.push(`${formatNumber(counts.failed)} failed.`)
   if (counts.notAttempted > 0) sentences.push(`${wasOrWere(counts.notAttempted)} not attempted.`)
@@ -106,7 +121,8 @@ export function bulkBanResultTitle(counts: BulkBanResultCounts): string {
 
 /** Failures first, since they are the ones to act on. */
 export function sortedBanResults(banResults: readonly BanNetworkResult[]): BanNetworkResult[] {
-  const rank = (banResult: BanNetworkResult) => (!banResult.ok ? 0 : banResult.alreadyBanned ? 1 : 2)
+  const rank = (banResult: BanNetworkResult) =>
+    !banResult.ok ? 0 : banResult.alreadyBanned ? 1 : 2
   return [...banResults].sort((first, second) => rank(first) - rank(second))
 }
 
@@ -133,7 +149,11 @@ export function dropLastSeenText(lastSeen: string | null, now: number = Date.now
   const seenAt = Date.parse(lastSeen)
   if (Number.isNaN(seenAt)) return "-"
   if (seenAt % DAY_MS === 0) {
-    return new Date(seenAt).toLocaleDateString(undefined, { day: "numeric", month: "short", timeZone: "UTC" })
+    return new Date(seenAt).toLocaleDateString(undefined, {
+      day: "numeric",
+      month: "short",
+      timeZone: "UTC",
+    })
   }
   const elapsed = Math.max(0, now - seenAt)
   if (elapsed < MINUTE_MS) return "just now"
@@ -159,14 +179,20 @@ export function dropNetworkFreshness(
   let updatedAt: string | null = null
   for (const feedView of dropLists?.feeds ?? []) {
     if (feedView.feed === "asn" || !feedView.fetchedAt) continue
-    if (updatedAt === null || Date.parse(feedView.fetchedAt) > Date.parse(updatedAt)) updatedAt = feedView.fetchedAt
+    if (updatedAt === null || Date.parse(feedView.fetchedAt) > Date.parse(updatedAt))
+      updatedAt = feedView.fetchedAt
   }
-  return { updatedAt, stale: updatedAt !== null && now - Date.parse(updatedAt) > DROP_STALE_AFTER_MS }
+  return {
+    updatedAt,
+    stale: updatedAt !== null && now - Date.parse(updatedAt) > DROP_STALE_AFTER_MS,
+  }
 }
 
 type Focusable = { readonly isConnected: boolean; readonly disabled?: boolean; focus: () => void }
 
 /** The first element still on the page that can take focus, for returning focus after a dialog. */
-export function focusTarget<T extends Focusable>(candidates: readonly (T | null | undefined)[]): T | null {
+export function focusTarget<T extends Focusable>(
+  candidates: readonly (T | null | undefined)[],
+): T | null {
   return candidates.find((candidate) => candidate?.isConnected && !candidate.disabled) ?? null
 }

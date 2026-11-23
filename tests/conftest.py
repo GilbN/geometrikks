@@ -83,7 +83,11 @@ def disable_heartbeat_writer(request: pytest.FixtureRequest, monkeypatch: pytest
     if not request.node.path.is_relative_to(Path(__file__).parent / "integration"):
         from geometrikks.domain.instances.heartbeat import HeartbeatWriter
 
+        async def skip_beat(self) -> bool:
+            return True
+
         monkeypatch.setattr(HeartbeatWriter, "start", lambda self: None)
+        monkeypatch.setattr(HeartbeatWriter, "beat", skip_beat)
     yield
 
 
@@ -95,6 +99,16 @@ def reset_drop_snapshot_between_tests():
     reset_drop_snapshot()
     yield
     reset_drop_snapshot()
+
+
+@pytest.fixture(autouse=True)
+def reset_blacklist_body_between_tests():
+    """The encoded blacklist is process-global; keep one test's list out of the next."""
+    from geometrikks.domain.abuseipdb.blacklist import reset_blacklist_body
+
+    reset_blacklist_body()
+    yield
+    reset_blacklist_body()
 
 
 @pytest.fixture(autouse=True)

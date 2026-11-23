@@ -1,4 +1,9 @@
-import type { AboutResponse, DropListsAboutView, GeoIpInfoView } from "@/generated/api/types.gen"
+import type {
+  AboutResponse,
+  AbuseIpdbBlacklistAboutView,
+  DropListsAboutView,
+  GeoIpInfoView,
+} from "@/generated/api/types.gen"
 import type { LedTone } from "@/components/settings/status-led"
 import { formatTs } from "@/lib/datetime"
 import { dropListsState } from "@/lib/drop-lists"
@@ -10,7 +15,10 @@ export interface SectionSummary {
 }
 
 /** GeoLite2 EULA expects refresh within 30 days; warn as that approaches. */
-export function geoipFreshness(available: boolean, ageDays: number | null | undefined): {
+export function geoipFreshness(
+  available: boolean,
+  ageDays: number | null | undefined,
+): {
   tone: LedTone
   label: string
 } {
@@ -38,7 +46,10 @@ export function shortPostgresVersion(postgresVersion: string): string {
 export function splitPath(path: string): { fileName: string; folder: string | null } {
   const lastSlash = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"))
   if (lastSlash === -1) return { fileName: path, folder: null }
-  return { fileName: path.slice(lastSlash + 1), folder: path.slice(0, lastSlash) || path.slice(0, 1) }
+  return {
+    fileName: path.slice(lastSlash + 1),
+    folder: path.slice(0, lastSlash) || path.slice(0, 1),
+  }
 }
 
 /** "differs" rather than "behind": after a rollback the database can be ahead of the build. */
@@ -93,10 +104,15 @@ export function dropListsStatus(dropLists: DropListsAboutView): { tone: LedTone;
   if (state === "stale") {
     return { tone: "amber", label: updatedAt ? `Out of date, updated ${updatedAt}` : "Out of date" }
   }
-  return { tone: state === "failing" ? "amber" : "emerald", label: updatedAt ? `Updated ${updatedAt}` : "Downloaded" }
+  return {
+    tone: state === "failing" ? "amber" : "emerald",
+    label: updatedAt ? `Updated ${updatedAt}` : "Downloaded",
+  }
 }
 
-export function geoipSummary(about: Pick<AboutResponse, "geoip" | "geoipAsn" | "geoipAsnEnabled">): SectionSummary {
+export function geoipSummary(
+  about: Pick<AboutResponse, "geoip" | "geoipAsn" | "geoipAsnEnabled">,
+): SectionSummary {
   const asn = about.geoipAsnEnabled && about.geoipAsn ? about.geoipAsn : null
   const tones = [geoipFreshness(about.geoip.available, about.geoip.ageDays).tone]
   if (asn) tones.push(geoipFreshness(asn.available, asn.ageDays).tone)
@@ -108,7 +124,45 @@ export function geoipSummary(about: Pick<AboutResponse, "geoip" | "geoipAsn" | "
 export function dropListsSummary(dropLists: DropListsAboutView): SectionSummary {
   const status = dropListsStatus(dropLists)
   if (dropListsState(dropLists) !== "failing") return { tone: status.tone, text: status.label }
-  return { tone: status.tone, text: `Download failed, ${status.label.charAt(0).toLowerCase()}${status.label.slice(1)}` }
+  return {
+    tone: status.tone,
+    text: `Download failed, ${status.label.charAt(0).toLowerCase()}${status.label.slice(1)}`,
+  }
+}
+
+/**
+ * The AbuseIPDB blacklist's light and state. Red once the list is past 72
+ * hours, since GeoMetrikks stops marking its IPs then. Amber when the latest
+ * download failed, with or without an earlier list.
+ */
+export function abuseipdbBlacklistStatus(blacklist: AbuseIpdbBlacklistAboutView): {
+  tone: LedTone
+  label: string
+} {
+  if (!blacklist.refreshedAt) {
+    return {
+      tone: blacklist.lastAttemptFailed ? "amber" : "muted",
+      label: blacklist.source === "file" ? "Not read yet" : "Not downloaded yet",
+    }
+  }
+  const updatedAt = formatTs(blacklist.refreshedAt, "hourly")
+  if (blacklist.expired) return { tone: "red", label: `Expired, updated ${updatedAt}` }
+  return { tone: blacklist.lastAttemptFailed ? "amber" : "emerald", label: `Updated ${updatedAt}` }
+}
+
+/** The phone row's line: the status, with a failed download named ahead of the last good one. */
+export function abuseipdbBlacklistSummary(blacklist: AbuseIpdbBlacklistAboutView): SectionSummary {
+  const status = abuseipdbBlacklistStatus(blacklist)
+  if (!blacklist.lastAttemptFailed || !blacklist.refreshedAt) {
+    return { tone: status.tone, text: status.label }
+  }
+  const updatedAt = formatTs(blacklist.refreshedAt, "hourly")
+  return {
+    tone: status.tone,
+    text: blacklist.expired
+      ? `Expired, download failed, updated ${updatedAt}`
+      : `Download failed, updated ${updatedAt}`,
+  }
 }
 
 /** A row with a red or amber light starts open, so the problem shows without a tap. */
@@ -120,7 +174,9 @@ export function startsOpen(summary: SectionSummary): boolean {
 export function buildDateLabel(buildDate: string | null | undefined, locale?: string): string {
   if (!buildDate) return "unknown"
   const date = new Date(buildDate)
-  return Number.isNaN(date.getTime()) ? buildDate : date.toLocaleDateString(locale, { timeZone: "UTC" })
+  return Number.isNaN(date.getTime())
+    ? buildDate
+    : date.toLocaleDateString(locale, { timeZone: "UTC" })
 }
 
 function buildDay(info: GeoIpInfoView): string {
@@ -141,7 +197,8 @@ export function aboutDetailsText(about: AboutResponse): string {
       : status === "at-head"
         ? `Migration ${database.migrationRevision} (at head)`
         : `Migration ${database.migrationRevision} (differs from this build, build ships ${database.migrationHead})`
-  const asn = about.geoipAsnEnabled && about.geoipAsn ? `ASN ${buildDay(about.geoipAsn)}` : "ASN disabled"
+  const asn =
+    about.geoipAsnEnabled && about.geoipAsn ? `ASN ${buildDay(about.geoipAsn)}` : "ASN disabled"
   return [
     `GeoMetrikks ${displayVersion(app.version)}${commit}, ${runtimeLabel(app, displayVersion(publicVersion(app.version)))}`,
     `Python ${runtime.pythonVersion}, Litestar ${runtime.litestarVersion ?? "unknown"}, APScheduler ${runtime.apschedulerVersion ?? "unknown"}`,

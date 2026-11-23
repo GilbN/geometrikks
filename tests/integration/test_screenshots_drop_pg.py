@@ -29,6 +29,7 @@ from tests.screenshots.drop import (
 )
 from tests.screenshots.fixture_ips import PROBE_PATHS, load_ip_stats
 from tests.screenshots.lapi import load_events
+from tests.screenshots.muted import muted_request_ips, write_fixture_mutes
 from tests.screenshots.run import _live_ip_problems
 from tests.seed.config import SeedConfig
 from tests.seed.seeder import asyncpg_dsn
@@ -168,4 +169,23 @@ async def test_live_ip_check_counts_a_live_documentation_address_as_a_stranger(
             f"live requests came from 1 IPs the seed never wrote: {HOME_VISITORS[0]}"
         ]
     finally:
+        await conn.close()
+
+
+async def test_muted_fixture_check_finds_requests_inside_an_entry_in_either_form(
+    migrated_database_url, clean_tables, clean_muted_ips
+) -> None:
+    now = datetime.now(UTC)
+    row = doc_traffic(SeedConfig(rows=4000, seed=7, servers=("edge",)), now=now, rng=random.Random(2)).access_logs[0]
+    outside = [row._replace(ip_address=ip, timestamp=now - timedelta(hours=1)) for ip in ("198.51.100.48", "192.0.2.11")]
+    inside = [row._replace(ip_address=ip, timestamp=now - timedelta(hours=1)) for ip in ("198.51.100.33", "::ffff:192.0.2.10")]
+    conn = await asyncpg.connect(asyncpg_dsn(migrated_database_url))
+    try:
+        assert await write_fixture_mutes(conn, now=now) == 3
+        await SeedWriter(conn).write(Batch(access_logs=outside))
+        assert await muted_request_ips(conn) == []
+        await SeedWriter(conn).write(Batch(access_logs=inside))
+        assert await muted_request_ips(conn) == ["198.51.100.33", "::ffff:192.0.2.10"]
+    finally:
+        await conn.execute("DELETE FROM muted_ips")
         await conn.close()

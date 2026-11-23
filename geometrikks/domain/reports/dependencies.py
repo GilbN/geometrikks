@@ -1,9 +1,8 @@
 """Dependency providers for the reports domain."""
 from __future__ import annotations
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from litestar.di import NamedDependency
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from geometrikks.domain.reports.abuse_report import AbuseReportRepository
 from geometrikks.services.rdap import RdapClient, get_rdap_client

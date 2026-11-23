@@ -5,7 +5,6 @@ from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from typing import cast
 
-
 import pytest
 from litestar import Litestar
 from litestar.di import Provide
@@ -37,7 +36,6 @@ class TrafficReader:
         self.calls.append((start, end))
         if self.error:
             raise self.error
-        return None
 
     async def latest_event_at(self, start, end):
         return None
@@ -199,6 +197,18 @@ async def test_zero_decisions_are_available_data():
     result = await service(crowdsec=EmptyCrowdSec()).summary(RANGE)
     assert result.crowdsec.available
     assert result.crowdsec.data.active_decisions == 0
+
+
+@pytest.mark.parametrize(("held", "expected"), [([object()] * 3, 3), (None, 2)])
+async def test_decision_count_comes_from_the_poller_while_it_has_the_decisions(held, expected):
+    class Poller:
+        def decisions(self):
+            return held
+
+    summary = service(crowdsec=CrowdSec(CrowdSecUnavailableError("offline") if held else None))
+    summary.app.state.crowdsec_stream_poller = Poller()
+    result = await summary.summary(RANGE)
+    assert result.crowdsec.data.active_decisions == expected
 
 
 async def test_disabled_features_are_explicit():

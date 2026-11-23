@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 import { asnCoverage, headlineAsnCategory } from "./asn-coverage"
 
 const cats = (hosting: number, other: number) => [
@@ -34,7 +34,10 @@ describe("asnCoverage", () => {
   })
 
   it("reports the DROP share apart from the hosting share", () => {
-    const c = asnCoverage([{ category: "drop" as const, hits: 74_329 }, ...cats(431_200, 718_544)], 1_224_073)
+    const c = asnCoverage(
+      [{ category: "drop" as const, hits: 74_329 }, ...cats(431_200, 718_544)],
+      1_224_073,
+    )
     expect(c.hostingShare).toBeCloseTo(35.2, 1)
     expect(c.dropShare).toBeCloseTo(6.1, 1)
     expect(c.dropHits).toBe(74_329)
@@ -85,12 +88,17 @@ describe("headlineAsnCategory", () => {
 
   it("never picks Other, even when it sent the most requests", () => {
     const drop = { category: "drop" as const, hits: 1_200 }
-    expect(headlineAsnCategory([drop, ...cats(2_800, 14_096)])).toEqual({ category: "hosting", hits: 2_800 })
+    expect(headlineAsnCategory([drop, ...cats(2_800, 14_096)])).toEqual({
+      category: "hosting",
+      hits: 2_800,
+    })
     expect(headlineAsnCategory(cats(0, 500))).toEqual({ category: "hosting", hits: 0 })
   })
 
   it("breaks a tie toward DROP", () => {
-    expect(headlineAsnCategory([...cats(50, 50), { category: "drop" as const, hits: 50 }])?.category).toBe("drop")
+    expect(
+      headlineAsnCategory([...cats(50, 50), { category: "drop" as const, hits: 50 }])?.category,
+    ).toBe("drop")
   })
 
   it("returns nothing when there are no categories", () => {

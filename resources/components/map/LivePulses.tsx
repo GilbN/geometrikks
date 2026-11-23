@@ -13,7 +13,11 @@ import type { Feature, FeatureCollection } from "geojson"
 import { packetColor, packetRadius, worseStatus } from "@/lib/live-traffic/classify"
 import type { LiveRequest, StatusClass } from "@/lib/live-traffic/types"
 import { useLiveTrafficStore } from "@/lib/live-traffic/context"
-import { BANNED_RING_IMAGE_ID, CAPTCHA_RING_IMAGE_ID, ensureDecisionRingImages } from "./bannedRingImage"
+import {
+  BANNED_RING_IMAGE_ID,
+  CAPTCHA_RING_IMAGE_ID,
+  ensureDecisionRingImages,
+} from "./bannedRingImage"
 
 type Coordinate = [longitude: number, latitude: number]
 
@@ -52,11 +56,11 @@ function clamp(value: number, min = 0, max = 1): number {
 }
 
 function toRadians(value: number): number {
-  return value * Math.PI / 180
+  return (value * Math.PI) / 180
 }
 
 function toDegrees(value: number): number {
-  return value * 180 / Math.PI
+  return (value * 180) / Math.PI
 }
 
 /** Spherical interpolation produces a natural global arc rather than a flat diagonal. */
@@ -110,12 +114,14 @@ function routeDistanceKm(route: Coordinate[]): number {
   const [startLng, startLat] = route[0].map(toRadians)
   const [endLng, endLat] = route.at(-1)!.map(toRadians)
   const deltaLng = endLng - startLng
-  const centralAngle = Math.acos(clamp(
-    Math.sin(startLat) * Math.sin(endLat)
-      + Math.cos(startLat) * Math.cos(endLat) * Math.cos(deltaLng),
-    -1,
-    1,
-  ))
+  const centralAngle = Math.acos(
+    clamp(
+      Math.sin(startLat) * Math.sin(endLat) +
+        Math.cos(startLat) * Math.cos(endLat) * Math.cos(deltaLng),
+      -1,
+      1,
+    ),
+  )
   return centralAngle * EARTH_RADIUS_KM
 }
 
@@ -137,11 +143,14 @@ function packetCell([longitude, latitude]: Coordinate): string {
   const cellSizeDegrees = 0.9
   const longitudeScale = Math.max(Math.cos(toRadians(latitude)), 0.1)
   return `${Math.round(latitude / cellSizeDegrees)}:${Math.round(
-    longitude * longitudeScale / cellSizeDegrees,
+    (longitude * longitudeScale) / cellSizeDegrees,
   )}`
 }
 
-function pointAlongRoute(route: Coordinate[], progress: number): {
+function pointAlongRoute(
+  route: Coordinate[],
+  progress: number,
+): {
   point: Coordinate
   travelled: Coordinate[]
 } {
@@ -271,9 +280,10 @@ function buildFrame(transmissions: Transmission[], now: number): FeatureCollecti
       )
     }
 
-    const shouldShowPacket = linearProgress < 1
-      && visibleTransmissions.has(transmission)
-      && !visiblePacketCells.has(packetCell(point))
+    const shouldShowPacket =
+      linearProgress < 1 &&
+      visibleTransmissions.has(transmission) &&
+      !visiblePacketCells.has(packetCell(point))
     if (shouldShowPacket) {
       visiblePacketCells.add(packetCell(point))
       features.push({
@@ -334,7 +344,9 @@ export function LivePulses({
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-reduced-motion: reduce)")
-    const update = () => { prefersReducedMotion.current = media.matches }
+    const update = () => {
+      prefersReducedMotion.current = media.matches
+    }
     update()
     media.addEventListener("change", update)
     return () => media.removeEventListener("change", update)
@@ -352,27 +364,33 @@ export function LivePulses({
     }
   }, [map])
 
-  const enqueueRequests = useCallback((requests: readonly LiveRequest[]) => {
-    const now = performance.now()
-    for (const request of requests) {
-      const destination = resolveDestination(request.server)
-      if (!destination || !request.coordinates) continue
-      const lane = routeLane(request.coordinates)
+  const enqueueRequests = useCallback(
+    (requests: readonly LiveRequest[]) => {
+      const now = performance.now()
+      for (const request of requests) {
+        const destination = resolveDestination(request.server)
+        if (!destination || !request.coordinates) continue
+        const lane = routeLane(request.coordinates)
 
-      const laneIsActive = transmissions.current.some(
-        (activeTransmission) => activeTransmission.lane === lane,
-      )
-
-      if (laneIsActive || transmissions.current.length >= MAX_ACTIVE_TRANSMISSIONS) {
-        queuedRequests.current.set(lane, request)
-      } else {
-        const transmission = createTransmission(
-          request, destination, now, prefersReducedMotion.current,
+        const laneIsActive = transmissions.current.some(
+          (activeTransmission) => activeTransmission.lane === lane,
         )
-        if (transmission) transmissions.current.push(transmission)
+
+        if (laneIsActive || transmissions.current.length >= MAX_ACTIVE_TRANSMISSIONS) {
+          queuedRequests.current.set(lane, request)
+        } else {
+          const transmission = createTransmission(
+            request,
+            destination,
+            now,
+            prefersReducedMotion.current,
+          )
+          if (transmission) transmissions.current.push(transmission)
+        }
       }
-    }
-  }, [resolveDestination])
+    },
+    [resolveDestination],
+  )
 
   useEffect(() => {
     if (!enabled) return
@@ -400,9 +418,7 @@ export function LivePulses({
       if (elapsed < FRAME_INTERVAL_MS) return
       // Preserve the remainder to avoid dropping to 20 Hz when a 60 Hz
       // frame arrives just before the next 30 Hz deadline.
-      lastFrame = Number.isFinite(lastFrame)
-        ? now - elapsed % FRAME_INTERVAL_MS
-        : now
+      lastFrame = Number.isFinite(lastFrame) ? now - (elapsed % FRAME_INTERVAL_MS) : now
       transmissions.current = transmissions.current.filter(
         ({ born, duration }) => now - born < duration + ARRIVAL_LINGER_MS,
       )
@@ -433,7 +449,7 @@ export function LivePulses({
       const idle = transmissions.current.length === 0
       if (!idle || !sourceIsEmpty.current) {
         const source = map?.getSource(SOURCE_ID) as GeoJSONSource | undefined
-        source?.setData(buildFrame(transmissions.current, now))
+        void source?.setData(buildFrame(transmissions.current, now))
         sourceIsEmpty.current = idle
       }
     }
@@ -569,7 +585,12 @@ export function LivePulses({
         type="symbol"
         filter={["==", ["get", "banned"], 1]}
         layout={{
-          "icon-image": ["case", ["==", ["get", "decision"], "captcha"], CAPTCHA_RING_IMAGE_ID, BANNED_RING_IMAGE_ID],
+          "icon-image": [
+            "case",
+            ["==", ["get", "decision"], "captcha"],
+            CAPTCHA_RING_IMAGE_ID,
+            BANNED_RING_IMAGE_ID,
+          ],
           "icon-size": 0.5,
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,

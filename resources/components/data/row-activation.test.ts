@@ -1,15 +1,24 @@
 import type { MouseEvent } from "react"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vite-plus/test"
 import { rowActivation, stopRowActivation } from "./row-activation"
 
 const inside = { id: "cell text", closest: () => null }
 const portaled = { id: "drawer item" }
-const row = { contains: (node: unknown) => node === inside || (node as { closest?: unknown } | null)?.closest !== undefined }
+const row = {
+  contains: (node: unknown) =>
+    node === inside || (node as { closest?: unknown } | null)?.closest !== undefined,
+}
 
-function click(selection: { isCollapsed: boolean; anchorNode: unknown } | null, target: unknown = inside) {
+function click(
+  selection: { isCollapsed: boolean; anchorNode: unknown } | null,
+  target: unknown = inside,
+) {
   vi.stubGlobal("window", { getSelection: () => selection })
   const open = vi.fn()
-  rowActivation<HTMLTableRowElement>(open).onClick({ currentTarget: row, target } as unknown as MouseEvent<HTMLTableRowElement>)
+  rowActivation<HTMLTableRowElement>(open).onClick({
+    currentTarget: row,
+    target,
+  } as unknown as MouseEvent<HTMLTableRowElement>)
   return open
 }
 
@@ -19,7 +28,11 @@ afterEach(() => {
 
 function stopClick(target: unknown) {
   const stopPropagation = vi.fn()
-  stopRowActivation.onClick({ currentTarget: row, target, stopPropagation } as unknown as MouseEvent)
+  stopRowActivation.onClick({
+    currentTarget: row,
+    target,
+    stopPropagation,
+  } as unknown as MouseEvent)
   return stopPropagation
 }
 
@@ -35,7 +48,9 @@ describe("stopRowActivation", () => {
 
 describe("rowActivation", () => {
   it("leaves a tap on a badge hint to the hint", () => {
-    const badgeHint = { closest: (selector: string) => (selector === "[data-badge-hint]" ? {} : null) }
+    const badgeHint = {
+      closest: (selector: string) => (selector === "[data-badge-hint]" ? {} : null),
+    }
     expect(click({ isCollapsed: true, anchorNode: inside }, badgeHint)).not.toHaveBeenCalled()
   })
 

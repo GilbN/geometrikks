@@ -85,6 +85,7 @@ from tests.screenshots.lapi import (
     load_events,
     network_args,
 )
+from tests.screenshots.muted import muted_request_ips, write_fixture_mutes
 from tests.screenshots.plan import (
     MissingParamError,
     Shot,
@@ -154,6 +155,7 @@ APP_STOP_SECONDS: Final = 30
 APP_GRACEFUL_SHUTDOWN_SECONDS: Final = 10
 DB_READY_SECONDS: Final = 180
 DOCKER_SECONDS: Final = 60
+BROWSER_SECONDS: Final = 60
 DOCKER_RUN_SECONDS: Final = 600
 LOG_TAIL_LINES: Final = 30
 
@@ -233,6 +235,13 @@ def _free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
         probe.bind(("0.0.0.0", 0))
         return probe.getsockname()[1]
+
+
+def _head(path: Path, lines: int = LOG_TAIL_LINES) -> str:
+    try:
+        return "\n".join(path.read_text(errors="replace").splitlines()[:lines])
+    except OSError:
+        return ""
 
 
 def _tail(path: Path, lines: int = LOG_TAIL_LINES) -> str:
@@ -370,6 +379,53 @@ def _mem_available() -> int:
     return 0
 
 
+BROWSER_PROBE: Final = """
+try {
+  const { chromium } = await import("@playwright/test");
+  const browser = await chromium.launch({ timeout: 30_000 });
+  await browser.close();
+} catch (error) {
+  console.error(String(error?.message ?? error));
+  process.exit(1);
+}
+"""
+
+
+def _browser_starts(runner: Runner) -> bool:
+    node = shutil.which("node", path=runner.path)
+    if node is None:
+        say(f"could not start Playwright's Chromium: node is not on the run's PATH ({runner.path})")
+        return False
+    log = "browser-probe.log"
+    # Playwright makes its profile and artifacts folders before it looks for the browser, and leaves them
+    # behind when the browser is missing.
+    temp_dir = runner.log_dir / "browser-probe-tmp"
+    temp_dir.mkdir(exist_ok=True)
+    # The run's teardown and --cleanup kill stray browsers that carry this variable.
+    plan = str(runner.log_dir.parent / "plan.json")
+    plan_marker = f"SHOTS_PLAN={plan}".encode()
+    try:
+        code = runner.run(
+            [node, "--input-type=module", "-e", BROWSER_PROBE],
+            label="browser probe",
+            log=log,
+            env={**runner.env, "SHOTS_PLAN": plan, "TMPDIR": str(temp_dir)},
+            timeout=BROWSER_SECONDS,
+        )
+    except TimeoutError:
+        printed = _head(runner.log_dir / log)
+        say(f"could not start Playwright's Chromium: it did not start within {BROWSER_SECONDS} s\n{printed}".rstrip())
+        code = None
+    swept, sweep_failed = sweep_marked(lambda pair: pair == plan_marker)
+    for line in swept:
+        say(f"preflight: {line.replace('from a capture', 'from the browser probe')}")
+    if code:
+        # Playwright puts the cause first and appends its call log.
+        reason = _head(runner.log_dir / log) or f"the probe exited {code} without a message"
+        say(f"could not start Playwright's Chromium:\n{reason}")
+    return code == 0 and not sweep_failed
+
+
 def gather_facts(args: argparse.Namespace, runner: Runner, *, ledger_exists: bool) -> Facts:
     docker_ok = shutil.which("docker", path=runner.path) is not None and (
         runner.run([runner.which("docker"), "info"], label="docker info", log="commands.log", timeout=30) == 0
@@ -393,6 +449,7 @@ def gather_facts(args: argparse.Namespace, runner: Runner, *, ledger_exists: boo
         esri_key_needed=not args.only or SATELLITE_SCENE in args.only,
         esri_key_set=bool(args.esri_key),
         site_deps_installed=SITE_SHARP.is_dir(),
+        browser_starts=_browser_starts(runner),
         vite_dev_running=VITE_HOT.exists(),
         ledger_exists=ledger_exists,
         database_exists=database_exists,
@@ -474,7 +531,7 @@ def _recover(prefix: str) -> bool:
     try:
         for line in recover_publish(DATA_SCREENSHOTS):
             say(f"{prefix}: {line}")
-    except Exception as error:  # noqa: BLE001
+    except Exception as error:
         say(
             f"{prefix}: publish recovery failed: {error}; "
             f"check {DATA_SCREENSHOTS}, {STAGING_NAME} and {BACKUP_NAME} next to it by hand"
@@ -547,8 +604,13 @@ def dry_run(args: argparse.Namespace) -> int:
             code = EXIT_INTERRUPTED
         finally:
             with interrupts_ignored():
-                for line in _teardown(private.owned(), private, env, logs if logs.is_dir() else scratch):
+                report = _teardown(private.owned(), private, env, logs if logs.is_dir() else scratch)
+                dry_marker = f"SHOTS_PLAN={scratch / 'plan.json'}".encode()
+                swept, sweep_failed = sweep_marked(lambda pair: pair == dry_marker)
+                for line in report + swept:
                     say(f"teardown: {line}")
+                if sweep_failed:
+                    code = code or EXIT_FAILED
                 if _ledger_holds(private):
                     say(f"teardown: kept {scratch}, its ledger still lists resources; run --cleanup")
                     code = code or EXIT_FAILED
@@ -752,7 +814,7 @@ def full_run(args: argparse.Namespace) -> int:
                     if log is not None:
                         say(f"last lines of {log}:\n{_tail(log)}")
                     code = EXIT_FAILED
-                except Exception:  # noqa: BLE001
+                except Exception:
                     traceback.print_exc()
                     code = EXIT_FAILED
         except Interrupted as interrupt:
@@ -837,7 +899,7 @@ class FullRun:
         failure: Exception | None = None
         try:
             self.capture()
-        except Exception as error:  # noqa: BLE001
+        except Exception as error:
             failure = error
         if self.args.hold:
             self.hold(failure)
@@ -860,12 +922,12 @@ class FullRun:
         say("building the frontend bundle (logs/build.log)")
         env_dir = self.run_dir / "vite-env"
         env_dir.mkdir()
-        argv = bun_argv(self.runner.which("bun"), "run", "vite", "build", f"--config={SCREENSHOT_VITE_CONFIG}")
+        argv = bun_argv(self.runner.which("bun"), "run", "vp", "build", f"--config={SCREENSHOT_VITE_CONFIG}")
         code = self.runner.run(
-            argv, label="vite build", log="build.log", env={**self.env, VITE_ENV_DIR_VAR: str(env_dir)}
+            argv, label="vp build", log="build.log", env={**self.env, VITE_ENV_DIR_VAR: str(env_dir)}
         )
         if code != 0:
-            raise RunFailed(f"vite build exited {code}", log=self.logs / "build.log")
+            raise RunFailed(f"vp build exited {code}", log=self.logs / "build.log")
         code, out = self.runner.capture(
             [self.runner.which("git"), "status", "--porcelain", "resources/generated"], label="git status"
         )
@@ -990,6 +1052,10 @@ class FullRun:
             if listed:
                 raise RunFailed(f"DROP lists hold non-documentation entries: {', '.join(listed)}")
             say(f"AbuseIPDB: {await write_fixture_reports(conn, now=self.now)} fixture reports written")
+            say(f"Muted IPs: {await write_fixture_mutes(conn, now=self.now)} entries written")
+            covered = await muted_request_ips(conn)
+            if covered:
+                raise RunFailed(f"Muted IPs entries cover stored requests from: {', '.join(covered)}")
         finally:
             await conn.close()
             await engine.dispose()

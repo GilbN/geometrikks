@@ -1,7 +1,6 @@
 """DROP refresh against the real tables: import, skip rules, unchanged feeds and failed downloads."""
-from datetime import UTC, datetime, timedelta
-
 import asyncio
+from datetime import UTC, datetime, timedelta
 
 import httpx2
 import pytest

@@ -23,16 +23,28 @@ import { TablePaginationFooter, usePagedRows } from "./table-pagination"
 export function TopIpsTable() {
   const { data, isLoading } = useTopIpStats({ limit: 25 })
   const { filters, setFilters } = useAnalyticsFilters()
-  const filterTargetsFor = useMemo(() => analyticsFilterTargets(filters, setFilters), [filters, setFilters])
+  const filterTargetsFor = useMemo(
+    () => analyticsFilterTargets(filters, setFilters),
+    [filters, setFilters],
+  )
   const { pageItems, ...pagination } = usePagedRows(data?.items)
   // Keep banned badges in sync with external cscli/console decisions.
   useCrowdsecLiveUpdates()
-  const [layoutRef, narrow] = useFitLayout<HTMLDivElement>(pageItems.map((row) => row.ipAddress).join())
+  const [layoutRef, narrow] = useFitLayout<HTMLDivElement>(
+    pageItems.map((row) => row.ipAddress).join(),
+  )
 
   return (
     <Card ref={layoutRef}>
-      <CardHeader>
-        <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Top IPs</CardTitle>
+      <CardHeader className="flex flex-wrap items-baseline justify-between gap-x-3">
+        <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+          Top IPs
+        </CardTitle>
+        {!isLoading && data && data.distinctIps > 0 && (
+          <span className="text-xs text-muted-foreground tabular-nums">
+            {formatNumber(data.distinctIps)} {data.distinctIps === 1 ? "unique IP" : "unique IPs"}
+          </span>
+        )}
       </CardHeader>
       <CardContent>
         {isLoading || !data ? (
@@ -56,55 +68,70 @@ export function TopIpsTable() {
               )}
               <IpFilterTargetsProvider targetsFor={filterTargetsFor}>
                 <TableBody>
-                  {pageItems.map((row) => narrow ? (
-                    <TableRow key={row.ipAddress}>
-                      <RankedNarrowCell
-                        primary={
-                          <>
-                            <IpLabel ip={row.ipAddress} className="truncate font-mono text-xs" />
-                            <IpActionsMenu
-                              ip={row.ipAddress}
-                              countryCode={row.countryCode}
-                              city={row.city}
-                              asn={row.asn}
-                              asOrganization={row.asOrganization}
-                            />
-                          </>
-                        }
-                        value={formatNumber(row.hits)}
-                        secondary={
-                          <>
-                            {(row.countryCode || row.city) && (
-                              <span className="flex items-center gap-1">
-                                <CountryFlag code={row.countryCode} standalone />
-                                {[row.countryCode, row.city].filter(Boolean).join(", ")}
+                  {pageItems.map((row) =>
+                    narrow ? (
+                      <TableRow key={row.ipAddress}>
+                        <RankedNarrowCell
+                          primary={
+                            <>
+                              <IpLabel ip={row.ipAddress} className="truncate font-mono text-xs" />
+                              <IpActionsMenu
+                                muteToggle
+                                ip={row.ipAddress}
+                                countryCode={row.countryCode}
+                                city={row.city}
+                                asn={row.asn}
+                                asOrganization={row.asOrganization}
+                              />
+                            </>
+                          }
+                          value={formatNumber(row.hits)}
+                          secondary={
+                            <>
+                              {(row.countryCode || row.city) && (
+                                <span className="flex items-center gap-1">
+                                  <CountryFlag code={row.countryCode} standalone />
+                                  {[row.countryCode, row.city].filter(Boolean).join(", ")}
+                                </span>
+                              )}
+                              <span>
+                                {formatNumber(row.errorHits)}{" "}
+                                {row.errorHits === 1 ? "error" : "errors"}
                               </span>
-                            )}
-                            <span>{formatNumber(row.errorHits)} {row.errorHits === 1 ? "error" : "errors"}</span>
-                            <span>{formatBytes(row.totalBytes)}</span>
-                          </>
-                        }
-                      />
-                    </TableRow>
-                  ) : (
-                    <TableRow key={row.ipAddress}>
-                      <TableCell className="font-mono text-xs">
-                        <IpLabel ip={row.ipAddress} />
-                        <IpActionsMenu
-                          ip={row.ipAddress}
-                          countryCode={row.countryCode}
-                          city={row.city}
-                          asn={row.asn}
-                          asOrganization={row.asOrganization}
+                              <span>{formatBytes(row.totalBytes)}</span>
+                            </>
+                          }
                         />
-                      </TableCell>
-                      <TableCell>{row.countryCode ? <CountryLabel code={row.countryCode} /> : "-"}</TableCell>
-                      <TableCell>{row.city ?? "-"}</TableCell>
-                      <TableCell className="text-right tabular-nums">{formatNumber(row.hits)}</TableCell>
-                      <TableCell className="text-right tabular-nums">{formatNumber(row.errorHits)}</TableCell>
-                      <TableCell className="text-right tabular-nums">{formatBytes(row.totalBytes)}</TableCell>
-                    </TableRow>
-                  ))}
+                      </TableRow>
+                    ) : (
+                      <TableRow key={row.ipAddress}>
+                        <TableCell className="font-mono text-xs">
+                          <IpLabel ip={row.ipAddress} />
+                          <IpActionsMenu
+                            muteToggle
+                            ip={row.ipAddress}
+                            countryCode={row.countryCode}
+                            city={row.city}
+                            asn={row.asn}
+                            asOrganization={row.asOrganization}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          {row.countryCode ? <CountryLabel code={row.countryCode} /> : "-"}
+                        </TableCell>
+                        <TableCell>{row.city ?? "-"}</TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {formatNumber(row.hits)}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {formatNumber(row.errorHits)}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {formatBytes(row.totalBytes)}
+                        </TableCell>
+                      </TableRow>
+                    ),
+                  )}
                 </TableBody>
               </IpFilterTargetsProvider>
             </Table>

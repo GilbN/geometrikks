@@ -11,11 +11,11 @@ from geometrikks.config.settings import (
 )
 
 __all__ = [
-    "Settings",
-    "get_settings",
     "AppSettings",
     "CrowdSecSettings",
     "DatabaseSettings",
     "GeoIPSettings",
     "MapSettings",
+    "Settings",
+    "get_settings",
 ]

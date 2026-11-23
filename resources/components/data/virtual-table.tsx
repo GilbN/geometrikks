@@ -1,6 +1,16 @@
 import {
-  cloneElement, createContext, Fragment, useCallback, useContext, useEffect, useLayoutEffect,
-  useMemo, useRef, useState, type ComponentProps, type ReactElement,
+  cloneElement,
+  createContext,
+  Fragment,
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentProps,
+  type ReactElement,
 } from "react"
 import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual"
 import { Table, TableBody } from "@/components/ui/table"
@@ -18,7 +28,12 @@ const ScrollContext = createContext<{
  * instead of in a box of its own.
  */
 export function VirtualTable({
-  columns, rowCount, resetKey, narrow = false, children, ...props
+  columns,
+  rowCount,
+  resetKey,
+  narrow = false,
+  children,
+  ...props
 }: ComponentProps<"table"> & {
   columns: readonly { key: string; grow?: boolean }[]
   rowCount: number
@@ -30,25 +45,37 @@ export function VirtualTable({
   // Chrome would anchor <main>'s scroll on the content below and push a
   // scrolled page down. Set here, not in an effect: the ref attaches before
   // anything in that commit forces a layout.
-  const attachScrollElement = useCallback((element: HTMLDivElement | null) => {
-    setScrollElement(element)
-    const main = narrow ? element?.closest("main") : null
-    if (!main) return
-    const previousAnchor = main.style.overflowAnchor
-    main.style.overflowAnchor = "none"
-    return () => {
-      main.style.overflowAnchor = previousAnchor
-      setScrollElement(null)
-    }
-  }, [narrow])
-  const context = useMemo(() => ({ scrollElement, resetKey, narrow }), [scrollElement, resetKey, narrow])
+  const attachScrollElement = useCallback(
+    (element: HTMLDivElement | null) => {
+      setScrollElement(element)
+      const main = narrow ? element?.closest("main") : null
+      if (!main) return
+      const previousAnchor = main.style.overflowAnchor
+      main.style.overflowAnchor = "none"
+      return () => {
+        main.style.overflowAnchor = previousAnchor
+        setScrollElement(null)
+      }
+    },
+    [narrow],
+  )
+  const context = useMemo(
+    () => ({ scrollElement, resetKey, narrow }),
+    [scrollElement, resetKey, narrow],
+  )
   return (
     <ScrollContext.Provider value={context}>
       <Table
         {...props}
         containerRef={attachScrollElement}
-        containerClassName={narrow ? "overflow-visible" : "max-h-[65dvh] overflow-auto overscroll-x-contain"}
-        className={narrow ? "table-fixed" : "table-auto [&_thead]:sticky [&_thead]:top-0 [&_thead]:z-10 [&_thead]:bg-card"}
+        containerClassName={
+          narrow ? "overflow-visible" : "max-h-[65dvh] overflow-auto overscroll-x-contain"
+        }
+        className={
+          narrow
+            ? "table-fixed"
+            : "table-auto [&_thead]:sticky [&_thead]:top-0 [&_thead]:z-10 [&_thead]:bg-card"
+        }
         aria-rowcount={narrow ? rowCount : rowCount + 1}
       >
         {narrow ? (
@@ -59,7 +86,9 @@ export function VirtualTable({
           <colgroup>
             {/* In auto layout, 1% keeps short fields at their content width.
                 Unconstrained text columns get the remaining space. */}
-            {columns.map((column) => <col key={column.key} style={{ width: column.grow ? undefined : "1%" }} />)}
+            {columns.map((column) => (
+              <col key={column.key} style={{ width: column.grow ? undefined : "1%" }} />
+            ))}
           </colgroup>
         )}
         {children}
@@ -73,7 +102,13 @@ export function VirtualTable({
  * Give it a key that changes with the table's `narrow` prop, because the
  * virtualizer carries its scroll offset across a change of scroll element.
  */
-export function VirtualTableBody<T>({ rows, columnCount, getRowKey, onAwayFromTopChange, children }: {
+export function VirtualTableBody<T>({
+  rows,
+  columnCount,
+  getRowKey,
+  onAwayFromTopChange,
+  children,
+}: {
   rows: readonly T[]
   columnCount: number
   getRowKey: (row: T) => string | number
@@ -90,7 +125,7 @@ export function VirtualTableBody<T>({ rows, columnCount, getRowKey, onAwayFromTo
   // A narrow table scrolls with the page, so the virtualizer follows <main>
   // and needs the table's offset inside it.
   const pageScroller = useMemo(
-    () => (narrow ? scrollElement?.closest<HTMLElement>("main") ?? null : null),
+    () => (narrow ? (scrollElement?.closest<HTMLElement>("main") ?? null) : null),
     [narrow, scrollElement],
   )
   const [scrollMargin, setScrollMargin] = useState(0)
@@ -100,7 +135,10 @@ export function VirtualTableBody<T>({ rows, columnCount, getRowKey, onAwayFromTo
   useLayoutEffect(() => {
     if (!pageScroller || !scrollElement) return
     const measure = () => {
-      const offset = scrollElement.getBoundingClientRect().top - pageScroller.getBoundingClientRect().top + pageScroller.scrollTop
+      const offset =
+        scrollElement.getBoundingClientRect().top -
+        pageScroller.getBoundingClientRect().top +
+        pageScroller.scrollTop
       scrollMarginRef.current = Math.round(offset)
       setScrollMargin(scrollMarginRef.current)
     }
@@ -123,9 +161,12 @@ export function VirtualTableBody<T>({ rows, columnCount, getRowKey, onAwayFromTo
   const awayFromTopRef = useRef<boolean | null>(null)
   const onAwayFromTopChangeRef = useRef(onAwayFromTopChange)
   onAwayFromTopChangeRef.current = onAwayFromTopChange
-  useEffect(() => () => {
-    if (awayFromTopRef.current) onAwayFromTopChangeRef.current?.(false)
-  }, [])
+  useEffect(
+    () => () => {
+      if (awayFromTopRef.current) onAwayFromTopChangeRef.current?.(false)
+    },
+    [],
+  )
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => pageScroller ?? scrollElement,
@@ -150,14 +191,17 @@ export function VirtualTableBody<T>({ rows, columnCount, getRowKey, onAwayFromTo
     scrollPaddingStart: headerHeight,
     // Keep the focused row and its neighbours mounted so Tab can cross the
     // rendered window, and a sheet can return focus to its original row.
-    rangeExtractor: useCallback((range) => {
-      const indexes = defaultRangeExtractor(range)
-      if (focusedIndex === null) return indexes
-      for (let index = focusedIndex - 1; index <= focusedIndex + 1; index++) {
-        if (index >= 0 && index < range.count) indexes.push(index)
-      }
-      return [...new Set(indexes)].sort((a, b) => a - b)
-    }, [focusedIndex]),
+    rangeExtractor: useCallback(
+      (range) => {
+        const indexes = defaultRangeExtractor(range)
+        if (focusedIndex === null) return indexes
+        for (let index = focusedIndex - 1; index <= focusedIndex + 1; index++) {
+          if (index >= 0 && index < range.count) indexes.push(index)
+        }
+        return [...new Set(indexes)].sort((a, b) => a - b)
+      },
+      [focusedIndex],
+    ),
   })
 
   useLayoutEffect(() => {
@@ -172,8 +216,10 @@ export function VirtualTableBody<T>({ rows, columnCount, getRowKey, onAwayFromTo
       // Back to the first row, but leave a page that hasn't reached the table where it is.
       // The bars stuck to <main>'s top publish their heights there in px.
       const style = getComputedStyle(pageScrollerNow)
-      const stuckAbove = ["--sticky-top", "--table-header-height"]
-        .reduce((total, name) => total + (parseFloat(style.getPropertyValue(name)) || 0), 0)
+      const stuckAbove = ["--sticky-top", "--table-header-height"].reduce(
+        (total, name) => total + (parseFloat(style.getPropertyValue(name)) || 0),
+        0,
+      )
       const firstRowTop = scrollMarginRef.current - stuckAbove
       if (pageScrollerNow.scrollTop > firstRowTop) pageScrollerNow.scrollTo({ top: firstRowTop })
     }
@@ -182,12 +228,14 @@ export function VirtualTableBody<T>({ rows, columnCount, getRowKey, onAwayFromTo
   const items = virtualizer.getVirtualItems()
   // Until the virtualizer has its scroller there are no items. Reserve the
   // estimated height so the page doesn't shrink and drop its scroll position.
-  const totalSize = items.length > 0 ? virtualizer.getTotalSize() : headerHeight + rows.length * rowEstimate
-  const spacer = (height: number, key: string) => height > 0 ? (
-    <tr key={key} aria-hidden="true" role="presentation">
-      <td colSpan={columnCount} style={{ height, padding: 0, border: 0 }} />
-    </tr>
-  ) : null
+  const totalSize =
+    items.length > 0 ? virtualizer.getTotalSize() : headerHeight + rows.length * rowEstimate
+  const spacer = (height: number, key: string) =>
+    height > 0 ? (
+      <tr key={key} aria-hidden="true" role="presentation">
+        <td colSpan={columnCount} style={{ height, padding: 0, border: 0 }} />
+      </tr>
+    ) : null
 
   return (
     <TableBody
@@ -198,7 +246,10 @@ export function VirtualTableBody<T>({ rows, columnCount, getRowKey, onAwayFromTo
     >
       {items.map((item, index) => (
         <Fragment key={item.key}>
-          {spacer(item.start - (items[index - 1]?.end ?? margin + headerHeight), `before-${item.key}`)}
+          {spacer(
+            item.start - (items[index - 1]?.end ?? margin + headerHeight),
+            `before-${item.key}`,
+          )}
           {cloneElement(children(rows[item.index]), {
             ref: virtualizer.measureElement,
             "data-index": item.index,

@@ -117,7 +117,7 @@ async def batched_frames(
                 break
             try:
                 item = await asyncio.wait_for(queue.get(), timeout=remaining)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 break
             for entry in expand(item) if expand is not None else (item,):
                 if len(pending) >= max_items:
@@ -148,7 +148,7 @@ async def passthrough_frames(
     while True:
         try:
             frame = await asyncio.wait_for(queue.get(), timeout=poll_interval)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             if loop.time() - last_send >= heartbeat_interval:
                 yield make_heartbeat()
                 last_send = loop.time()

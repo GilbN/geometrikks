@@ -1,5 +1,5 @@
 """The AbuseIPDB blacklist job's registration and failure signal, and the read path without a database."""
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
@@ -7,7 +7,11 @@ import pytest
 from pydantic import SecretStr
 
 from geometrikks.config.settings import AbuseIpdbSettings, SchedulerSettings, Settings
-from geometrikks.domain.abuseipdb.blacklist import BlacklistOutcome, BlacklistView, current_blacklist
+from geometrikks.domain.abuseipdb.blacklist import (
+    BlacklistOutcome,
+    current_blacklist,
+    etag_matches,
+)
 from geometrikks.domain.drop.refresh import FirstRunFlag
 from geometrikks.server import scheduler as sched
 
@@ -34,7 +38,7 @@ def blacklist_settings(
 
 
 async def test_registered_on_a_server_with_the_feature_on():
-    before = datetime.now(timezone.utc)
+    before = datetime.now(UTC)
     scheduler = await sched.create_scheduler(MagicMock(), blacklist_settings(refresh_hours=12), mode="full")
 
     job = scheduler.get_job("abuseipdb-blacklist-refresh")
@@ -128,6 +132,22 @@ async def test_only_the_first_run_after_startup_passes_startup(monkeypatch):
 
 
 async def test_the_read_path_touches_no_table_with_the_feature_off():
-    blacklist_view = await current_blacklist(MagicMock(side_effect=AssertionError), enabled=False, now=datetime.now(UTC))
+    blacklist = await current_blacklist(MagicMock(side_effect=AssertionError), enabled=False, now=datetime.now(UTC))
 
-    assert blacklist_view == BlacklistView(generated_at=None, refreshed_at=None, ips=[])
+    assert blacklist is None
+
+
+@pytest.mark.parametrize(
+    ("if_none_match", "matches"),
+    [
+        (None, False),
+        ('W/"abc"', True),
+        ('"abc"', True),
+        ('W/"old", W/"abc"', True),
+        ("*", True),
+        ('W/"old"', False),
+        ('W/"abcd"', False),
+    ],
+)
+def test_if_none_match_compares_weakly(if_none_match: str | None, matches: bool):
+    assert etag_matches(if_none_match, 'W/"abc"') is matches

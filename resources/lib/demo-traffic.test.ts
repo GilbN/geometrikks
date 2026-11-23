@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 import { DEMO_TRAFFIC_ORIGINS, makeDemoRequests } from "./demo-traffic"
 
 describe("makeDemoRequests", () => {

@@ -22,9 +22,9 @@ from __future__ import annotations
 
 import ipaddress
 import re
-from urllib.parse import unquote_plus
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from urllib.parse import unquote_plus
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession

@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator, Iterator
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 import structlog
@@ -50,7 +50,7 @@ OWNER_URL = f"postgresql+asyncpg://{OWNER_ROLE}:{OWNER_PASSWORD}@{PG_HOST}:{PG_P
 DATABASE_URLS = {"superuser": RENAME_URL, "database_owner": OWNER_URL}
 LEGACY_REVISION = "a4d1f0c2b7e9"
 
-NOW = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+NOW = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
 SEEDED_AT = NOW - timedelta(days=2)
 SERVER_NAMES = ("Nostromo", "edge-01")
 
@@ -116,10 +116,14 @@ LEGACY_CAGG_DDL = [
         """,
         f"CREATE INDEX ix_ip_location_{suffix}_stats_bucket ON ip_location_{suffix}_stats (bucket DESC)",
         f"CREATE INDEX ix_ip_location_{suffix}_stats_location ON ip_location_{suffix}_stats (location_id)",
-        f"CREATE INDEX ix_ip_location_{suffix}_stats_location_ip "
-        f"ON ip_location_{suffix}_stats (location_id, ip_address)",
-        f"CREATE INDEX ix_ip_location_{suffix}_stats_ip_bucket "
-        f"ON ip_location_{suffix}_stats (ip_address, bucket DESC)",
+        (
+            f"CREATE INDEX ix_ip_location_{suffix}_stats_location_ip "
+            f"ON ip_location_{suffix}_stats (location_id, ip_address)"
+        ),
+        (
+            f"CREATE INDEX ix_ip_location_{suffix}_stats_ip_bucket "
+            f"ON ip_location_{suffix}_stats (ip_address, bucket DESC)"
+        ),
     )
 ] + [
     """
@@ -627,8 +631,8 @@ async def test_teardown_drops_legacy_views_before_drop_all(legacy_database, rena
     """DB_DROP_ON_STARTUP on a database the upgrade has not reached yet."""
     from advanced_alchemy import base
 
-    import geometrikks.domain.geo.models  # noqa: F401
-    import geometrikks.domain.imports.models  # noqa: F401
+    import geometrikks.domain.geo.models
+    import geometrikks.domain.imports.models
     import geometrikks.domain.logs.models  # noqa: F401
 
     legacy_relations = {"hostname_daily_stats", "site_homes", "site_homes_id_seq"}

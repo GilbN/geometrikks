@@ -28,6 +28,7 @@ import {
 } from "@/lib/access-logs-search"
 import { useUrlFilters } from "@/hooks/use-url-filters"
 import { dropDefault } from "@/lib/url-filters"
+import { useMutedPage } from "@/lib/use-muted-page"
 import type { AccessLogSortField, SortOrder } from "@/lib/api"
 
 const DEFAULT_PAGE_SIZE = 20
@@ -59,6 +60,8 @@ function AccessLogsPage() {
     resetOnChange: ACCESS_LOGS_RESET_ON_CHANGE,
   })
 
+  const { muted, toggleMuted } = useMutedPage(filters.ips.length > 0, patchSearch)
+
   const page = search.page ?? 1
   const pageSize = search.pageSize ?? DEFAULT_PAGE_SIZE
   const sortField = search.sort ?? DEFAULT_SORT
@@ -84,7 +87,12 @@ function AccessLogsPage() {
   )
 
   return (
-    <AccessLogFiltersProvider filters={filters} setFilters={setFilters}>
+    <AccessLogFiltersProvider
+      filters={filters}
+      setFilters={setFilters}
+      muted={muted}
+      toggleMuted={toggleMuted}
+    >
       <div className="p-4 space-y-4">
         <PageHeader
           title="Access Logs"

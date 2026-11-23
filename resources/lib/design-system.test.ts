@@ -8,7 +8,7 @@
 import { readdirSync, readFileSync } from "node:fs"
 import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 
 import { BrandMark } from "../components/brand/brand-mark"
 import { themeHead } from "./theme-bootstrap"
@@ -53,7 +53,8 @@ describe("tokens", () => {
     expect(read("index.html", repo)).toContain("<!-- theme-head -->")
     for (const key of Object.values(THEME_STORAGE_KEYS)) expect(html).toContain(JSON.stringify(key))
     for (const id of COLOR_THEMES) expect(html).toContain(JSON.stringify(id))
-    for (const key of ["mode", "lightTheme", "darkTheme"]) expect(provider).toContain(`THEME_STORAGE_KEYS.${key}`)
+    for (const key of ["mode", "lightTheme", "darkTheme"])
+      expect(provider).toContain(`THEME_STORAGE_KEYS.${key}`)
   })
 
   it("keeps theme colors out of the HTML entry points", () => {
@@ -62,11 +63,14 @@ describe("tokens", () => {
       expect(html).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
     }
     expect(themeHead().match(/<meta name="theme-color"/g)).toHaveLength(1)
-    expect(themeHead().indexOf('<meta name="theme-color"')).toBeLessThan(themeHead().indexOf("<script>"))
+    expect(themeHead().indexOf('<meta name="theme-color"')).toBeLessThan(
+      themeHead().indexOf("<script>"),
+    )
   })
 
   it("takes the default mode from the catalog instead of repeating the literal", () => {
-    for (const file of ["routes/__root.tsx", "dev/themes.tsx"]) expect(read(file)).not.toContain('defaultTheme="dark"')
+    for (const file of ["routes/__root.tsx", "dev/themes.tsx"])
+      expect(read(file)).not.toContain('defaultTheme="dark"')
   })
 
   it("has no retired accent or dark appearance attributes", () => {
@@ -75,12 +79,14 @@ describe("tokens", () => {
 })
 
 describe("page chrome", () => {
-  const LABEL = 'text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground'
+  const LABEL = "text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground"
 
   it("gives every data card the design-system label, never the stock title", () => {
     expect(linesMatching(/<CardTitle className="text-(sm|xl) font-medium"/)).toEqual([])
-    const dataCards = sources().filter(({ path }) =>
-      /^components\/(analytics|geo-logs|security|dashboard)\/.*\.tsx$/.test(path) && /<CardTitle/.test(path ? read(path) : ""),
+    const dataCards = sources().filter(
+      ({ path }) =>
+        /^components\/(analytics|geo-logs|security|dashboard)\/.*\.tsx$/.test(path) &&
+        /<CardTitle/.test(path ? read(path) : ""),
     )
     for (const { path, text } of dataCards) {
       for (const m of text.matchAll(/<CardTitle className="([^"]+)"/g)) {
@@ -180,7 +186,9 @@ describe("mark geometry", () => {
   })
 
   it("matches the light mark to the dark one, color aside", () => {
-    expect(shapes(read("static/brand/mark-light.svg"))).toEqual(shapes(read("static/brand/mark.svg")))
+    expect(shapes(read("static/brand/mark-light.svg"))).toEqual(
+      shapes(read("static/brand/mark.svg")),
+    )
   })
 
   it("matches the scheme-aware favicon to mark-small.svg", () => {

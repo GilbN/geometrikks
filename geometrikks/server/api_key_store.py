@@ -8,15 +8,27 @@ from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Protocol, TypeVar, cast
 
 import sqlalchemy.exc
-from geometrikks.server.exceptions import ApiKeysUnavailableError
 
-from geometrikks.domain.auth.api_keys import ApiKeyRecord, ApiKeyScope, generate_api_key, hash_api_key
+from geometrikks.domain.auth.api_keys import (
+    ApiKeyRecord,
+    ApiKeyScope,
+    generate_api_key,
+    hash_api_key,
+)
 from geometrikks.domain.auth.models import ApiKey
 from geometrikks.domain.auth.repositories import ApiKeyTableRepository
-from geometrikks.domain.exceptions import DomainConflictError, DomainNotFoundError, DomainValidationError
+from geometrikks.domain.exceptions import (
+    DomainConflictError,
+    DomainNotFoundError,
+    DomainValidationError,
+)
 from geometrikks.server import runtime
+from geometrikks.server.exceptions import ApiKeysUnavailableError
 from geometrikks.server.logging import get_logger
-from geometrikks.server.session_store import _OUTAGE_ERRORS, SESSION_STORE_TIMEOUT_SECONDS
+from geometrikks.server.session_store import (
+    _OUTAGE_ERRORS,
+    SESSION_STORE_TIMEOUT_SECONDS,
+)
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, Awaitable, Callable

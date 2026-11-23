@@ -1,7 +1,12 @@
 /** Development-only component gallery. Not an application route or build entry. */
 import { useId } from "react"
 import { createRoot } from "react-dom/client"
-import { RouterProvider, createMemoryHistory, createRootRoute, createRouter } from "@tanstack/react-router"
+import {
+  RouterProvider,
+  createMemoryHistory,
+  createRootRoute,
+  createRouter,
+} from "@tanstack/react-router"
 import { ThemeProvider, useTheme } from "@/components/theme-provider"
 import { ModeToggle } from "@/components/mode-toggle"
 import { Badge } from "@/components/ui/badge"
@@ -9,9 +14,28 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerTrigger } from "@/components/ui/drawer"
-import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerDescription,
+  DrawerTrigger,
+} from "@/components/ui/drawer"
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { MapOverlay } from "@/components/map/MapOverlay"
 import { AppearancePage } from "@/components/settings/appearance-page"
 import { OverlayHistoryProvider } from "@/lib/overlay-history"
@@ -34,11 +58,15 @@ function Controls() {
         <Badge variant="destructive">Banned</Badge>
       </div>
       <div className="space-y-1">
-        <label htmlFor={id} className="text-sm">Search country</label>
+        <label htmlFor={id} className="text-sm">
+          Search country
+        </label>
         <Input id={id} placeholder="Country name" />
       </div>
       <Select defaultValue="all">
-        <SelectTrigger aria-label="Country filter" className="w-full"><SelectValue /></SelectTrigger>
+        <SelectTrigger aria-label="Country filter" className="w-full">
+          <SelectValue />
+        </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">All countries</SelectItem>
           <SelectItem value="no">Norway</SelectItem>
@@ -52,17 +80,45 @@ function Controls() {
 }
 
 function Gallery() {
-  const { theme, setTheme, colorTheme, setColorTheme, lightTheme, darkTheme, setLightTheme, setDarkTheme } = useTheme()
+  const {
+    theme,
+    setTheme,
+    colorTheme,
+    setColorTheme,
+    lightTheme,
+    darkTheme,
+    setLightTheme,
+    setDarkTheme,
+  } = useTheme()
   return (
     <main className="mx-auto max-w-4xl space-y-6 p-4 md:p-8">
       <h1 className="text-xl font-semibold">Theme component preview</h1>
       <ModeToggle />
       <div role="group" className="flex flex-wrap gap-2" aria-label="Preview palette">
-        <Button variant="outline" aria-pressed={theme === "light"} onClick={() => setTheme("light")}>Light</Button>
-        <Button variant="outline" aria-pressed={theme === "dark"} onClick={() => setTheme("dark")}>Dark</Button>
-        <Button variant="outline" aria-pressed={theme === "system"} onClick={() => setTheme("system")}>System</Button>
+        <Button
+          variant="outline"
+          aria-pressed={theme === "light"}
+          onClick={() => setTheme("light")}
+        >
+          Light
+        </Button>
+        <Button variant="outline" aria-pressed={theme === "dark"} onClick={() => setTheme("dark")}>
+          Dark
+        </Button>
+        <Button
+          variant="outline"
+          aria-pressed={theme === "system"}
+          onClick={() => setTheme("system")}
+        >
+          System
+        </Button>
         {COLOR_THEMES.map((id) => (
-          <Button key={id} variant="outline" aria-pressed={colorTheme === id} onClick={() => setColorTheme(id)}>
+          <Button
+            key={id}
+            variant="outline"
+            aria-pressed={colorTheme === id}
+            onClick={() => setColorTheme(id)}
+          >
             {THEME_CATALOG[id].label}
           </Button>
         ))}
@@ -70,7 +126,13 @@ function Gallery() {
       <div role="group" className="flex flex-wrap items-center gap-2" aria-label="Light side">
         <span className="text-sm text-muted-foreground">Light side</span>
         {COLOR_THEMES.map((id) => (
-          <Button key={id} size="sm" variant="outline" aria-pressed={lightTheme === id} onClick={() => setLightTheme(id)}>
+          <Button
+            key={id}
+            size="sm"
+            variant="outline"
+            aria-pressed={lightTheme === id}
+            onClick={() => setLightTheme(id)}
+          >
             {THEME_CATALOG[id].label} light
           </Button>
         ))}
@@ -78,7 +140,13 @@ function Gallery() {
       <div role="group" className="flex flex-wrap items-center gap-2" aria-label="Dark side">
         <span className="text-sm text-muted-foreground">Dark side</span>
         {COLOR_THEMES.map((id) => (
-          <Button key={id} size="sm" variant="outline" aria-pressed={darkTheme === id} onClick={() => setDarkTheme(id)}>
+          <Button
+            key={id}
+            size="sm"
+            variant="outline"
+            aria-pressed={darkTheme === id}
+            onClick={() => setDarkTheme(id)}
+          >
             {THEME_CATALOG[id].label} dark
           </Button>
         ))}
@@ -91,11 +159,19 @@ function Gallery() {
       <section className="space-y-2">
         <h2 className="font-medium">Scoped previews</h2>
         <div className="flex gap-3">
-          <div data-testid="preview-light" data-theme="moss" className="light space-y-2 rounded-xl bg-glass-card p-3 text-foreground ring-1 ring-border">
+          <div
+            data-testid="preview-light"
+            data-theme="moss"
+            className="light space-y-2 rounded-xl bg-glass-card p-3 text-foreground ring-1 ring-border"
+          >
             <p className="text-sm">Light Moss</p>
             <div className="h-6 rounded-md bg-card ring-1 ring-border" />
           </div>
-          <div data-testid="preview-dark" data-theme="forge" className="dark space-y-2 rounded-xl bg-background p-3 text-foreground ring-1 ring-border">
+          <div
+            data-testid="preview-dark"
+            data-theme="forge"
+            className="dark space-y-2 rounded-xl bg-background p-3 text-foreground ring-1 ring-border"
+          >
             <p className="text-sm">Dark Forge</p>
             <div className="h-6 rounded-md bg-card ring-1 ring-border" />
           </div>
@@ -107,23 +183,43 @@ function Gallery() {
       </section>
       <div className="flex gap-3">
         <Drawer>
-          <DrawerTrigger asChild><Button variant="outline">Open drawer</Button></DrawerTrigger>
+          <DrawerTrigger asChild>
+            <Button variant="outline">Open drawer</Button>
+          </DrawerTrigger>
           <DrawerContent>
-            <DrawerHeader><DrawerTitle>Preview drawer</DrawerTitle><DrawerDescription>Check the handle, tabs, badges, and dividers.</DrawerDescription></DrawerHeader>
-            <div className="overflow-auto p-4"><Controls /></div>
+            <DrawerHeader>
+              <DrawerTitle>Preview drawer</DrawerTitle>
+              <DrawerDescription>Check the handle, tabs, badges, and dividers.</DrawerDescription>
+            </DrawerHeader>
+            <div className="overflow-auto p-4">
+              <Controls />
+            </div>
           </DrawerContent>
         </Drawer>
         <Dialog>
-          <DialogTrigger asChild><Button variant="outline">Open dialog</Button></DialogTrigger>
+          <DialogTrigger asChild>
+            <Button variant="outline">Open dialog</Button>
+          </DialogTrigger>
           <DialogContent>
-            <DialogTitle>Preview dialog</DialogTitle><DialogDescription>Check controls on an elevated panel.</DialogDescription>
+            <DialogTitle>Preview dialog</DialogTitle>
+            <DialogDescription>Check controls on an elevated panel.</DialogDescription>
             <Controls />
           </DialogContent>
         </Dialog>
       </div>
-      <div data-testid="map" className="relative h-[30rem] overflow-hidden rounded-xl"
-        style={{ background: "repeating-linear-gradient(45deg, #283a45 0 32px, #14232a 32px 64px)" }}>
-        <MapOverlay placement="top-right" className="w-[min(20rem,calc(100%-2rem))] p-4" aria-label="Preview map panel" role="complementary">
+      <div
+        data-testid="map"
+        className="relative h-[30rem] overflow-hidden rounded-xl"
+        style={{
+          background: "repeating-linear-gradient(45deg, #283a45 0 32px, #14232a 32px 64px)",
+        }}
+      >
+        <MapOverlay
+          placement="top-right"
+          className="w-[min(20rem,calc(100%-2rem))] p-4"
+          aria-label="Preview map panel"
+          role="complementary"
+        >
           <Controls />
         </MapOverlay>
       </div>
@@ -133,10 +229,18 @@ function Gallery() {
 
 // The mode menu takes a phone Back entry from OverlayHistoryProvider, which needs a router.
 const galleryRouter = createRouter({
-  routeTree: createRootRoute({ component: () => <OverlayHistoryProvider><Gallery /></OverlayHistoryProvider> }),
+  routeTree: createRootRoute({
+    component: () => (
+      <OverlayHistoryProvider>
+        <Gallery />
+      </OverlayHistoryProvider>
+    ),
+  }),
   history: createMemoryHistory(),
 })
 
 createRoot(document.getElementById("app")!).render(
-  <ThemeProvider defaultTheme={DEFAULT_MODE}><RouterProvider router={galleryRouter} /></ThemeProvider>,
+  <ThemeProvider defaultTheme={DEFAULT_MODE}>
+    <RouterProvider router={galleryRouter} />
+  </ThemeProvider>,
 )

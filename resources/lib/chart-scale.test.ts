@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 import { clampedYMax, floorForLog, logAxis, niceCeil, scaleSeries } from "./chart-scale"
 
 describe("niceCeil", () => {
@@ -43,7 +43,10 @@ describe("clampedYMax", () => {
 describe("logAxis", () => {
   it("starts one power down when the smallest value is exactly a power", () => {
     expect(logAxis([0, 1, 10])).toEqual({
-      scale: "log", domain: [0.1, 10], ticks: [0.1, 1, 10], allowDataOverflow: true,
+      scale: "log",
+      domain: [0.1, 10],
+      ticks: [0.1, 1, 10],
+      allowDataOverflow: true,
     })
   })
 
@@ -54,7 +57,8 @@ describe("logAxis", () => {
 
   it("keeps the power below when the smallest value is at least twice it", () => {
     expect(logAxis([480, 5000, 12000])).toMatchObject({
-      domain: [100, 100000], ticks: [100, 1000, 10000, 100000],
+      domain: [100, 100000],
+      ticks: [100, 1000, 10000, 100000],
     })
     expect(logAxis([0.003, 0.2, 1.4]).domain).toEqual([0.001, 10])
   })
@@ -74,7 +78,8 @@ describe("logAxis", () => {
 
   it("uses powers of 1024 for bytes", () => {
     expect(logAxis([0, 500, 3 * 1024 ** 2], { base: 1024 })).toMatchObject({
-      domain: [1, 1024 ** 3], ticks: [1, 1024, 1024 ** 2, 1024 ** 3],
+      domain: [1, 1024 ** 3],
+      ticks: [1, 1024, 1024 ** 2, 1024 ** 3],
     })
   })
 
@@ -107,7 +112,13 @@ describe("floorForLog", () => {
 })
 
 describe("scaleSeries", () => {
-  const rows = [...Array(167).fill(0).map(() => ({ v: 300 })), { v: 18000 }, { v: 0 }]
+  const rows = [
+    ...Array(167)
+      .fill(0)
+      .map(() => ({ v: 300 })),
+    { v: 18000 },
+    { v: 0 },
+  ]
 
   it("clips a spike in clip mode", () => {
     const out = scaleSeries(rows, ["v"], "clip")
@@ -117,7 +128,9 @@ describe("scaleSeries", () => {
   })
 
   it("clips on separate values when given", () => {
-    const out = scaleSeries([{ v: 1 }, { v: 1 }], ["v"], "clip", { clipValues: [...Array(167).fill(300), 18000] })
+    const out = scaleSeries([{ v: 1 }, { v: 1 }], ["v"], "clip", {
+      clipValues: [...Array(167).fill(300), 18000],
+    })
     expect(out.clipMax).toBe(500)
   })
 

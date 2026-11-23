@@ -1,0 +1,16 @@
+@import "../../resources/main.css";
+
+@source "../../resources/components";
+@source "./";
+
+/* Unlayered on purpose: Chrome's own stylesheet for extension pages sets the
+   body font and a 75% size, and it beats the app's layered base rules. */
+body {
+  width: 380px;
+  font-family: var(--font-sans);
+  font-size: 100%;
+}
+
+body[data-page="options"] {
+  width: auto;
+}

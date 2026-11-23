@@ -50,7 +50,7 @@ export function formatValue(value: unknown): string {
   if (value === null || value === undefined) return "not set"
   if (typeof value === "boolean") return value ? "true" : "false"
   if (typeof value === "object") return formatJson(value)
-  return String(value)
+  return String(value as string | number)
 }
 
 export function isOverridden(field: SettingFieldView): boolean {
@@ -115,7 +115,11 @@ export function ValueBlock({ field }: { field: SettingFieldView }) {
 }
 
 /** The search the page's filter field runs: key, env var, section title or description. */
-export function fieldMatches(field: SettingFieldView, section: SettingsSectionView, query: string): boolean {
+export function fieldMatches(
+  field: SettingFieldView,
+  section: SettingsSectionView,
+  query: string,
+): boolean {
   if (!query) return true
   return (
     field.key.toLowerCase().includes(query) ||

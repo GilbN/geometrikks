@@ -11,9 +11,18 @@ export function formatRowTime(
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return "-"
   if (date.toDateString() === now.toDateString()) {
-    return date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", second: seconds ? "2-digit" : undefined })
+    return date.toLocaleTimeString(undefined, {
+      hour: "numeric",
+      minute: "2-digit",
+      second: seconds ? "2-digit" : undefined,
+    })
   }
-  const options: Intl.DateTimeFormatOptions = { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }
+  const options: Intl.DateTimeFormatOptions = {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }
   if (date.getFullYear() !== now.getFullYear()) options.year = "numeric"
   return date.toLocaleString(undefined, options)
 }

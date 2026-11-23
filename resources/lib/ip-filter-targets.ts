@@ -86,8 +86,10 @@ export function listFilterTarget<F, V extends string | number = string>({
     noun,
     value: label,
     state,
-    include: includeKey === null ? undefined : () => update((list) => [...without(list), value], without),
-    exclude: excludeKey === null ? undefined : () => update(without, (list) => [...without(list), value]),
+    include:
+      includeKey === null ? undefined : () => update((list) => [...without(list), value], without),
+    exclude:
+      excludeKey === null ? undefined : () => update(without, (list) => [...without(list), value]),
     remove: () => update(without, without),
   }
 }
@@ -147,7 +149,11 @@ interface AsnFilterLists {
 }
 
 /** A target for one ASN, for a row that is a network rather than an IP. */
-export function asnFilterTarget<F extends AsnFilterLists>(asn: number, filters: F, setFilters: SetFilters<F>): FilterTarget {
+export function asnFilterTarget<F extends AsnFilterLists>(
+  asn: number,
+  filters: F,
+  setFilters: SetFilters<F>,
+): FilterTarget {
   return listFilterTarget<F, number>({
     noun: "ASN",
     value: asn,
@@ -159,11 +165,34 @@ export function asnFilterTarget<F extends AsnFilterLists>(asn: number, filters: 
   })
 }
 
-function asnTarget<F extends AsnFilterLists>({ asn }: IpRowValues, filters: F, setFilters: SetFilters<F>): FilterTarget[] {
+/** A target for one host, for a row keyed by host rather than by IP. */
+export function hostFilterTarget<F extends { hosts: string[]; hostsExclude: string[] }>(
+  host: string,
+  filters: F,
+  setFilters: SetFilters<F>,
+): FilterTarget {
+  return listFilterTarget<F>({
+    noun: "host",
+    value: host,
+    filters,
+    setFilters,
+    includeKey: "hosts" as ListKey<F, string>,
+    excludeKey: "hostsExclude" as ListKey<F, string>,
+  })
+}
+
+function asnTarget<F extends AsnFilterLists>(
+  { asn }: IpRowValues,
+  filters: F,
+  setFilters: SetFilters<F>,
+): FilterTarget[] {
   return asn == null ? [] : [asnFilterTarget(asn, filters, setFilters)]
 }
 
-export function accessLogFilterTargets(filters: AccessLogFilterState, setFilters: SetFilters<AccessLogFilterState>) {
+export function accessLogFilterTargets(
+  filters: AccessLogFilterState,
+  setFilters: SetFilters<AccessLogFilterState>,
+) {
   return (row: IpRowValues): FilterTarget[] => {
     const target = (
       noun: string,
@@ -181,17 +210,37 @@ export function accessLogFilterTargets(filters: AccessLogFilterState, setFilters
   }
 }
 
-export function geoLogFilterTargets(filters: GeoLogFilterState, setFilters: SetFilters<GeoLogFilterState>) {
+export function geoLogFilterTargets(
+  filters: GeoLogFilterState,
+  setFilters: SetFilters<GeoLogFilterState>,
+) {
   return (row: IpRowValues): FilterTarget[] => [
-    listFilterTarget({ noun: "IP", value: row.ip, filters, setFilters, includeKey: "ips", excludeKey: "ipsExclude" }),
+    listFilterTarget({
+      noun: "IP",
+      value: row.ip,
+      filters,
+      setFilters,
+      includeKey: "ips",
+      excludeKey: "ipsExclude",
+    }),
     ...countryTarget(row, filters, setFilters, "countryCodes"),
     ...asnTarget(row, filters, setFilters),
   ]
 }
 
-export function analyticsFilterTargets(filters: AnalyticsFilterState, setFilters: SetFilters<AnalyticsFilterState>) {
+export function analyticsFilterTargets(
+  filters: AnalyticsFilterState,
+  setFilters: SetFilters<AnalyticsFilterState>,
+) {
   return (row: IpRowValues): FilterTarget[] => [
-    listFilterTarget({ noun: "IP", value: row.ip, filters, setFilters, includeKey: "ips", excludeKey: "ipsExclude" }),
+    listFilterTarget({
+      noun: "IP",
+      value: row.ip,
+      filters,
+      setFilters,
+      includeKey: "ips",
+      excludeKey: "ipsExclude",
+    }),
     ...countryTarget(row, filters, setFilters, "countryCodes"),
     ...asnTarget(row, filters, setFilters),
   ]

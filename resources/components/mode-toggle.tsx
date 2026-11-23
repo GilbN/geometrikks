@@ -25,7 +25,14 @@ export function ModeToggle() {
           <span className="sr-only">Toggle theme</span>
         </Button>
       }
-      groups={[{ label: "Color scheme", value: theme, options: SCHEMES, onValueChange: (value) => setTheme(parseTheme(value)) }]}
+      groups={[
+        {
+          label: "Color scheme",
+          value: theme,
+          options: SCHEMES,
+          onValueChange: (value) => setTheme(parseTheme(value)),
+        },
+      ]}
     />
   )
 }

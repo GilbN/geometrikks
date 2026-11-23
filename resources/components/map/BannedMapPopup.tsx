@@ -7,10 +7,26 @@
 import { useEffect, useRef, useState } from "react"
 import type { Popup as MapLibrePopup } from "maplibre-gl"
 import { Popup } from "react-map-gl/maplibre"
-import { Activity, ChevronLeft, ChevronRight, ExternalLink, Globe, Loader2, MapPin, Network, ShieldBan } from "lucide-react"
-import { useAbuseIpdbBlacklisted, useCrowdsecStatus, useDropNetwork, useIpDecisions } from "@/lib/queries"
+import {
+  Activity,
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
+  Globe,
+  Loader2,
+  MapPin,
+  Network,
+  ShieldBan,
+} from "lucide-react"
+import {
+  useAbuseIpdbBlacklisted,
+  useCrowdsecStatus,
+  useDropNetwork,
+  useIpDecisions,
+} from "@/lib/queries"
 import { formatNumber } from "@/lib/api"
-import { crowdsecCtiUrl, crowdsecErrorMessage, winningDecision } from "@/lib/crowdsec"
+import { crowdsecCtiUrl, winningDecision } from "@/lib/crowdsec"
+import { crowdsecErrorMessage } from "@/lib/crowdsec-errors"
 import { decisionHasAlert, isBlocklistOrigin } from "@/lib/crowdsec-alerts"
 import type { BannedMapIp, DecisionView } from "@/generated/api/types.gen"
 import { IpBanControls } from "./IpBanControls"
@@ -25,12 +41,25 @@ import { AbuseIpdbBlacklistBadge } from "@/components/abuseipdb/abuseipdb-blackl
 import { DropBadge } from "@/components/drop/drop-badge"
 import { DetailField } from "@/components/data/detail-sheet"
 import { Button } from "@/components/ui/button"
-import { POPUP_OFFSET, POPUP_LINK_BUTTON_STYLE, POPUP_ROW_ICON_STYLE, PopupBadge, PopupCard, PopupRow } from "./PopupCard"
+import {
+  POPUP_OFFSET,
+  POPUP_LINK_BUTTON_STYLE,
+  POPUP_ROW_ICON_STYLE,
+  PopupBadge,
+  PopupCard,
+  PopupRow,
+} from "./PopupCard"
 import { timeLeftText } from "@/lib/crowdsec-alerts"
 import { scenarioText } from "@/lib/scenario-name"
 import { IpLabel } from "@/components/ip-actions/ip-label"
 import { CopyIpButton } from "@/components/ip-actions/ip-actions-menu"
-import { MapDetailPanel, PanelBackButton, PanelInspectButton, PanelIp, PanelSection } from "./MapDetailPanel"
+import {
+  MapDetailPanel,
+  PanelBackButton,
+  PanelInspectButton,
+  PanelIp,
+  PanelSection,
+} from "./MapDetailPanel"
 import { PanelBanButton } from "./PanelBanButton"
 import { countryLabel } from "@/lib/ip-filter-targets"
 
@@ -41,13 +70,22 @@ function noAlertReason(decision: DecisionView, writeEnabled: boolean): string {
   if (isBlocklistOrigin(decision.origin)) {
     return "CrowdSec pulls blocklist decisions in bulk, so this one has no alert of its own to open."
   }
-  if (!writeEnabled) return "Opening the alert behind a decision needs CrowdSec machine credentials."
+  if (!writeEnabled)
+    return "Opening the alert behind a decision needs CrowdSec machine credentials."
   return "CrowdSec has no alert for this decision."
 }
 
 /** With `onOpen` the scenario is a button that opens the decision's alert.
  *  Without it, `note` says why not. */
-function DecisionLine({ decision, onOpen, note }: { decision: DecisionView; onOpen?: () => void; note?: string }) {
+function DecisionLine({
+  decision,
+  onOpen,
+  note,
+}: {
+  decision: DecisionView
+  onOpen?: () => void
+  note?: string
+}) {
   const scenario = decision.scenario ? scenarioText(decision.scenario) : "No scenario given"
   const scenarioStyle = { fontWeight: 500, overflowWrap: "anywhere" } as const
   return (
@@ -59,15 +97,27 @@ function DecisionLine({ decision, onOpen, note }: { decision: DecisionView; onOp
             className="text-primary underline decoration-primary/40 decoration-dotted underline-offset-2 hover:decoration-primary hover:decoration-solid"
             title="Open the alert behind this decision"
             onClick={onOpen}
-            style={{ font: "inherit", ...scenarioStyle, background: "transparent", border: "none", padding: 0, cursor: "pointer", textAlign: "left" }}
+            style={{
+              font: "inherit",
+              ...scenarioStyle,
+              background: "transparent",
+              border: "none",
+              padding: 0,
+              cursor: "pointer",
+              textAlign: "left",
+            }}
           >
             {scenario}
           </button>
         ) : (
-          <span title={note} style={scenarioStyle}>{scenario}</span>
+          <span title={note} style={scenarioStyle}>
+            {scenario}
+          </span>
         )}
       </div>
-      <div style={{ fontSize: "10px", color: "var(--popup-muted)" }}>{decision.origin} · {timeLeftText(decision.duration)}</div>
+      <div style={{ fontSize: "10px", color: "var(--popup-muted)" }}>
+        {decision.origin} · {timeLeftText(decision.duration)}
+      </div>
     </div>
   )
 }
@@ -86,7 +136,11 @@ function decisionKey(decision: DecisionView): string | number {
 }
 
 function decisionsHeading(isPending: boolean, count: number): string {
-  return isPending ? "Loading decisions..." : count === 1 ? "Active decision" : `${count} active decisions`
+  return isPending
+    ? "Loading decisions..."
+    : count === 1
+      ? "Active decision"
+      : `${count} active decisions`
 }
 
 /** A page of the IP list. A refetch can shrink the list under an open pager;
@@ -112,7 +166,10 @@ function IpDetails({
   return (
     <>
       {onBack && (
-        <button style={{ ...POPUP_LINK_BUTTON_STYLE, marginBottom: "6px", marginLeft: "-4px" }} onClick={onBack}>
+        <button
+          style={{ ...POPUP_LINK_BUTTON_STYLE, marginBottom: "6px", marginLeft: "-4px" }}
+          onClick={onBack}
+        >
           <ChevronLeft style={{ width: 10, height: 10 }} />
           All IPs here
         </button>
@@ -125,42 +182,82 @@ function IpDetails({
             <IpLabel ip={member.ip} className="text-[11px] [overflow-wrap:anywhere]" />
             <IpBanControls
               ip={member.ip}
-              initialDecision={decisions.data === undefined ? "ban" : winningDecision(active)?.type ?? null}
+              initialDecision={
+                decisions.data === undefined ? "ban" : (winningDecision(active)?.type ?? null)
+              }
               showBadge={false}
             >
               <InspectIpButton ip={member.ip} fromLocationId={member.locationId} />
-              <ExternalLinkButton href={crowdsecCtiUrl(member.ip)} label="Look up in CrowdSec CTI" />
+              <ExternalLinkButton
+                href={crowdsecCtiUrl(member.ip)}
+                label="Look up in CrowdSec CTI"
+              />
             </IpBanControls>
           </span>
         }
       />
       <DropPopupRow ip={member.ip} />
       <AbuseIpdbBlacklistPopupRow ip={member.ip} />
-      <PopupRow label="Events" icon={<Activity style={POPUP_ROW_ICON_STYLE} />} value={<PopupBadge>{formatNumber(member.eventCount)}</PopupBadge>} />
-      <PopupRow label="Location" icon={<MapPin style={POPUP_ROW_ICON_STYLE} />} value={member.city ?? "Unknown"} />
+      <PopupRow
+        label="Events"
+        icon={<Activity style={POPUP_ROW_ICON_STYLE} />}
+        value={<PopupBadge>{formatNumber(member.eventCount)}</PopupBadge>}
+      />
+      <PopupRow
+        label="Location"
+        icon={<MapPin style={POPUP_ROW_ICON_STYLE} />}
+        value={member.city ?? "Unknown"}
+      />
       {member.countryCode && (
         <PopupRow
           label="Country"
           icon={<Globe style={POPUP_ROW_ICON_STYLE} />}
-          value={<CountryLabel code={member.countryCode}>{countryLabel(member.countryCode)}</CountryLabel>}
+          value={
+            <CountryLabel code={member.countryCode}>
+              {countryLabel(member.countryCode)}
+            </CountryLabel>
+          }
         />
       )}
 
-      <div style={{ paddingTop: "8px", marginTop: "8px", borderTop: "1px solid var(--popup-border)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "6px", fontSize: "12px", color: "var(--popup-muted)" }}>
+      <div
+        style={{ paddingTop: "8px", marginTop: "8px", borderTop: "1px solid var(--popup-border)" }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "4px",
+            marginBottom: "6px",
+            fontSize: "12px",
+            color: "var(--popup-muted)",
+          }}
+        >
           <ShieldBan style={{ width: 12, height: 12 }} />
           <span>{decisionsHeading(decisions.isPending, active.length)}</span>
-          {decisions.isPending && <Loader2 style={{ width: 10, height: 10, animation: "spin 1s linear infinite" }} />}
+          {decisions.isPending && (
+            <Loader2 style={{ width: 10, height: 10, animation: "spin 1s linear infinite" }} />
+          )}
         </div>
         {decisions.isError && (
-          <div role="alert" style={{ fontSize: "11px", color: "var(--destructive)", marginBottom: "4px" }}>
+          <div
+            role="alert"
+            style={{ fontSize: "11px", color: "var(--destructive)", marginBottom: "4px" }}
+          >
             {crowdsecErrorMessage(decisions.error, "Could not load ban details.")}
             {decisions.data && " Showing the last result."}
-            <button style={{ ...POPUP_LINK_BUTTON_STYLE, marginLeft: "4px" }} onClick={() => void decisions.refetch()}>Retry</button>
+            <button
+              style={{ ...POPUP_LINK_BUTTON_STYLE, marginLeft: "4px" }}
+              onClick={() => void decisions.refetch()}
+            >
+              Retry
+            </button>
           </div>
         )}
         {decisions.isSuccess && active.length === 0 && (
-          <p role="status" style={{ fontSize: "11px", color: "var(--popup-muted)", margin: 0 }}>No active decision remains for this IP.</p>
+          <p role="status" style={{ fontSize: "11px", color: "var(--popup-muted)", margin: 0 }}>
+            No active decision remains for this IP.
+          </p>
         )}
         {active.map((decision) => {
           const key = decisionKey(decision)
@@ -168,10 +265,16 @@ function IpDetails({
             <DecisionLine
               key={key}
               decision={decision}
-              onOpen={() => onOpenAlert({ id: decision.id!, ip: member.ip, scenario: decision.scenario })}
+              onOpen={() =>
+                onOpenAlert({ id: decision.id!, ip: member.ip, scenario: decision.scenario })
+              }
             />
           ) : (
-            <DecisionLine key={key} decision={decision} note={noAlertReason(decision, writeEnabled)} />
+            <DecisionLine
+              key={key}
+              decision={decision}
+              note={noAlertReason(decision, writeEnabled)}
+            />
           )
         })}
       </div>
@@ -179,7 +282,12 @@ function IpDetails({
   )
 }
 
-function IpList({ ips, page: requestedPage, onPageChange: setPage, onSelect }: {
+function IpList({
+  ips,
+  page: requestedPage,
+  onPageChange: setPage,
+  onSelect,
+}: {
   ips: BannedMapIp[]
   page: number
   onPageChange: (page: number) => void
@@ -212,11 +320,16 @@ function IpList({ ips, page: requestedPage, onPageChange: setPage, onSelect }: {
           >
             <IpLabel ip={ip.ip} className="text-[11px]" />
             <span style={{ fontSize: "10px", color: "var(--popup-muted)", flexShrink: 0 }}>
-              <span style={{ fontWeight: 500, color: "var(--popup-fg)" }}>{formatNumber(ip.eventCount)}</span>
+              <span style={{ fontWeight: 500, color: "var(--popup-fg)" }}>
+                {formatNumber(ip.eventCount)}
+              </span>
               {(ip.city ?? ip.countryCode) && (
                 <>
                   {" · "}
-                  <CountryFlag code={ip.countryCode} className="mr-1 inline-block h-[9px] w-3 align-[-1px]" />
+                  <CountryFlag
+                    code={ip.countryCode}
+                    className="mr-1 inline-block h-[9px] w-3 align-[-1px]"
+                  />
                   {ip.city ?? ip.countryCode}
                 </>
               )}
@@ -227,14 +340,33 @@ function IpList({ ips, page: requestedPage, onPageChange: setPage, onSelect }: {
       {pageCount > 1 && (
         <nav
           aria-label="Banned IP pages"
-          style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "6px", paddingTop: "6px", borderTop: "1px solid var(--popup-border)", fontSize: "10px", color: "var(--popup-muted)" }}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginTop: "6px",
+            paddingTop: "6px",
+            borderTop: "1px solid var(--popup-border)",
+            fontSize: "10px",
+            color: "var(--popup-muted)",
+          }}
         >
-          <button style={{ ...POPUP_LINK_BUTTON_STYLE, opacity: page === 0 ? 0.4 : 1 }} disabled={page === 0} onClick={() => setPage(page - 1)}>
+          <button
+            style={{ ...POPUP_LINK_BUTTON_STYLE, opacity: page === 0 ? 0.4 : 1 }}
+            disabled={page === 0}
+            onClick={() => setPage(page - 1)}
+          >
             <ChevronLeft style={{ width: 10, height: 10 }} />
             Prev
           </button>
-          <span>{start + 1}-{start + rows.length} of {ips.length}</span>
-          <button style={{ ...POPUP_LINK_BUTTON_STYLE, opacity: page + 1 >= pageCount ? 0.4 : 1 }} disabled={page + 1 >= pageCount} onClick={() => setPage(page + 1)}>
+          <span>
+            {start + 1}-{start + rows.length} of {ips.length}
+          </span>
+          <button
+            style={{ ...POPUP_LINK_BUTTON_STYLE, opacity: page + 1 >= pageCount ? 0.4 : 1 }}
+            disabled={page + 1 >= pageCount}
+            onClick={() => setPage(page + 1)}
+          >
             Next
             <ChevronRight style={{ width: 10, height: 10 }} />
           </button>
@@ -245,7 +377,9 @@ function IpList({ ips, page: requestedPage, onPageChange: setPage, onSelect }: {
 }
 
 function bannedTitle(selected: BannedMapIp | null, ips: BannedMapIp[]): string {
-  return selected ? "Banned IP" : `${ips.length.toLocaleString()} banned IP${ips.length === 1 ? "" : "s"}`
+  return selected
+    ? "Banned IP"
+    : `${ips.length.toLocaleString()} banned IP${ips.length === 1 ? "" : "s"}`
 }
 
 const BANNED_FOOTNOTE = "Current CrowdSec decisions seen in the selected traffic range."
@@ -269,7 +403,7 @@ export function BannedMapPopup({
   const [selectedIp, setSelectedIp] = useState<string | null>(ips.length === 1 ? ips[0].ip : null)
   // Here so Back returns to the page the IP was picked from.
   const [page, setPage] = useState(0)
-  const selected = selectedIp === null ? null : ips.find((ip) => ip.ip === selectedIp) ?? null
+  const selected = selectedIp === null ? null : (ips.find((ip) => ip.ip === selectedIp) ?? null)
   const hasIpv6 = ips.some((ip) => ip.ip.includes(":"))
   const title = bannedTitle(selected, ips)
 
@@ -297,23 +431,38 @@ export function BannedMapPopup({
           closeLabel="Close banned IP popup"
           header={
             <>
-              <ShieldBan style={{ width: 16, height: 16, color: "var(--destructive)", flexShrink: 0 }} />
+              <ShieldBan
+                style={{ width: 16, height: 16, color: "var(--destructive)", flexShrink: 0 }}
+              />
               <span style={{ fontSize: "14px", fontWeight: 600 }}>{title}</span>
             </>
           }
         >
           <div>
-            {selected
-              ? (
-                <IpDetails
-                  member={selected}
-                  onBack={ips.length > 1 ? () => setSelectedIp(null) : undefined}
-                  onOpenAlert={onOpenAlert}
-                />
-              )
-              : <IpList ips={ips} page={page} onPageChange={setPage} onSelect={(ip) => setSelectedIp(ip.ip)} />}
+            {selected ? (
+              <IpDetails
+                member={selected}
+                onBack={ips.length > 1 ? () => setSelectedIp(null) : undefined}
+                onOpenAlert={onOpenAlert}
+              />
+            ) : (
+              <IpList
+                ips={ips}
+                page={page}
+                onPageChange={setPage}
+                onSelect={(ip) => setSelectedIp(ip.ip)}
+              />
+            )}
           </div>
-          <div style={{ paddingTop: "6px", marginTop: "6px", borderTop: "1px solid var(--popup-border)", fontSize: "10px", color: "var(--popup-muted)" }}>
+          <div
+            style={{
+              paddingTop: "6px",
+              marginTop: "6px",
+              borderTop: "1px solid var(--popup-border)",
+              fontSize: "10px",
+              color: "var(--popup-muted)",
+            }}
+          >
             {BANNED_FOOTNOTE}
           </div>
         </PopupCard>
@@ -322,7 +471,15 @@ export function BannedMapPopup({
   )
 }
 
-function PanelDecisionLine({ decision, onOpen, note }: { decision: DecisionView; onOpen?: () => void; note?: string }) {
+function PanelDecisionLine({
+  decision,
+  onOpen,
+  note,
+}: {
+  decision: DecisionView
+  onOpen?: () => void
+  note?: string
+}) {
   const scenario = decision.scenario ? scenarioText(decision.scenario) : "No scenario given"
   return (
     <li className="border-b border-border/60 py-2 last:border-0">
@@ -338,15 +495,25 @@ function PanelDecisionLine({ decision, onOpen, note }: { decision: DecisionView;
             {scenario}
           </Button>
         ) : (
-          <span title={note} className="font-medium [overflow-wrap:anywhere]">{scenario}</span>
+          <span title={note} className="font-medium [overflow-wrap:anywhere]">
+            {scenario}
+          </span>
         )}
       </div>
-      <div className="mt-0.5 text-xs text-muted-foreground">{decision.origin} · {timeLeftText(decision.duration)}</div>
+      <div className="mt-0.5 text-xs text-muted-foreground">
+        {decision.origin} · {timeLeftText(decision.duration)}
+      </div>
     </li>
   )
 }
 
-function PanelIpDetails({ member, onOpenAlert }: { member: BannedMapIp; onOpenAlert: (decision: DecisionRef) => void }) {
+function PanelIpDetails({
+  member,
+  onOpenAlert,
+}: {
+  member: BannedMapIp
+  onOpenAlert: (decision: DecisionRef) => void
+}) {
   const { decisions, writeEnabled, active } = useIpDecisionState(member.ip)
   const dropNetwork = useDropNetwork(member.ip)
   const blacklisted = useAbuseIpdbBlacklisted(member.ip)
@@ -354,7 +521,12 @@ function PanelIpDetails({ member, onOpenAlert }: { member: BannedMapIp; onOpenAl
     <>
       <PanelIp
         ip={member.ip}
-        copyButton={<CopyIpButton ip={member.ip} className="-ml-3 size-11 shrink-0 [&_svg:not([class*='size-'])]:size-5" />}
+        copyButton={
+          <CopyIpButton
+            ip={member.ip}
+            className="-ml-3 size-11 shrink-0 [&_svg:not([class*='size-'])]:size-5"
+          />
+        }
       >
         {dropNetwork && <DropBadge variant="long" sblId={dropNetwork.sblId} linked />}
         {blacklisted && <AbuseIpdbBlacklistBadge />}
@@ -362,7 +534,16 @@ function PanelIpDetails({ member, onOpenAlert }: { member: BannedMapIp; onOpenAl
       <dl>
         <DetailField label="Events" value={formatNumber(member.eventCount)} />
         <DetailField label="Location" value={member.city ?? "Unknown"} />
-        {member.countryCode && <DetailField label="Country" value={<CountryLabel code={member.countryCode}>{countryLabel(member.countryCode)}</CountryLabel>} />}
+        {member.countryCode && (
+          <DetailField
+            label="Country"
+            value={
+              <CountryLabel code={member.countryCode}>
+                {countryLabel(member.countryCode)}
+              </CountryLabel>
+            }
+          />
+        )}
       </dl>
       <PanelSection
         icon={decisions.isPending ? <Loader2 className="animate-spin" /> : <ShieldBan />}
@@ -372,11 +553,15 @@ function PanelIpDetails({ member, onOpenAlert }: { member: BannedMapIp; onOpenAl
           <div role="alert" className="flex flex-wrap items-center gap-x-2 text-destructive">
             {crowdsecErrorMessage(decisions.error, "Could not load ban details.")}
             {decisions.data && " Showing the last result."}
-            <Button variant="ghost" className="h-11" onClick={() => void decisions.refetch()}>Retry</Button>
+            <Button variant="ghost" className="h-11" onClick={() => void decisions.refetch()}>
+              Retry
+            </Button>
           </div>
         )}
         {decisions.isSuccess && active.length === 0 && (
-          <p role="status" className="text-muted-foreground">No active decision remains for this IP.</p>
+          <p role="status" className="text-muted-foreground">
+            No active decision remains for this IP.
+          </p>
         )}
         <ul>
           {active.map((decision) =>
@@ -384,10 +569,16 @@ function PanelIpDetails({ member, onOpenAlert }: { member: BannedMapIp; onOpenAl
               <PanelDecisionLine
                 key={decisionKey(decision)}
                 decision={decision}
-                onOpen={() => onOpenAlert({ id: decision.id!, ip: member.ip, scenario: decision.scenario })}
+                onOpen={() =>
+                  onOpenAlert({ id: decision.id!, ip: member.ip, scenario: decision.scenario })
+                }
               />
             ) : (
-              <PanelDecisionLine key={decisionKey(decision)} decision={decision} note={noAlertReason(decision, writeEnabled)} />
+              <PanelDecisionLine
+                key={decisionKey(decision)}
+                decision={decision}
+                note={noAlertReason(decision, writeEnabled)}
+              />
             ),
           )}
         </ul>
@@ -402,21 +593,33 @@ function PanelIpFooter({ member }: { member: BannedMapIp }) {
     <>
       <PanelInspectButton ip={member.ip} fromLocationId={member.locationId} />
       <Button asChild variant="outline" className="h-11 flex-1">
-        <a href={crowdsecCtiUrl(member.ip)} target="_blank" rel="noopener noreferrer" aria-label="Look up in CrowdSec CTI">
+        <a
+          href={crowdsecCtiUrl(member.ip)}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Look up in CrowdSec CTI"
+        >
           <ExternalLink className="size-5" />
           CTI
         </a>
       </Button>
       <PanelBanButton
         ip={member.ip}
-        initialDecision={decisions.data === undefined ? "ban" : winningDecision(active)?.type ?? null}
+        initialDecision={
+          decisions.data === undefined ? "ban" : (winningDecision(active)?.type ?? null)
+        }
         footer
       />
     </>
   )
 }
 
-function PanelIpList({ ips, page: requestedPage, onPageChange, onSelect }: {
+function PanelIpList({
+  ips,
+  page: requestedPage,
+  onPageChange,
+  onSelect,
+}: {
   ips: BannedMapIp[]
   page: number
   onPageChange: (page: number) => void
@@ -442,20 +645,37 @@ function PanelIpList({ ips, page: requestedPage, onPageChange, onSelect }: {
                   </span>
                 )}
               </span>
-              <span className="shrink-0 text-sm tabular-nums text-muted-foreground">{formatNumber(ip.eventCount)}</span>
+              <span className="shrink-0 text-sm tabular-nums text-muted-foreground">
+                {formatNumber(ip.eventCount)}
+              </span>
               <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
             </button>
           </li>
         ))}
       </ul>
       {pageCount > 1 && (
-        <nav aria-label="Banned IP pages" className="mt-2 flex items-center justify-between gap-2 border-t border-border/60 pt-2 text-xs text-muted-foreground">
-          <Button variant="outline" className="h-11" disabled={page === 0} onClick={() => onPageChange(page - 1)}>
+        <nav
+          aria-label="Banned IP pages"
+          className="mt-2 flex items-center justify-between gap-2 border-t border-border/60 pt-2 text-xs text-muted-foreground"
+        >
+          <Button
+            variant="outline"
+            className="h-11"
+            disabled={page === 0}
+            onClick={() => onPageChange(page - 1)}
+          >
             <ChevronLeft />
             Prev
           </Button>
-          <span className="tabular-nums">{start + 1}-{start + rows.length} of {ips.length}</span>
-          <Button variant="outline" className="h-11" disabled={page + 1 >= pageCount} onClick={() => onPageChange(page + 1)}>
+          <span className="tabular-nums">
+            {start + 1}-{start + rows.length} of {ips.length}
+          </span>
+          <Button
+            variant="outline"
+            className="h-11"
+            disabled={page + 1 >= pageCount}
+            onClick={() => onPageChange(page + 1)}
+          >
             Next
             <ChevronRight />
           </Button>
@@ -483,7 +703,7 @@ export function BannedMapPanel({
   // returns to the page the IP was picked from.
   const [selectedIp, setSelectedIp] = useState<string | null>(ips.length === 1 ? ips[0].ip : null)
   const [page, setPage] = useState(0)
-  const selected = selectedIp === null ? null : ips.find((ip) => ip.ip === selectedIp) ?? null
+  const selected = selectedIp === null ? null : (ips.find((ip) => ip.ip === selectedIp) ?? null)
   // Opening an IP or going Back unmounts the focused button. Opening moves
   // focus to Back, and Back returns it to the row the IP was opened from.
   const bodyRef = useRef<HTMLDivElement>(null)
@@ -507,9 +727,10 @@ export function BannedMapPanel({
     const active = document.activeElement
     if (active !== null && active !== document.body && !panel?.contains(active)) return
     // The row is gone when a refetch or an unban dropped its IP.
-    const row = openedFrom.current === null
-      ? null
-      : body?.querySelector<HTMLElement>(`[data-ip="${CSS.escape(openedFrom.current)}"]`)
+    const row =
+      openedFrom.current === null
+        ? null
+        : body?.querySelector<HTMLElement>(`[data-ip="${CSS.escape(openedFrom.current)}"]`)
     ;(row ?? panel)?.focus({ preventScroll: !row })
   }, [selectedIp])
   // An unban or a refetch can drop the open IP. The list shows instead, and
@@ -521,7 +742,9 @@ export function BannedMapPanel({
     setSelectedIp(null)
   }, [selectionLost])
   const place = selected
-    ? [selected.city, selected.countryCode && countryLabel(selected.countryCode)].filter(Boolean).join(", ")
+    ? [selected.city, selected.countryCode && countryLabel(selected.countryCode)]
+        .filter(Boolean)
+        .join(", ")
     : null
 
   return (
@@ -530,20 +753,30 @@ export function BannedMapPanel({
       point={[longitude, latitude]}
       onClose={onClose}
       closeLabel="Close banned IP details"
-      leading={selected && ips.length > 1 && (
-        <PanelBackButton label="All IPs here" onClick={() => navigate(null)}>
-          <ChevronLeft className="size-5" />
-        </PanelBackButton>
-      )}
+      leading={
+        selected &&
+        ips.length > 1 && (
+          <PanelBackButton label="All IPs here" onClick={() => navigate(null)}>
+            <ChevronLeft className="size-5" />
+          </PanelBackButton>
+        )
+      }
       icon={<ShieldBan className="size-5 text-destructive" />}
       title={bannedTitle(selected, ips)}
-      subtitle={selected ? (place || "Location unknown") : undefined}
+      subtitle={selected ? place || "Location unknown" : undefined}
       footer={selected && <PanelIpFooter member={selected} />}
     >
       <div ref={bodyRef}>
-        {selected
-          ? <PanelIpDetails member={selected} onOpenAlert={onOpenAlert} />
-          : <PanelIpList ips={ips} page={page} onPageChange={setPage} onSelect={(ip) => navigate(ip.ip)} />}
+        {selected ? (
+          <PanelIpDetails member={selected} onOpenAlert={onOpenAlert} />
+        ) : (
+          <PanelIpList
+            ips={ips}
+            page={page}
+            onPageChange={setPage}
+            onSelect={(ip) => navigate(ip.ip)}
+          />
+        )}
       </div>
       <p className="mt-3 text-xs text-muted-foreground">{BANNED_FOOTNOTE}</p>
     </MapDetailPanel>

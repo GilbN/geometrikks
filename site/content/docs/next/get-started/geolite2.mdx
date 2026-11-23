@@ -29,7 +29,7 @@ The files live in `/app/data/geoip` inside the container. The compose file keeps
 
 ### Refresh
 
-At startup the app downloads a database that is missing or older than `GEOIP_REFRESH_DAYS` (default 7). A scheduled job then downloads fresh copies every `GEOIP_REFRESH_DAYS` days. Settings > Scheduler lists it as "Refresh GeoLite2 databases from MaxMind", and its Run now button fetches new copies straight away. When the files change, ingestion switches to the new ones without a restart.
+At startup the app downloads a database that is missing or older than `GEOIP_REFRESH_DAYS` (default 7). A scheduled job then downloads fresh copies every `GEOIP_REFRESH_DAYS` days. Settings > Scheduler lists it as "Refresh GeoLite2 databases from MaxMind", and its Run now button fetches new copies straight away. When the files change, ingestion switches to the new ones without a restart. If the scheduled job can't reach MaxMind, it tries again after 30 seconds and again after 2 minutes. The download at startup makes one attempt.
 
 Without keys, the app keeps whatever database file it already has and warns in the log once it is older than `GEOIP_REFRESH_DAYS`. The EULA requires a refresh within 30 days.
 

@@ -40,7 +40,7 @@ The inspector's header always links to the address's page on abuseipdb.com. Your
 
 With `ABUSEIPDB_API_KEY` set, opening a public IP in the inspector also asks AbuseIPDB for its score. A badge in the header shows the confidence score and the number of reports, and adds Tor or whitelisted when AbuseIPDB says so. The badge is gray below 25%, amber from 25% and red from 75%. Hover it, or tap it on a phone, for the number of users who reported the address, when it was last reported and its usage type.
 
-Each lookup spends one of your daily AbuseIPDB checks. GeoMetrikks keeps each answer for 15 minutes, so opening the same IP again within that time usually costs nothing. The cache holds the 512 most recently checked IPs, so an IP pushed out by newer checks costs a check again, and a restart empties it. A private or reserved address, such as one in 192.168.0.0/16, gets no badge and no lookup. If the lookup fails, the badge becomes Retry AbuseIPDB check with the error next to it.
+Each lookup spends one of your daily AbuseIPDB checks, and the free plan gets 1,000 a day. GeoMetrikks keeps each answer for 15 minutes, and opening the same IP again in that time spends no check. There are two exceptions. The cache holds the 512 most recently checked IPs, so an IP costs a check again once GeoMetrikks has checked 512 other IPs after it. A restart empties the cache. A private or reserved address, such as one in 192.168.0.0/16, gets no badge and no lookup. If the lookup fails, the badge becomes Retry AbuseIPDB check with the error next to it.
 
 ## Report an IP
 
@@ -104,6 +104,8 @@ The [abuse report](./abuse-reports.mdx) dialog notes when the address is on the 
 The scheduler runs the download, so it needs `SCHEDULER_ENABLED=true`, the default. The first run comes a minute after startup, and skips the download when the stored list is younger than the refresh interval. A download is never tried again within 5 hours of the last attempt, since free plans get 5 blacklist calls a day. Run now on Settings > Scheduler follows the same rule. Only the full instance downloads the list, never an [agent](../sources/multiple-sources.mdx).
 
 A failed download keeps the previous list, logs `abuseipdb_blacklist_refresh_failed` with the reason, and marks the AbuseIPDB blacklist refresh job as failed on Settings > Scheduler. When the newest list is more than 72 hours old, GeoMetrikks stops showing it and logs `abuseipdb_blacklist_expired`. The marks come back with the next good download. AbuseIPDB requires a downloaded list to be kept current or dropped.
+
+Settings > About has an AbuseIPDB blacklist card with the number of listed IPs, when AbuseIPDB generated the list, when the list was last updated, and which source is configured, the API or a file. Its light turns amber when the last download failed, and the card names the `abuseipdb_blacklist_refresh_failed` log line that holds the reason. It turns red once the list is more than 72 hours old.
 
 The list is for your own use. AbuseIPDB's terms forbid republishing it, and free plans can't be used commercially.
 

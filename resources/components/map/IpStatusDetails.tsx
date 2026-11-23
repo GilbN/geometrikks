@@ -28,7 +28,8 @@ import { BanIpDialog } from "@/components/security/ban-ip-dialog"
 import type { DecisionRef } from "@/components/security/alert-detail-sheet"
 import type { DecisionView } from "@/generated/api/types.gen"
 import { abuseipdbCheckUrl } from "@/lib/abuseipdb"
-import { crowdsecErrorMessage, decisionLabel, resolveDecision } from "@/lib/crowdsec"
+import { decisionLabel, resolveDecision } from "@/lib/crowdsec"
+import { crowdsecErrorMessage } from "@/lib/crowdsec-errors"
 import { decisionHasAlert, formatTimeLeft, isBlocklistOrigin } from "@/lib/crowdsec-alerts"
 import { formatTs } from "@/lib/datetime"
 import { useIpInspectorActions } from "@/lib/ip-inspector"
@@ -70,9 +71,24 @@ export function IpStatusWords({ ip }: { ip: string }) {
   const decision = bannedIps?.get(ip) ?? null
   return (
     <>
-      {decision !== null && <><span className={cn("font-semibold", decisionTone(decision))}>{decisionLabel(decision)}</span> · </>}
-      {dropNetwork !== null && <><span className="font-semibold text-destructive">On DROP</span> · </>}
-      {blacklisted && <><span className="font-semibold text-destructive">On AbuseIPDB blacklist</span> · </>}
+      {decision !== null && (
+        <>
+          <span className={cn("font-semibold", decisionTone(decision))}>
+            {decisionLabel(decision)}
+          </span>{" "}
+          ·{" "}
+        </>
+      )}
+      {dropNetwork !== null && (
+        <>
+          <span className="font-semibold text-destructive">On DROP</span> ·{" "}
+        </>
+      )}
+      {blacklisted && (
+        <>
+          <span className="font-semibold text-destructive">On AbuseIPDB blacklist</span> ·{" "}
+        </>
+      )}
     </>
   )
 }
@@ -84,12 +100,20 @@ function blockStyles(compact: boolean) {
     heading: cn("flex items-center gap-2 font-semibold", compact ? "text-xs" : "text-sm"),
     list: cn(
       "mt-2 grid items-baseline gap-x-3 gap-y-1",
-      compact ? "grid-cols-[4.5rem_minmax(0,1fr)] text-xs" : "grid-cols-[5.5rem_minmax(0,1fr)] text-sm",
+      compact
+        ? "grid-cols-[4.5rem_minmax(0,1fr)] text-xs"
+        : "grid-cols-[5.5rem_minmax(0,1fr)] text-sm",
     ),
   }
 }
 
-function DecisionBlock({ decision, ip, onOpenAlert, Close, compact }: {
+function DecisionBlock({
+  decision,
+  ip,
+  onOpenAlert,
+  Close,
+  compact,
+}: {
   decision: DecisionView
   ip: string
   Close: CloseSlot
@@ -113,13 +137,18 @@ function DecisionBlock({ decision, ip, onOpenAlert, Close, compact }: {
             <Close asChild>
               <Button
                 variant="link"
-                className={cn("h-auto whitespace-normal p-0 text-left underline decoration-primary/40 decoration-dotted", compact ? "text-xs" : "min-h-8 text-sm")}
+                className={cn(
+                  "h-auto whitespace-normal p-0 text-left underline decoration-primary/40 decoration-dotted",
+                  compact ? "text-xs" : "min-h-8 text-sm",
+                )}
                 onClick={() => onOpenAlert({ id: decision.id!, ip, scenario: decision.scenario })}
               >
                 {scenario}
               </Button>
             </Close>
-          ) : scenario}
+          ) : (
+            scenario
+          )}
         </dd>
         <dt className="text-muted-foreground">Origin</dt>
         <dd>{ORIGIN_TEXT[decision.origin] ?? decision.origin}</dd>
@@ -128,7 +157,8 @@ function DecisionBlock({ decision, ip, onOpenAlert, Close, compact }: {
       </dl>
       {decision.type === "captcha" && (
         <p className="mt-2 text-xs text-muted-foreground">
-          A bouncer that supports captchas asks visitors from this IP to solve one instead of blocking them.
+          A bouncer that supports captchas asks visitors from this IP to solve one instead of
+          blocking them.
         </p>
       )}
       {blocklist && (
@@ -140,7 +170,13 @@ function DecisionBlock({ decision, ip, onOpenAlert, Close, compact }: {
   )
 }
 
-function StatusBody({ ip, banned, onOpenAlert, Close, compact }: {
+function StatusBody({
+  ip,
+  banned,
+  onOpenAlert,
+  Close,
+  compact,
+}: {
   ip: string
   banned: boolean
   Close: CloseSlot
@@ -176,7 +212,11 @@ function StatusBody({ ip, banned, onOpenAlert, Close, compact }: {
           ip={ip}
           Close={Close}
           compact={compact}
-          onOpenAlert={onOpenAlert && writeEnabled && decisionHasAlert(decision.scope, decision) ? onOpenAlert : undefined}
+          onOpenAlert={
+            onOpenAlert && writeEnabled && decisionHasAlert(decision.scope, decision)
+              ? onOpenAlert
+              : undefined
+          }
         />
       ))}
       {dropNetwork !== null && (
@@ -189,18 +229,25 @@ function StatusBody({ ip, banned, onOpenAlert, Close, compact }: {
             <dt className="text-muted-foreground">Network</dt>
             <dd className="flex items-center gap-1 font-mono">
               {dropNetwork.cidr}
-              <CopyIpButton ip={dropNetwork.cidr} what="network" className={compact ? "ml-0" : "ml-0 -my-2.5 size-11"} />
+              <CopyIpButton
+                ip={dropNetwork.cidr}
+                what="network"
+                className={compact ? "ml-0" : "ml-0 -my-2.5 size-11"}
+              />
             </dd>
             {dropNetwork.sblId && (
               <>
                 <dt className="text-muted-foreground">Entry</dt>
-                <dd><SblRecordLink sblId={dropNetwork.sblId} className="text-primary" /></dd>
+                <dd>
+                  <SblRecordLink sblId={dropNetwork.sblId} className="text-primary" />
+                </dd>
               </>
             )}
           </dl>
           <p className="mt-2 text-xs text-muted-foreground">
-            DROP stands for Don't Route Or Peer. Spamhaus lists networks run by spam and cybercrime operations, so
-            traffic from them is almost never legitimate.{!banned && !blacklisted && " GeoMetrikks has not blocked this IP."}
+            DROP stands for Don't Route Or Peer. Spamhaus lists networks run by spam and cybercrime
+            operations, so traffic from them is almost never legitimate.
+            {!banned && !blacklisted && " GeoMetrikks has not blocked this IP."}
           </p>
         </section>
       )}
@@ -238,7 +285,9 @@ function StatusBody({ ip, banned, onOpenAlert, Close, compact }: {
         </section>
       )}
       {!banned && crowdsecEnabled && (
-        <p className={cn("text-muted-foreground", compact ? "text-xs" : "text-sm")}>No CrowdSec decision on this IP.</p>
+        <p className={cn("text-muted-foreground", compact ? "text-xs" : "text-sm")}>
+          No CrowdSec decision on this IP.
+        </p>
       )}
     </div>
   )
@@ -314,13 +363,24 @@ function MarkedIpStatus({
   }
 
   const trigger = (
-    <button ref={triggerRef} type="button" className="max-w-full cursor-pointer text-left" aria-haspopup="dialog">
+    <button
+      ref={triggerRef}
+      type="button"
+      className="max-w-full cursor-pointer text-left"
+      aria-haspopup="dialog"
+    >
       {children}
     </button>
   )
   const details = (
     <>
-      <StatusBody ip={ip} banned={banned} Close={Close} compact={!isMobile} onOpenAlert={onOpenAlert && ((ref) => later(() => onOpenAlert(ref)))} />
+      <StatusBody
+        ip={ip}
+        banned={banned}
+        Close={Close}
+        compact={!isMobile}
+        onOpenAlert={onOpenAlert && ((ref) => later(() => onOpenAlert(ref)))}
+      />
       {showChoices ? (
         <div className="flex flex-col gap-2">
           {!waiting && <p className="text-sm">Ban this IP in CrowdSec for</p>}
@@ -335,33 +395,44 @@ function MarkedIpStatus({
       ) : (
         <div className="grid grid-cols-2 gap-2">
           <Close asChild>
-            <Button variant="outline" className={button} onClick={() => later(() => openInspector(ip, fromLocationId))}>
+            <Button
+              variant="outline"
+              className={button}
+              onClick={() => later(() => openInspector(ip, fromLocationId))}
+            >
               <ScanSearch className={isMobile ? "size-5" : undefined} />
               Inspect
             </Button>
           </Close>
-          {writeEnabled && (banned ? (
-            <Close asChild>
+          {writeEnabled &&
+            (banned ? (
+              <Close asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    button,
+                    "border-destructive/40 text-destructive hover:text-destructive",
+                  )}
+                  disabled={pending !== null}
+                  onClick={() => unban(ip)}
+                >
+                  <ShieldOff className={isMobile ? "size-5" : undefined} />
+                  Unban
+                </Button>
+              </Close>
+            ) : (
               <Button
                 variant="outline"
-                className={cn(button, "border-destructive/40 text-destructive hover:text-destructive")}
-                disabled={pending !== null}
-                onClick={() => unban(ip)}
+                className={cn(
+                  button,
+                  "border-destructive/40 text-destructive hover:text-destructive",
+                )}
+                onClick={() => setChoosingBan(true)}
               >
-                <ShieldOff className={isMobile ? "size-5" : undefined} />
-                Unban
+                <ShieldBan className={isMobile ? "size-5" : undefined} />
+                Ban
               </Button>
-            </Close>
-          ) : (
-            <Button
-              variant="outline"
-              className={cn(button, "border-destructive/40 text-destructive hover:text-destructive")}
-              onClick={() => setChoosingBan(true)}
-            >
-              <ShieldBan className={isMobile ? "size-5" : undefined} />
-              Ban
-            </Button>
-          ))}
+            ))}
         </div>
       )}
     </>
@@ -392,13 +463,24 @@ function MarkedIpStatus({
                   <IpLabel ip={ip} className="text-xl break-all" />
                 </DrawerTitle>
                 <CopyIpButton ip={ip} className="size-11 [&_svg:not([class*='size-'])]:size-5" />
-                {drawer.side && <span className="ml-auto"><SideDrawerClose /></span>}
+                {drawer.side && (
+                  <span className="ml-auto">
+                    <SideDrawerClose />
+                  </span>
+                )}
               </div>
               <DrawerDescription className={cn(!context && "sr-only")}>
                 {context ?? "Why this IP is marked"}
               </DrawerDescription>
             </DrawerHeader>
-            <div className={cn("flex flex-col gap-3 overflow-y-auto overscroll-contain px-4 pb-6", drawer.side ? "min-h-0 flex-1" : "max-h-[60vh]")}>{details}</div>
+            <div
+              className={cn(
+                "flex flex-col gap-3 overflow-y-auto overscroll-contain px-4 pb-6",
+                drawer.side ? "min-h-0 flex-1" : "max-h-[60vh]",
+              )}
+            >
+              {details}
+            </div>
           </DrawerContent>
         </Drawer>
       ) : (
@@ -415,7 +497,9 @@ function MarkedIpStatus({
           </PopoverContent>
         </Popover>
       )}
-      {writeEnabled && <BanIpDialog open={dialogOpen} onOpenChange={setDialogOpen} initialIp={ip} />}
+      {writeEnabled && (
+        <BanIpDialog open={dialogOpen} onOpenChange={setDialogOpen} initialIp={ip} />
+      )}
     </>
   )
 }

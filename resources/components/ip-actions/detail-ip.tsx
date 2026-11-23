@@ -17,7 +17,13 @@ import { useAbuseIpdbBlacklisted, useBannedIps, useDropNetwork } from "@/lib/que
 
 /** Sits first in a DetailSheet body; the negative margins take it to the
  *  body's edges so its rule meets the sheet's sides. */
-export function DetailIpBlock({ values, children }: { values: IpRowValues; children?: React.ReactNode }) {
+export function DetailIpBlock({
+  values,
+  children,
+}: {
+  values: IpRowValues
+  children?: React.ReactNode
+}) {
   const { data: bannedIps } = useBannedIps()
   const dropNetwork = useDropNetwork(values.ip)
   const blacklisted = useAbuseIpdbBlacklisted(values.ip)
@@ -29,8 +35,18 @@ export function DetailIpBlock({ values, children }: { values: IpRowValues; child
           <span className="min-w-0 break-all font-mono text-xl">{values.ip}</span>
           {(decision !== null || dropNetwork || blacklisted) && (
             <span className="flex flex-wrap items-center gap-2">
-              {decision !== null && <DecisionBadge type={decision} hover="tooltip" className="cursor-help" />}
-              {dropNetwork && <DropBadge variant="long" sblId={dropNetwork.sblId} linked hover="tooltip" className="cursor-help" />}
+              {decision !== null && (
+                <DecisionBadge type={decision} hover="tooltip" className="cursor-help" />
+              )}
+              {dropNetwork && (
+                <DropBadge
+                  variant="long"
+                  sblId={dropNetwork.sblId}
+                  linked
+                  hover="tooltip"
+                  className="cursor-help"
+                />
+              )}
               {blacklisted && <AbuseIpdbBlacklistBadge hover="tooltip" className="cursor-help" />}
             </span>
           )}
@@ -53,12 +69,15 @@ export function DetailIpActions({
   values,
   locationId,
   showOnMap = true,
+  muteToggle = false,
   onNavigate,
 }: {
   values: IpRowValues
   /** Where the inspector starts and where Show on map lands. */
   locationId?: number
   showOnMap?: boolean
+  /** Offers Mute IP in the menu. */
+  muteToggle?: boolean
   onNavigate: () => void
 }) {
   const { open: inspect } = useIpInspectorActions()
@@ -85,7 +104,10 @@ export function DetailIpActions({
           onClick={() => {
             void navigate({
               to: "/map",
-              search: (prev: Record<string, unknown>) => ({ ...prev, ...flyToSearch(values.ip, locationId) }),
+              search: (prev: Record<string, unknown>) => ({
+                ...prev,
+                ...flyToSearch(values.ip, locationId),
+              }),
             })
             onNavigate()
           }}
@@ -94,7 +116,13 @@ export function DetailIpActions({
           <span className="truncate">Show on map</span>
         </Button>
       )}
-      <IpActionsMenu {...values} locationId={locationId} footer onFilter={onNavigate} />
+      <IpActionsMenu
+        {...values}
+        locationId={locationId}
+        footer
+        muteToggle={muteToggle}
+        onFilter={onNavigate}
+      />
     </div>
   )
 }

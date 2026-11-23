@@ -27,7 +27,9 @@ const MAP_STYLES = {
   light: "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
 } as const
 
-async function fetchCartoDarkStyle(cartoApiKey: string | null | undefined): Promise<StyleSpecification> {
+async function fetchCartoDarkStyle(
+  cartoApiKey: string | null | undefined,
+): Promise<StyleSpecification> {
   const response = await fetch(withCartoApiKey(CARTO_DARK_STYLE_URL, cartoApiKey))
   if (!response.ok) throw new Error(`CARTO style request failed with ${response.status}`)
   return (await response.json()) as StyleSpecification
@@ -50,7 +52,10 @@ export function useMapStyle({ satellite = false }: { satellite?: boolean } = {})
     staleTime: Number.POSITIVE_INFINITY,
   })
   const satelliteStyle = useMemo(
-    () => (showSatellite && cartoDark && esriApiKey ? buildSatelliteStyle(cartoDark, esriApiKey) : undefined),
+    () =>
+      showSatellite && cartoDark && esriApiKey
+        ? buildSatelliteStyle(cartoDark, esriApiKey)
+        : undefined,
     [showSatellite, cartoDark, esriApiKey],
   )
 

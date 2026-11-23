@@ -6,14 +6,14 @@ filter routing, and the CAGG-backed access-log facets.
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import text
 
 from geometrikks.server.timescale import refresh_caggs_range
 
 # Wall-clock derived, hour-aligned (see test_repositories_pg.py for why).
-NOW = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+NOW = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
 
 # Misaligned >24h window: neither edge on an hour boundary, so CAGG reads
 # must stitch partial head/tail buckets from raw access_logs.
@@ -56,13 +56,13 @@ class TestCaggWiring:
         )
 
 
+import pytest
+
 from geometrikks.domain.analytics.repositories import (
     AnalyticsFilters,
     LiveStatsRepository,
     SummaryStatsRepository,
 )
-
-import pytest
 
 pytestmark = pytest.mark.anyio
 
@@ -200,7 +200,8 @@ class TestTopIpsCountriesCitiesParity:
             routed = await SummaryStatsRepository(session=session).get_top_ips(B_START, B_END)
             raw = await LiveStatsRepository(session=session).get_top_ips(B_START, B_END)
         assert routed == raw
-        assert [(r.ip_address, r.hits, r.error_hits, r.total_bytes, r.country_code, r.city) for r in routed] == [
+        assert routed.distinct_ips == 3
+        assert [(r.ip_address, r.hits, r.error_hits, r.total_bytes, r.country_code, r.city) for r in routed.rows] == [
             ("1.1.1.1", 4, 1, 800, "NO", "Oslo"),
             ("2.2.2.2", 3, 0, 150, "SE", "Umea"),
             ("7.7.7.7", 1, 0, 100, None, None),
@@ -239,7 +240,8 @@ class TestTopIpsCountriesCitiesParity:
             routed = await SummaryStatsRepository(session=session).get_top_ips(B_START, B_END, filters=flt)
             raw = await LiveStatsRepository(session=session).get_top_ips(B_START, B_END, filters=flt)
         assert routed == raw
-        assert [(r.ip_address, r.hits) for r in routed] == [("1.1.1.1", 4)]
+        assert [(r.ip_address, r.hits) for r in routed.rows] == [("1.1.1.1", 4)]
+        assert routed.distinct_ips == 1
 
     async def test_ip_exclude_filter_matches_raw(self, pg_engine, pg_session_maker, clean_tables):
         await seed_boundary_logs(pg_session_maker)
@@ -275,7 +277,7 @@ class TestTieOrdering:
             raw_i = await LiveStatsRepository(session=session).get_top_ips(B_START, B_END)
         assert [r.url for r in routed_u] == ["/tie-a", "/tie-b"], "equal hits break ties by url ASC"
         assert routed_u == raw_u
-        assert [r.ip_address for r in routed_i] == ["5.5.5.5", "6.6.6.6"], "equal hits break ties by ip ASC"
+        assert [r.ip_address for r in routed_i.rows] == ["5.5.5.5", "6.6.6.6"], "equal hits break ties by ip ASC"
         assert routed_i == raw_i
 
     async def test_tied_hosts_order_by_host_then_path(self, pg_engine, pg_session_maker, clean_tables):

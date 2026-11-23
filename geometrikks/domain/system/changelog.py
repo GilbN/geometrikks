@@ -24,8 +24,8 @@ import hashlib
 import re
 from datetime import date
 from functools import lru_cache
-from typing import Annotated
 from pathlib import Path
+from typing import Annotated
 
 import msgspec
 

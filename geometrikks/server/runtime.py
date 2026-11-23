@@ -12,8 +12,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from geometrikks.server.scheduler_tracking import JobRunTracker
 from geometrikks.lib.advisories import AdvisoryRegistry
+from geometrikks.server.scheduler_tracking import JobRunTracker
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -36,6 +36,15 @@ if TYPE_CHECKING:
 def get_ingestion_service(app: Litestar) -> LogIngestionService | None:
     """None when ingestion never started (DB- or geo-degraded mode)."""
     return getattr(app.state, "ingestion_service", None)
+
+
+def is_ingestion_starting(app: Litestar) -> bool:
+    """Whether startup has yet to reach the point where it starts ingestion.
+
+    The first heartbeat goes out before then, and an agent can wait minutes
+    there for the head's migration.
+    """
+    return bool(getattr(app.state, "ingestion_starting", False))
 
 
 def get_release_checker(app: Litestar) -> ReleaseChecker | None:

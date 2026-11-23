@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import dataclasses
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import asyncpg
 import pytest
@@ -70,7 +70,7 @@ async def test_seed_reset_empties_earlier_traffic_and_its_buckets(
     # That refresh left the daily watermark at tomorrow, and a watermark never
     # moves back, so today's rows would stay out of the daily views. Seed
     # closed days only.
-    end = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0) - timedelta(days=1)
+    end = datetime.now(UTC).replace(minute=0, second=0, microsecond=0) - timedelta(days=1)
     second = dataclasses.replace(first, rows=500, days=1, seed=7, end=end)
     stats = await run_seed(second, FakeGeoSource(), migrated_database_url, reset=True)
 

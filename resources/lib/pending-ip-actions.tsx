@@ -22,7 +22,8 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { banIp, unbanIp, type DecisionView } from "@/lib/api"
-import { crowdsecErrorMessage, forDuration } from "@/lib/crowdsec"
+import { forDuration } from "@/lib/crowdsec"
+import { crowdsecErrorMessage } from "@/lib/crowdsec-errors"
 
 export const UNDO_WINDOW_MS = 5000
 /** The lookup query's staleTime: an unban counts decisions only from an answer this fresh. */
@@ -79,13 +80,19 @@ export function undoIpAction(ip: string) {
 }
 
 function done(action: PendingIpAction): string {
-  return action.kind === "ban" ? `Banned ${action.ip} ${forDuration(action.durationLabel)}` : `Unbanned ${action.ip}`
+  return action.kind === "ban"
+    ? `Banned ${action.ip} ${forDuration(action.durationLabel)}`
+    : `Unbanned ${action.ip}`
 }
 
 function failure(action: PendingIpAction, error: unknown) {
   const verb = action.kind === "ban" ? "Ban" : "Unban"
   const fallback = `${verb} failed for ${action.ip}; the LAPI may be unreachable.`
-  toast.error(error instanceof KeepaliveError ? (error.detail ?? fallback) : crowdsecErrorMessage(error, fallback))
+  toast.error(
+    error instanceof KeepaliveError
+      ? (error.detail ?? fallback)
+      : crowdsecErrorMessage(error, fallback),
+  )
 }
 
 /** Clears the entry once fresh CrowdSec data is in, so the controls never
@@ -101,7 +108,11 @@ async function settle(ip: string) {
     ])
     // Another action settling meanwhile cancels and restarts this refetch,
     // so wait until no CrowdSec query is still fetching.
-    while (queryClient && queryClient.isFetching({ queryKey: ["crowdsec"] }) > 0 && Date.now() < deadline) {
+    while (
+      queryClient &&
+      queryClient.isFetching({ queryKey: ["crowdsec"] }) > 0 &&
+      Date.now() < deadline
+    ) {
       await new Promise((resolve) => window.setTimeout(resolve, 100))
     }
   } finally {
@@ -113,15 +124,19 @@ async function settle(ip: string) {
 /** The backend's detail from a failed keepalive request, read the way
  *  crowdsecErrorMessage reads an axios error. */
 class KeepaliveError extends Error {
-  constructor(readonly status: number, readonly detail: string | null) {
+  constructor(
+    readonly status: number,
+    readonly detail: string | null,
+  ) {
     super(detail ?? `HTTP ${status}`)
   }
 }
 
 async function keepaliveRequest(action: PendingIpAction): Promise<void> {
-  const [path, body] = action.kind === "ban"
-    ? ["/api/v1/crowdsec/ban", { ip: action.ip, duration: action.duration }]
-    : ["/api/v1/crowdsec/unban", { ip: action.ip }]
+  const [path, body] =
+    action.kind === "ban"
+      ? ["/api/v1/crowdsec/ban", { ip: action.ip, duration: action.duration }]
+      : ["/api/v1/crowdsec/unban", { ip: action.ip }]
   const response = await fetch(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -131,7 +146,8 @@ async function keepaliveRequest(action: PendingIpAction): Promise<void> {
   })
   if (response.ok) return
   // Same rule as the axios client: an expired session goes to the login page.
-  if (response.status === 401 && window.location.pathname !== "/login") window.location.href = "/login"
+  if (response.status === 401 && window.location.pathname !== "/login")
+    window.location.href = "/login"
   const answer = (await response.json().catch(() => null)) as { detail?: string } | null
   throw new KeepaliveError(response.status, answer?.detail ?? null)
 }
@@ -172,7 +188,7 @@ export function flushIpActions(): Promise<unknown> {
 }
 
 function flushAll() {
-  for (const ip of [...entries.keys()]) void send(ip, true)
+  for (const ip of Array.from(entries.keys())) void send(ip, true)
 }
 
 function bindFlush() {
@@ -180,7 +196,8 @@ function bindFlush() {
   flushBound = true
   window.addEventListener("pagehide", flushAll)
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "hidden" && window.matchMedia("(pointer: coarse)").matches) flushAll()
+    if (document.visibilityState === "hidden" && window.matchMedia("(pointer: coarse)").matches)
+      flushAll()
   })
 }
 
@@ -189,7 +206,8 @@ function bindFlush() {
  *  decision that covers it stays, so ranges are left out of the count. */
 function unbanSummary(ip: string): string {
   if (ip.includes("/")) return "Removes every decision on this range, from every origin."
-  const queries = queryClient?.getQueryCache().findAll({ queryKey: ["crowdsec", "lookup", ip] }) ?? []
+  const queries =
+    queryClient?.getQueryCache().findAll({ queryKey: ["crowdsec", "lookup", ip] }) ?? []
   // Only a fresh answer: an old or invalidated one can count decisions
   // that CAPI or another bouncer has since added or removed.
   const newest = queries
@@ -204,10 +222,15 @@ function unbanSummary(ip: string): string {
   return describeUnban(decisions?.filter((decision) => decision.scope === "Ip"))
 }
 
-export function describeUnban(decisions: readonly Pick<DecisionView, "origin">[] | undefined): string {
-  if (!decisions || decisions.length === 0) return "Removes every decision on this IP, from every origin."
+export function describeUnban(
+  decisions: readonly Pick<DecisionView, "origin">[] | undefined,
+): string {
+  if (!decisions || decisions.length === 0)
+    return "Removes every decision on this IP, from every origin."
   const total = decisions.length
-  const crowd = decisions.filter((decision) => decision.origin === "CAPI" || decision.origin === "lists").length
+  const crowd = decisions.filter(
+    (decision) => decision.origin === "CAPI" || decision.origin === "lists",
+  ).length
   const count = total === 1 ? "1 decision" : `${total} decisions`
   if (crowd === 0) return `Removes ${count}.`
   if (crowd === total) return `Removes ${count} from the crowd.`
@@ -253,7 +276,9 @@ export function useIpActions() {
       queryClient = client
       bindFlush()
       if (entries.get(action.ip)?.sending) {
-        toast(`${action.kind === "ban" ? "A ban" : "An unban"} for ${action.ip} is already on its way.`)
+        toast(
+          `${action.kind === "ban" ? "A ban" : "An unban"} for ${action.ip} is already on its way.`,
+        )
         return
       }
       // A second action on the same IP replaces the first; neither was sent.

@@ -6,9 +6,9 @@ import json
 import math
 import random
 from collections.abc import Iterator
-from itertools import accumulate
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from itertools import accumulate
 from typing import NamedTuple
 
 from tests.seed.catalog import (
@@ -209,7 +209,7 @@ class TrafficGenerator:
     def _add_request(self, batch: Batch, visitor: Visitor) -> None:
         rng = self.rng
         # Both log formats write whole seconds.
-        timestamp = datetime.fromtimestamp(int(self._timestamp(visitor)), tz=timezone.utc)
+        timestamp = datetime.fromtimestamp(int(self._timestamp(visitor)), tz=UTC)
         probe = visitor.kind == "scanner" and rng.random() < PROBE_SHARE
         log = self._probe_log(visitor, timestamp) if probe else self._request_log(visitor, timestamp)
 

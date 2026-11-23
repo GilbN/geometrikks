@@ -45,7 +45,10 @@ def local_days_edge_note(start_name: str, end_name: str) -> str:
 
 
 REPEAT_NOTE = "Repeat the parameter to pass more than one."
-_IP_CHECK = "A value that is not an IP gets a 400."
+IP_FILTER_NOTE = (
+    "Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, "
+    "or a value that is neither, gets a 400."
+)
 COUNTRY_FILTER_DESCRIPTION = (
     f"Keep only these countries, as uppercase two-letter ISO 3166-1 codes such as `NO`. {REPEAT_NOTE}"
 )
@@ -147,7 +150,7 @@ IpAddressFilter = Annotated[
     list[str] | None,
     QueryParameter(
         name="ipAddress",
-        description=f"Keep only these client IPs. {REPEAT_NOTE} {_IP_CHECK}",
+        description=f"Keep only these client IPs or ranges. {REPEAT_NOTE} {IP_FILTER_NOTE}",
         required=False,
     ),
 ]
@@ -156,7 +159,16 @@ IpAddressExcludeFilter = Annotated[
     list[str] | None,
     QueryParameter(
         name="ipAddressNotIn",
-        description=f"Leave out these client IPs. {REPEAT_NOTE} {_IP_CHECK}",
+        description=f"Leave out these client IPs or ranges. {REPEAT_NOTE} {IP_FILTER_NOTE}",
+        required=False,
+    ),
+]
+
+ExcludeMutedIps = Annotated[
+    bool,
+    QueryParameter(
+        name="excludeMutedIps",
+        description="Leave out the muted IPs. An IP include filter on the same request wins.",
         required=False,
     ),
 ]
@@ -166,7 +178,7 @@ IpAddressIn = Annotated[
     list[str] | None,
     QueryParameter(
         name="ipAddressIn",
-        description=f"Keep only these client IPs. {REPEAT_NOTE} {_IP_CHECK}",
+        description=f"Keep only these client IPs or ranges. {REPEAT_NOTE} {IP_FILTER_NOTE}",
         required=False,
     ),
 ]
@@ -175,7 +187,7 @@ IpAddressNotIn = Annotated[
     list[str] | None,
     QueryParameter(
         name="ipAddressNotIn",
-        description=f"Leave out these client IPs. {REPEAT_NOTE} {_IP_CHECK}",
+        description=f"Leave out these client IPs or ranges. {REPEAT_NOTE} {IP_FILTER_NOTE}",
         required=False,
     ),
 ]
@@ -217,6 +229,30 @@ AsnNotIn = Annotated[
     QueryParameter(
         name="asnNotIn",
         description=f"Leave out these autonomous system numbers. {REPEAT_NOTE} Rows without ASN data stay in.",
+        required=False,
+    ),
+]
+
+HostIn = Annotated[
+    list[str] | None,
+    QueryParameter(
+        name="hostIn",
+        description=(
+            "Keep only requests to these hosts, matched exactly against the logged Host value, such as "
+            f"`example.com`. {REPEAT_NOTE} Lines without a host are left out."
+        ),
+        required=False,
+    ),
+]
+
+HostNotIn = Annotated[
+    list[str] | None,
+    QueryParameter(
+        name="hostNotIn",
+        description=(
+            "Leave out requests to these hosts, matched exactly against the logged Host value. "
+            f"{REPEAT_NOTE} Lines without a host stay in."
+        ),
         required=False,
     ),
 ]

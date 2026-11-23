@@ -11,10 +11,10 @@ format this payload has always used on the wire.
 """
 from __future__ import annotations
 
-import msgspec
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Annotated, Literal
 
+import msgspec
 from litestar import Litestar, Request, Response, get
 from litestar.di import NamedDependency, Provide
 from litestar.openapi.datastructures import ResponseSpec
@@ -23,22 +23,23 @@ from litestar.status_codes import HTTP_200_OK, HTTP_503_SERVICE_UNAVAILABLE
 from sqlalchemy import text
 
 from geometrikks.config.settings import Settings
+from geometrikks.domain.system.dependencies import provide_ingestion_service as pis
 from geometrikks.domain.system.proxy_detection import proxy_advisories, proxy_findings
-from geometrikks.lib.utils import geoip_info
 from geometrikks.lib.advisories import (
-    Advisory,
     CITY_DATABASE_MISSING,
     INGESTION_STOPPED,
     INGESTION_WRITE_FAILURES_ID,
     ONGOING_FAILED_BATCHES,
+    Advisory,
     legacy_env_advisory,
+    scheduled_jobs_failing_advisory,
 )
+from geometrikks.lib.utils import geoip_info
 from geometrikks.server import runtime
 from geometrikks.server.api_key_auth import NO_CREDENTIALS_SECURITY
+from geometrikks.server.scheduler_tracking import failing_job_names
 from geometrikks.services.geoip.downloader import has_credentials
 from geometrikks.services.ingestion import LogIngestionService
-from geometrikks.domain.system.dependencies import provide_ingestion_service as pis
-
 
 # This license window is independent of the configured refresh schedule.
 MAXMIND_REFRESH_WINDOW_DAYS = 30
@@ -78,11 +79,11 @@ class IngestionHealth(msgspec.Struct, rename="camel"):
     ]
     # Additive: kept alongside `running` for wire compatibility.
     status: Annotated[
-        Literal["running", "degraded", "disabled"],
+        Literal["running", "starting", "degraded", "disabled"],
         msgspec.Meta(
             description=(
-                "`disabled` with LOGPARSER_ENABLED=false, `degraded` when ingestion should run but does not, "
-                "else `running`."
+                "`disabled` with LOGPARSER_ENABLED=false, `starting` while startup has not reached ingestion "
+                "yet, `degraded` when ingestion should run but does not, else `running`."
             )
         ),
     ] = "running"
@@ -422,7 +423,7 @@ def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
     if service is not None and getattr(service, "unexpected_stop", False):
         advisories.append(INGESTION_STOPPED)
     if service is not None and service.failed_batches > 0:
-        advisories.append(_write_failures_advisory(service, datetime.now(timezone.utc)))
+        advisories.append(_write_failures_advisory(service, datetime.now(UTC)))
     pollution = timescale.get_server_name_pollution()
     # No early return: the pollution gate must not swallow the ASN advisory.
     server_name_pollution_active = bool(
@@ -518,6 +519,11 @@ def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
                 ),
             ))
     advisories.extend(_stale_geoip_advisories(settings))
+    scheduler = runtime.get_scheduler(app)
+    if scheduler is not None:
+        job_names = failing_job_names(scheduler.get_jobs(), runtime.get_scheduler_tracker(app))
+        if job_names:
+            advisories.append(scheduled_jobs_failing_advisory(job_names))
     legacy_env_names = settings.legacy_env_names_in_use()
     if legacy_env_names:
         advisories.append(legacy_env_advisory(legacy_env_names))
@@ -563,15 +569,25 @@ def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
     return sorted(advisories, key=lambda advisory: advisory.severity != "critical")
 
 
-def build_ingestion_health(settings: Settings, ingestion_service: LogIngestionService | None) -> IngestionHealth:
+def build_ingestion_health(
+    settings: Settings, ingestion_service: LogIngestionService | None, *, starting: bool = False
+) -> IngestionHealth:
     """The local parser's health, independent of agents and database totals."""
     is_running = ingestion_service.is_running if ingestion_service else False
     # A tailer keeps waiting for an unavailable source through log rotation,
     # so running can stay true while some sources are unreadable.
     unavailable_sources = ingestion_service.unavailable_sources if ingestion_service else []
     missing_files = [source.label for source in unavailable_sources]
+    ingestion_status: Literal["running", "starting", "degraded", "disabled"]
     # Disabling parsing is an operator choice, not an outage.
-    ingestion_status = "disabled" if not settings.logparser.enabled else "running" if is_running else "degraded"
+    if not settings.logparser.enabled:
+        ingestion_status = "disabled"
+    elif is_running:
+        ingestion_status = "running"
+    elif starting:
+        ingestion_status = "starting"
+    else:
+        ingestion_status = "degraded"
     last_record_at = ingestion_service.last_record_at if ingestion_service else None
     return IngestionHealth(
         running=is_running,
@@ -609,7 +625,9 @@ def build_health_response(
     def _iso(dt: datetime | None) -> str | None:
         return dt.isoformat() if dt else None
 
-    ingestion_health = build_ingestion_health(settings, ingestion_service)
+    ingestion_health = build_ingestion_health(
+        settings, ingestion_service, starting=runtime.is_ingestion_starting(app)
+    )
     services_active = runtime.is_db_available(app, default=True)
 
     poller = runtime.get_crowdsec_poller(app)
@@ -650,7 +668,7 @@ def build_health_response(
             enabled=runtime.get_crowdsec_service(app) is not None,
             lapi_reachable=poller.lapi_reachable if poller is not None else None,
         ),
-        timestamp=datetime.now(timezone.utc).isoformat(),
+        timestamp=datetime.now(UTC).isoformat(),
         mode="agent" if settings.is_agent else "full",
         schema_wait=(
             (getattr(app.state, "schema_wait_result", None) or "waiting")

@@ -12,7 +12,12 @@ import structlog
 from litestar import Litestar
 
 from geometrikks.config.settings import AppSettings, Settings
-from geometrikks.domain.instances.heartbeat import STARTUP_GRACE_SECONDS, HeartbeatWriter, WindowCounts
+from geometrikks.domain.instances.heartbeat import (
+    STARTUP_GRACE_SECONDS,
+    HeartbeatWriter,
+    WindowCounts,
+)
+from geometrikks.domain.instances.schemas import DatabaseLinkReport
 
 pytestmark = pytest.mark.anyio
 
@@ -109,6 +114,58 @@ async def test_start_beats_immediately_and_stop_cancels_the_sleep() -> None:
     assert engine.begin_calls == 1
 
 
+async def test_beat_soon_writes_without_waiting_for_the_interval() -> None:
+    engine = _UnreachableEngine()
+    writer = _writer(engine, interval=3600.0)
+    writer.start()
+    async with asyncio.timeout(5):
+        while engine.begin_calls == 0:
+            await asyncio.sleep(0.01)
+        writer.beat_soon()
+        while engine.begin_calls == 1:
+            await asyncio.sleep(0.01)
+    await writer.stop()
+    assert engine.begin_calls == 2
+
+
+class _GatedEngine:
+    """Holds each write open until the test releases it, then fails it."""
+
+    def __init__(self) -> None:
+        self.begin_calls = 0
+        self.release = asyncio.Event()
+
+    def begin(self) -> Any:
+        self.begin_calls += 1
+        engine = self
+
+        class _Connection:
+            async def __aenter__(self) -> None:
+                await engine.release.wait()
+                engine.release.clear()
+                raise OSError("connection refused")
+
+            async def __aexit__(self, *exc_info: object) -> None:
+                return None
+
+        return _Connection()
+
+
+async def test_beat_soon_during_a_beat_writes_again_once_it_finishes() -> None:
+    engine = _GatedEngine()
+    writer = _writer(cast("Any", engine), interval=3600.0)
+    writer.start()
+    async with asyncio.timeout(5):
+        while engine.begin_calls == 0:
+            await asyncio.sleep(0.01)
+        writer.beat_soon()
+        engine.release.set()
+        while engine.begin_calls == 1:
+            await asyncio.sleep(0.01)
+    await writer.stop()
+    assert engine.begin_calls == 2
+
+
 
 def _service_totals(
     *, parsed_lines: int, failed_records: int, written_records: int, failed_batches: int
@@ -158,3 +215,46 @@ def test_one_counter_going_back_restarts_every_counter() -> None:
     ingestion_service.failed_records = 5
 
     assert writer._sample_counters(1300.0) == WindowCounts()
+
+
+def _link_events(captured: list[Any]) -> list[Any]:
+    return [log_entry for log_entry in captured if log_entry["event"] == "database_link_state"]
+
+
+def test_first_link_state_is_logged_once() -> None:
+    writer = _writer(_UnreachableEngine())
+    encrypted_link = DatabaseLinkReport(encrypted=True, server_verified=False)
+
+    with structlog.testing.capture_logs() as captured:
+        writer._note_database_link(encrypted_link)
+        writer._note_database_link(encrypted_link)
+
+    (event,) = _link_events(captured)
+    assert event["log_level"] == "info"
+    assert event["instance_name"] == "agent"
+    assert event["encrypted"] is True
+    assert event["server_verified"] is False
+
+
+def test_a_changed_link_state_is_logged_again() -> None:
+    writer = _writer(_UnreachableEngine())
+
+    with structlog.testing.capture_logs() as captured:
+        writer._note_database_link(DatabaseLinkReport(encrypted=True, server_verified=False))
+        writer._note_database_link(DatabaseLinkReport(encrypted=True, server_verified=True))
+
+    first_event, second_event = _link_events(captured)
+    assert first_event["server_verified"] is False
+    assert second_event["server_verified"] is True
+
+
+def test_an_unknown_link_state_logs_nothing_and_is_not_a_change() -> None:
+    writer = _writer(_UnreachableEngine())
+    encrypted_link = DatabaseLinkReport(encrypted=True, server_verified=False)
+
+    with structlog.testing.capture_logs() as captured:
+        writer._note_database_link(encrypted_link)
+        writer._note_database_link(None)
+        writer._note_database_link(encrypted_link)
+
+    assert len(_link_events(captured)) == 1

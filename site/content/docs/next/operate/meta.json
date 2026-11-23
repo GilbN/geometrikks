@@ -1,5 +1,5 @@
 {
   "title": "Operate",
   "defaultOpen": true,
-  "pages": ["reverse-proxy", "deployment", "cli", "faq"]
+  "pages": ["reverse-proxy", "deployment", "timescaledb-workers", "cli", "faq"]
 }

@@ -14,7 +14,7 @@ from geometrikks.domain.system.controllers import health as health_module
 from geometrikks.domain.system.controllers.health import health, health_ready
 from geometrikks.domain.system.controllers.stats import LokiSourceStats, stats
 from geometrikks.server.lifecycle import build_log_inputs
-from geometrikks.services.ingestion import LogInput, LogIngestionService
+from geometrikks.services.ingestion import LogIngestionService, LogInput
 from geometrikks.services.logparser.logparser import LogParser
 from geometrikks.services.logsources import FileSource, LokiSource
 from tests.support import ambient_settings_dependency

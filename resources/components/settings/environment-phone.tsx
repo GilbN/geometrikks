@@ -46,7 +46,9 @@ export function EnvironmentPhone({ sections }: { sections: readonly SettingsSect
     section.fields
       .filter((field) => fieldMatches(field, section, q))
       .map((field) => ({ id: `${section.name}.${field.key}`, field, section }))
-  const changed = sections.flatMap((section) => rowsOf(section).filter((row) => isOverridden(row.field)))
+  const changed = sections.flatMap((section) =>
+    rowsOf(section).filter((row) => isOverridden(row.field)),
+  )
   const groups = [
     {
       name: CHANGED,
@@ -140,7 +142,9 @@ export function EnvironmentPhone({ sections }: { sections: readonly SettingsSect
               </CollapsibleTrigger>
               <CollapsibleContent>
                 {group.description && (
-                  <p className="border-t border-border/40 px-3 pt-2 text-xs text-muted-foreground">{group.description}</p>
+                  <p className="border-t border-border/40 px-3 pt-2 text-xs text-muted-foreground">
+                    {group.description}
+                  </p>
                 )}
                 <ul className={cn(!group.description && "border-t border-border/40")}>
                   {group.rows.map((row) => (
@@ -168,7 +172,9 @@ function SettingRow({ row, showSection }: { row: Row; showSection: boolean }) {
               {field.key}
               {overridden && <span className="sr-only">, changed from default</span>}
             </span>
-            {showSection && <span className="block text-xs text-muted-foreground">{section.title}</span>}
+            {showSection && (
+              <span className="block text-xs text-muted-foreground">{section.title}</span>
+            )}
           </span>
           <span className="flex max-w-[45%] items-center gap-1.5">
             {overridden && !showSection && <StatusLed tone="accent" />}

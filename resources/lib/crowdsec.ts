@@ -3,7 +3,6 @@
  * IP validation, used by the access-logs row actions, the map popup, and
  * the Security page's ban form.
  */
-import { isAxiosError } from "axios"
 
 /** Go duration strings the LAPI accepts; "Forever" is modeled as 10 years. */
 export const BAN_DURATIONS = [
@@ -21,8 +20,7 @@ export function forDuration(durationLabel: string): string {
 
 /** Full IPv4/IPv6 check. The backend validates against INET, so a partial
  * value (mid-typing) must never reach a request. */
-const IPV4_RE =
-  /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/
+const IPV4_RE = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/
 
 /** The WHATWG URL parser implements the full IPv6 grammar (compressed and
  * IPv4-embedded forms), matching the backend's INET validation far more
@@ -48,7 +46,8 @@ export function isValidIp(value: string): boolean {
  *  and for an IPv4-mapped /96 or wider, which is /0 for IPv4. */
 function cidrPrefix(value: string): { prefix: number; bits: number } | null {
   const match = /^([^/]+)\/(\d{1,3})$/.exec(value)
-  if (!match || !isValidIp(match[1]) || (match[2].length > 1 && match[2].startsWith("0"))) return null
+  if (!match || !isValidIp(match[1]) || (match[2].length > 1 && match[2].startsWith("0")))
+    return null
   const bits = match[1].includes(":") ? 128 : 32
   const prefix = Number(match[2])
   if (bits === 128 && prefix <= 96 && isIpv4Mapped(match[1])) return null
@@ -106,7 +105,9 @@ export function crowdsecHubUrl(scenario: string): string | null {
   const match = /^([\w.-]+)\/([\w.-]+)$/.exec(scenario)
   if (!match || match[1] === "geometrikks") return null
   const [, author, name] = match
-  const kind = APPSEC_RULE_PREFIXES.some((prefix) => name.startsWith(prefix)) ? "appsec-rules" : "scenarios"
+  const kind = APPSEC_RULE_PREFIXES.some((prefix) => name.startsWith(prefix))
+    ? "appsec-rules"
+    : "scenarios"
   return `https://app.crowdsec.net/hub/author/${author}/${kind}/${name}`
 }
 
@@ -115,23 +116,10 @@ export function bgpAsUrl(asn: number | string | null | undefined): string | null
   return `https://bgp.he.net/AS${asn}`
 }
 
-/** Human-readable message for a failed CrowdSec API call: the backend's
- * `detail` (e.g. "CrowdSec LAPI is unreachable") when present, else the
- * caller's fallback. */
-export function crowdsecErrorMessage(err: unknown, fallback: string): string {
-  const detail = isAxiosError(err)
-    ? (err.response?.data as { detail?: string } | undefined)?.detail
-    : null
-  return detail ?? fallback
-}
-
-/** A 4xx answer, which a retry would only repeat. */
-export function isClientError(err: unknown): boolean {
-  const status = isAxiosError(err) ? err.response?.status : undefined
-  return status !== undefined && status >= 400 && status < 500
-}
-
-const DECISION_RANK = new Map<string, number>([["ban", 0], ["captcha", 1]])
+const DECISION_RANK = new Map<string, number>([
+  ["ban", 0],
+  ["captcha", 1],
+])
 
 function decisionRank(type: string): [number, string] {
   return [DECISION_RANK.get(type) ?? 2, type]
@@ -151,12 +139,17 @@ export function decisionWinner(current: string | null | undefined, candidate: st
 /** The decision whose type wins under decisionWinner, or null when empty.
  *  On equal types the earlier decision stays, so the inspector header keeps
  *  showing the same scenario and expiry across refetches. */
-export function winningDecision<T extends { type: string }>(decisions: readonly T[] | undefined): T | null {
+export function winningDecision<T extends { type: string }>(
+  decisions: readonly T[] | undefined,
+): T | null {
   let winner: T | null = null
   for (const decision of decisions ?? []) {
     if (winner === null) {
       winner = decision
-    } else if (decision.type !== winner.type && decisionWinner(winner.type, decision.type) === decision.type) {
+    } else if (
+      decision.type !== winner.type &&
+      decisionWinner(winner.type, decision.type) === decision.type
+    ) {
       winner = decision
     }
   }

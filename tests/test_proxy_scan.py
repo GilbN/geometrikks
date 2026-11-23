@@ -7,8 +7,13 @@ import pytest
 import structlog
 
 from geometrikks.domain.system.proxy_scan import (
-    ScanGroup, ScanProvider, apply_scan_results, get_scan_error,
-    get_scan_findings, reset_scan_state, run_proxy_scan,
+    ScanGroup,
+    ScanProvider,
+    apply_scan_results,
+    get_scan_error,
+    get_scan_findings,
+    reset_scan_state,
+    run_proxy_scan,
 )
 
 

@@ -34,6 +34,7 @@ import {
   unclusteredPointLayer,
 } from "@/components/map/layers"
 import { MAPLIBRE_WORKER_URL } from "@/lib/maplibre-worker"
+import { useGeoLogFilters } from "@/lib/geo-log-filters-context"
 import { useGeoLogsGeoJSON } from "@/lib/queries"
 import { cn } from "@/lib/utils"
 
@@ -53,6 +54,10 @@ export default function GeoLogsMap() {
   const { data: geojson, error, isLoading, isError, refetch } = useGeoLogsGeoJSON()
   const [viewState, setViewState] = useState(INITIAL_VIEW_STATE)
   const [popup, setPopup] = useState<PopupInfo | null>(null)
+  const { muted } = useGeoLogFilters()
+  useEffect(() => {
+    setPopup(null)
+  }, [muted.flag, muted.version])
   const phone = usePhoneLayout()
   const didFitRef = useRef(false)
 
@@ -65,7 +70,10 @@ export default function GeoLogsMap() {
 
     // Single pass: spreading thousands of coordinates into Math.min/max
     // can blow the call stack.
-    let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity
+    let minLng = Infinity,
+      minLat = Infinity,
+      maxLng = -Infinity,
+      maxLat = -Infinity
     for (const f of geojson.features) {
       const [lng, lat] = f.geometry.coordinates as [number, number]
       if (lng < minLng) minLng = lng
@@ -107,15 +115,18 @@ export default function GeoLogsMap() {
     if (feature.properties?.cluster) {
       const clusterId = feature.properties.cluster_id as number
       const source = mapRef.current?.getSource("geo-data") as GeoJSONSource
-      source?.getClusterExpansionZoom(clusterId).then((zoom) => {
-        mapRef.current?.easeTo({
-          center: geometry.coordinates as [number, number],
-          zoom,
-          duration: 500,
+      source
+        ?.getClusterExpansionZoom(clusterId)
+        .then((zoom) => {
+          mapRef.current?.easeTo({
+            center: geometry.coordinates as [number, number],
+            zoom,
+            duration: 500,
+          })
         })
-      }).catch(() => {
-        // Ignore cluster zoom errors
-      })
+        .catch(() => {
+          // Ignore cluster zoom errors
+        })
       return
     }
 
@@ -148,74 +159,82 @@ export default function GeoLogsMap() {
   // The provider lets the phone's details card, outside <Map>, hand focus back to the map when it closes.
   return (
     <MapProvider>
-    <section aria-label="Spatial preview" className={cn(FRAME_SURFACE, "relative min-h-[320px]")}>
-      <div className="absolute inset-0">
-        <Map
-          ref={mapRef}
-          workerUrl={MAPLIBRE_WORKER_URL}
-          {...viewState}
-          onMove={onMove}
-          onClick={onClick}
-          onLoad={fitOnce}
-          onError={onMapError}
-          mapStyle={mapStyle}
-          transformRequest={transformRequest}
-          interactiveLayerIds={["clusters", "unclustered-point"]}
-          cursor="pointer"
-          attributionControl={false}
-        >
-          <NavigationControl position="top-right" showCompass={false} />
-          <MapAttribution />
-          {geojson && (
-            <Source
-              id="geo-data"
-              type="geojson"
-              data={geojson as unknown as FeatureCollection}
-              cluster
-              clusterMaxZoom={14}
-              clusterRadius={50}
-              clusterProperties={{
-                // Sum event_count for all points in the cluster
-                sum_event_count: ["+", ["get", "eventCount"]],
-              }}
-            >
-              <Layer {...clusterLayer} />
-              <Layer {...clusterCountLayer} />
-              <Layer {...unclusteredPointLayer} />
-              <Layer {...unclusteredPointLabelLayer} />
-            </Source>
-          )}
-          {popup && !phone && (
-            <MapPopup
-              key={`${popup.longitude},${popup.latitude}`}
-              longitude={popup.longitude}
-              latitude={popup.latitude}
-              properties={popup.properties}
-              totalEvents={geojson?.stats.events}
-              onClose={() => setPopup(null)}
-            />
-          )}
-          {/* On a phone the details sit in a card under this small map, and a ring marks their point. */}
-          {popup && phone && (
-            <Marker longitude={popup.longitude} latitude={popup.latitude} anchor="center" style={{ pointerEvents: "none" }}>
-              <span aria-hidden className="block size-12 rounded-full border-2 border-primary shadow-[0_0_0_6px] shadow-primary/25" />
-            </Marker>
-          )}
-        </Map>
-      </div>
-      {mapFailure && <MapStartFailureNotice failure={mapFailure} />}
-    </section>
-    {popup && phone && (
-      <LocationPanel
-        key={`${popup.longitude},${popup.latitude}`}
-        inline
-        longitude={popup.longitude}
-        latitude={popup.latitude}
-        properties={popup.properties}
-        totalEvents={geojson?.stats.events}
-        onClose={() => setPopup(null)}
-      />
-    )}
+      <section aria-label="Spatial preview" className={cn(FRAME_SURFACE, "relative min-h-[320px]")}>
+        <div className="absolute inset-0">
+          <Map
+            ref={mapRef}
+            workerUrl={MAPLIBRE_WORKER_URL}
+            {...viewState}
+            onMove={onMove}
+            onClick={onClick}
+            onLoad={fitOnce}
+            onError={onMapError}
+            mapStyle={mapStyle}
+            transformRequest={transformRequest}
+            interactiveLayerIds={["clusters", "unclustered-point"]}
+            cursor="pointer"
+            attributionControl={false}
+          >
+            <NavigationControl position="top-right" showCompass={false} />
+            <MapAttribution />
+            {geojson && (
+              <Source
+                id="geo-data"
+                type="geojson"
+                data={geojson as unknown as FeatureCollection}
+                cluster
+                clusterMaxZoom={14}
+                clusterRadius={50}
+                clusterProperties={{
+                  // Sum event_count for all points in the cluster
+                  sum_event_count: ["+", ["get", "eventCount"]],
+                }}
+              >
+                <Layer {...clusterLayer} />
+                <Layer {...clusterCountLayer} />
+                <Layer {...unclusteredPointLayer} />
+                <Layer {...unclusteredPointLabelLayer} />
+              </Source>
+            )}
+            {popup && !phone && (
+              <MapPopup
+                key={`${popup.longitude},${popup.latitude}`}
+                longitude={popup.longitude}
+                latitude={popup.latitude}
+                properties={popup.properties}
+                totalEvents={geojson?.stats.events}
+                onClose={() => setPopup(null)}
+              />
+            )}
+            {/* On a phone the details sit in a card under this small map, and a ring marks their point. */}
+            {popup && phone && (
+              <Marker
+                longitude={popup.longitude}
+                latitude={popup.latitude}
+                anchor="center"
+                style={{ pointerEvents: "none" }}
+              >
+                <span
+                  aria-hidden
+                  className="block size-12 rounded-full border-2 border-primary shadow-[0_0_0_6px] shadow-primary/25"
+                />
+              </Marker>
+            )}
+          </Map>
+        </div>
+        {mapFailure && <MapStartFailureNotice failure={mapFailure} />}
+      </section>
+      {popup && phone && (
+        <LocationPanel
+          key={`${popup.longitude},${popup.latitude}`}
+          inline
+          longitude={popup.longitude}
+          latitude={popup.latitude}
+          properties={popup.properties}
+          totalEvents={geojson?.stats.events}
+          onClose={() => setPopup(null)}
+        />
+      )}
     </MapProvider>
   )
 }

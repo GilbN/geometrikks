@@ -4,7 +4,16 @@
  * FilterSections of FilterListRows. A row with a long list opens a search
  * page here, in place of the rows, instead of nesting a second drawer.
  */
-import { createContext, useCallback, useContext, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react"
 import { ChevronLeft, SlidersHorizontal } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -42,14 +51,18 @@ export function useFilterPageState() {
   const backButton = useRef<HTMLButtonElement>(null)
   const pageOpener = useRef<HTMLElement | null>(null)
 
-  const pages = useMemo<FilterPages>(() => ({
-    activeId: page?.id ?? null,
-    host,
-    open: (id, title) => {
-      pageOpener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
-      setPage({ id, title })
-    },
-  }), [page, host])
+  const pages = useMemo<FilterPages>(
+    () => ({
+      activeId: page?.id ?? null,
+      host,
+      open: (id, title) => {
+        pageOpener.current =
+          document.activeElement instanceof HTMLElement ? document.activeElement : null
+        setPage({ id, title })
+      },
+    }),
+    [page, host],
+  )
 
   // Each view hides the control that had focus, which would drop it to the body.
   useLayoutEffect(() => {
@@ -75,7 +88,13 @@ type FilterPageState = ReturnType<typeof useFilterPageState>
 
 export function FilterPageBack({ state, label }: { state: FilterPageState; label: string }) {
   return (
-    <Button ref={state.backButton} variant="ghost" size="sm" className="-ml-2 text-primary pointer-coarse:h-11" onClick={state.back}>
+    <Button
+      ref={state.backButton}
+      variant="ghost"
+      size="sm"
+      className="-ml-2 text-primary pointer-coarse:h-11"
+      onClick={state.back}
+    >
       <ChevronLeft className="size-4" />
       {label}
     </Button>
@@ -83,15 +102,23 @@ export function FilterPageBack({ state, label }: { state: FilterPageState; label
 }
 
 export function FilterPageHost({ state }: { state: FilterPageState }) {
-  return <div ref={state.setHost} className={state.page ? "flex min-h-0 grow shrink basis-[70vh] flex-col px-4 pb-6" : "hidden"} />
+  return (
+    <div
+      ref={state.setHost}
+      className={state.page ? "flex min-h-0 grow shrink basis-[70vh] flex-col px-4 pb-6" : "hidden"}
+    />
+  )
 }
 
 export function FiltersDrawer({
   activeCount,
+  clearCount = activeCount,
   onClear,
   children,
 }: {
   activeCount: number
+  /** What "Clear filters" can remove; less than activeCount when the badge counts a local switch. */
+  clearCount?: number
   onClear?: () => void
   children: ReactNode
 }) {
@@ -106,7 +133,13 @@ export function FiltersDrawer({
   const drawer = usePhoneDrawer("filters", open, () => changeOpen(false))
 
   return (
-    <Drawer key={drawer.key} direction={drawer.direction} open={drawer.open} onOpenChange={changeOpen} onClosed={drawer.onClosed}>
+    <Drawer
+      key={drawer.key}
+      direction={drawer.direction}
+      open={drawer.open}
+      onOpenChange={changeOpen}
+      onClosed={drawer.onClosed}
+    >
       <DrawerTrigger asChild>
         <Button variant="outline" size="sm" className="h-8 pointer-coarse:h-11">
           <SlidersHorizontal className="mr-1 h-3.5 w-3.5" />
@@ -124,19 +157,27 @@ export function FiltersDrawer({
           {page ? <FilterPageBack state={pageState} label="Filters" /> : null}
           <div className={drawer.side && !page ? "mr-auto" : undefined}>
             <DrawerTitle>{page?.title ?? "Filters"}</DrawerTitle>
-            <DrawerDescription className="sr-only">
-              Adjust the table filters.
-            </DrawerDescription>
+            <DrawerDescription className="sr-only">Adjust the table filters.</DrawerDescription>
           </div>
-          {!page && onClear && activeCount > 0 && (
-            <Button variant="ghost" size="sm" className="text-muted-foreground pointer-coarse:h-11" onClick={onClear}>
+          {!page && onClear && clearCount > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground pointer-coarse:h-11"
+              onClick={onClear}
+            >
               Clear filters
             </Button>
           )}
           {drawer.side && <SideDrawerClose />}
         </DrawerHeader>
         <FilterPagesProvider value={pageState.pages}>
-          <div className={cn("flex flex-col gap-2.5 overflow-y-auto overscroll-contain px-4 pb-6 *:shrink-0", page && "hidden")}>
+          <div
+            className={cn(
+              "flex flex-col gap-2.5 overflow-y-auto overscroll-contain px-4 pb-6 *:shrink-0",
+              page && "hidden",
+            )}
+          >
             {children}
           </div>
         </FilterPagesProvider>

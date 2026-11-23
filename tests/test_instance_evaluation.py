@@ -1,7 +1,7 @@
 """Evaluation of heartbeat rows into per-instance status and problems."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -18,7 +18,7 @@ from geometrikks.domain.instances.evaluation import (
 )
 from geometrikks.domain.instances.models import InstanceHeartbeat
 
-NOW = datetime(2026, 10, 17, 12, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 10, 17, 12, 0, tzinfo=UTC)
 HEAD_BOOT_ID = uuid4()
 HEAD = HeadIdentity(
     boot_id=HEAD_BOOT_ID,
@@ -509,6 +509,11 @@ def test_degraded_ingestion_without_sources_is_a_warning() -> None:
     problem = evaluate_instance(row, HEAD, NOW).problems[0]
     assert problem.id == "instance-ingestion-degraded"
     assert problem.summary == "Ingestion on edge-traefik is not running."
+
+
+def test_starting_ingestion_is_not_a_problem() -> None:
+    row = make_row(payload=ingestion_payload({"status": "starting", "unavailableSources": []}))
+    assert problem_ids(row) == []
 
 
 def test_degraded_ingestion_without_sources_points_at_the_agent_log() -> None:

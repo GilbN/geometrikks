@@ -1,5 +1,14 @@
-import { describe, expect, it } from "vitest"
-import { SERVER_LOCATION_ZOOM, FIT_MAX_ZOOM, FIT_PADDING, WORLD_VIEW, initialMapView, trafficView, trafficWindow, type MapView } from "@/lib/map-initial-view"
+import { describe, expect, it } from "vite-plus/test"
+import {
+  SERVER_LOCATION_ZOOM,
+  FIT_MAX_ZOOM,
+  FIT_PADDING,
+  WORLD_VIEW,
+  initialMapView,
+  trafficView,
+  trafficWindow,
+  type MapView,
+} from "@/lib/map-initial-view"
 import type { ServerLocationsData } from "@/lib/server-locations"
 
 const SIZE = { width: 1200, height: 800 }
@@ -7,7 +16,9 @@ const OSLO = { latitude: 59.91, longitude: 10.75 }
 const BERGEN = { latitude: 60.39, longitude: 5.32 }
 const SYDNEY = { latitude: -33.87, longitude: 151.21 }
 
-function locations(...entries: Array<[string, { latitude: number; longitude: number }]>): ServerLocationsData {
+function locations(
+  ...entries: Array<[string, { latitude: number; longitude: number }]>
+): ServerLocationsData {
   return { locations: entries.map(([server, c]) => ({ server, ...c })), default: null }
 }
 
@@ -42,11 +53,21 @@ describe("initialMapView", () => {
   })
 
   it("opens on the whole world when there are no server locations", () => {
-    expect(initialMapView({ defaultView: null, serverLocations: undefined, selectedServers: [], size: SIZE })).toEqual(
-      WORLD_VIEW,
-    )
     expect(
-      initialMapView({ defaultView: null, serverLocations: { locations: [], default: null }, selectedServers: [], size: SIZE }),
+      initialMapView({
+        defaultView: null,
+        serverLocations: undefined,
+        selectedServers: [],
+        size: SIZE,
+      }),
+    ).toEqual(WORLD_VIEW)
+    expect(
+      initialMapView({
+        defaultView: null,
+        serverLocations: { locations: [], default: null },
+        selectedServers: [],
+        size: SIZE,
+      }),
     ).toEqual(WORLD_VIEW)
   })
 
@@ -125,12 +146,18 @@ describe("initialMapView", () => {
     const padding = { top: FIT_PADDING, right: 320, bottom: FIT_PADDING, left: FIT_PADDING }
     const view = initialMapView({
       defaultView: null,
-      serverLocations: locations(["nyc", { latitude: 40.71, longitude: -74 }], ["tokyo", { latitude: 35.68, longitude: 139.69 }]),
+      serverLocations: locations(
+        ["nyc", { latitude: 40.71, longitude: -74 }],
+        ["tokyo", { latitude: 35.68, longitude: 139.69 }],
+      ),
       selectedServers: [],
       size: SIZE,
       padding,
     })
-    for (const serverLocation of [{ latitude: 40.71, longitude: -74 }, { latitude: 35.68, longitude: 139.69 }]) {
+    for (const serverLocation of [
+      { latitude: 40.71, longitude: -74 },
+      { latitude: 35.68, longitude: 139.69 },
+    ]) {
       const [dx, dy] = offsetPx(view, serverLocation)
       const x = SIZE.width / 2 + dx
       const y = SIZE.height / 2 + dy
@@ -202,7 +229,11 @@ describe("trafficView", () => {
     coordinate: [c.longitude, c.latitude] as [number, number],
     weight,
   })
-  const inView = (view: MapView, c: { latitude: number; longitude: number }, size: { width: number; height: number }) => {
+  const inView = (
+    view: MapView,
+    c: { latitude: number; longitude: number },
+    size: { width: number; height: number },
+  ) => {
     const [dx, dy] = offsetPx(view, c)
     return Math.abs(dx) <= size.width / 2 && Math.abs(dy) <= size.height / 2
   }
@@ -230,7 +261,10 @@ describe("trafficView", () => {
   it("counts a window across the Pacific like any other", () => {
     // New York and Sydney fit in one phone-wide stretch of longitude, and
     // together they outweigh Asia.
-    const view = trafficView([point(NEW_YORK, 46), point(TOKYO, 17), point(SINGAPORE, 27), point(SYDNEY, 12)], PHONE)!
+    const view = trafficView(
+      [point(NEW_YORK, 46), point(TOKYO, 17), point(SINGAPORE, 27), point(SYDNEY, 12)],
+      PHONE,
+    )!
     expect(inView(view, NEW_YORK, PHONE)).toBe(true)
     expect(inView(view, SYDNEY, PHONE)).toBe(true)
   })

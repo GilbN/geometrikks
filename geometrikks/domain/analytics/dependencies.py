@@ -1,12 +1,14 @@
 """Dependency providers for the analytics domain."""
 from __future__ import annotations
 
+from litestar.di import NamedDependency
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from litestar.di import NamedDependency
-
 from geometrikks.domain.analytics.ip_profile import IpProfileRepository
-from geometrikks.domain.analytics.repositories import LiveStatsRepository, SummaryStatsRepository
+from geometrikks.domain.analytics.repositories import (
+    LiveStatsRepository,
+    SummaryStatsRepository,
+)
 
 
 async def provide_ip_profile_repo(

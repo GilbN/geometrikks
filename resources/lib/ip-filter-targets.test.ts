@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 import { EMPTY_ACCESS_LOG_FILTERS } from "./access-log-filters-context"
 import { EMPTY_FILTERS } from "./analytics-filters-context"
 import { EMPTY_GEO_LOG_FILTERS } from "./geo-log-filters-context"
@@ -7,6 +7,7 @@ import {
   analyticsFilterTargets,
   asnFilterTarget,
   geoLogFilterTargets,
+  hostFilterTarget,
   listFilterTarget,
   singleFilterTarget,
 } from "./ip-filter-targets"
@@ -74,7 +75,13 @@ describe("listFilterTarget", () => {
 describe("singleFilterTarget", () => {
   it("sets and clears the single value", () => {
     let current: string | undefined
-    const make = () => singleFilterTarget({ noun: "IP", value: "1.2.3.4", current, setValue: (next) => (current = next) })
+    const make = () =>
+      singleFilterTarget({
+        noun: "IP",
+        value: "1.2.3.4",
+        current,
+        setValue: (next) => (current = next),
+      })
     expect(make().state).toBeNull()
     expect(make().exclude).toBeUndefined()
     make().include?.()
@@ -90,7 +97,13 @@ describe("page filter targets", () => {
     let filters = { ...EMPTY_ACCESS_LOG_FILTERS, countryCodes: ["BE"] }
     const targets = accessLogFilterTargets(filters, (updater) => {
       filters = updater(filters)
-    })({ ip: "1.2.3.4", host: "example.com", server: null, countryCode: "BE", countryName: "Belgium" })
+    })({
+      ip: "1.2.3.4",
+      host: "example.com",
+      server: null,
+      countryCode: "BE",
+      countryName: "Belgium",
+    })
     expect(targets.map((target) => [target.noun, target.value, target.state])).toEqual([
       ["IP", "1.2.3.4", null],
       ["host", "example.com", null],
@@ -131,6 +144,28 @@ describe("page filter targets", () => {
     expect([target.noun, target.value, target.state]).toEqual(["ASN", "AS13335", "include"])
     target.remove()
     expect(filters.asns).toEqual([])
+  })
+
+  it("builds a host target that moves the host between the lists", () => {
+    let filters = { ...EMPTY_FILTERS, hosts: ["b.example"], hostsExclude: ["a.example"] }
+    const setFilters = (updater: (prev: typeof filters) => typeof filters) => {
+      filters = updater(filters)
+    }
+    const fresh = hostFilterTarget("a.example", EMPTY_FILTERS, setFilters)
+    expect([fresh.noun, fresh.value, fresh.state]).toEqual(["host", "a.example", null])
+    expect(hostFilterTarget("a.example", filters, setFilters).state).toBe("exclude")
+
+    hostFilterTarget("a.example", filters, setFilters).include?.()
+    expect(filters.hosts).toEqual(["b.example", "a.example"])
+    expect(filters.hostsExclude).toEqual([])
+
+    hostFilterTarget("a.example", filters, setFilters).exclude?.()
+    expect(filters.hosts).toEqual(["b.example"])
+    expect(filters.hostsExclude).toEqual(["a.example"])
+
+    hostFilterTarget("a.example", filters, setFilters).remove()
+    expect(filters.hosts).toEqual(["b.example"])
+    expect(filters.hostsExclude).toEqual([])
   })
 
   it("filters and excludes the row's ASN on Geo Logs as a number", () => {

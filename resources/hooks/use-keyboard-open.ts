@@ -16,7 +16,8 @@ const NON_TEXT_INPUT_TYPES = new Set([
 
 function isEditable(element: Element | null): boolean {
   if (element instanceof HTMLTextAreaElement) return !element.readOnly
-  if (element instanceof HTMLInputElement) return !element.readOnly && !NON_TEXT_INPUT_TYPES.has(element.type)
+  if (element instanceof HTMLInputElement)
+    return !element.readOnly && !NON_TEXT_INPUT_TYPES.has(element.type)
   return element instanceof HTMLElement && element.isContentEditable
 }
 

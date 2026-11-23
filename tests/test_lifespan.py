@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import MutableMapping
+from datetime import UTC
 from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
@@ -110,6 +111,58 @@ async def test_startup_without_old_env_names_logs_nothing(monkeypatch):
     assert _legacy_env_events(captured) == []
 
 
+def _tls_file_events(
+    captured: list[MutableMapping[str, Any]],
+) -> list[MutableMapping[str, Any]]:
+    return [log_entry for log_entry in captured if log_entry["event"] == "database_tls_file_unusable"]
+
+
+@pytest.mark.parametrize("mode", ["full", "agent"])
+async def test_startup_warns_about_an_unusable_tls_file(monkeypatch, tmp_path, mode):
+    from geometrikks.server import lifecycle as lc
+
+    missing_path = str(tmp_path / "ca.crt")
+    monkeypatch.setenv("APP_MODE", mode)
+    monkeypatch.setenv("PGSSLROOTCERT", missing_path)
+    monkeypatch.delenv("PGSSLCERT", raising=False)
+    monkeypatch.delenv("PGSSLKEY", raising=False)
+    _patch_startup_collaborators(
+        monkeypatch, lc, db_available=True, ensure=AsyncMock(return_value=True)
+    )
+    monkeypatch.setattr(lc, "wait_for_schema", AsyncMock(return_value="ready"))
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    with structlog.testing.capture_logs() as captured:
+        async with enter_lifespan(app):
+            pass
+
+    (event,) = _tls_file_events(captured)
+    assert event["log_level"] == "warning"
+    assert event["variable"] == "PGSSLROOTCERT"
+    assert event["path"] == missing_path
+    assert event["reason"] == "missing"
+
+
+@pytest.mark.parametrize("mode", ["full", "agent"])
+async def test_startup_is_quiet_without_tls_variables(monkeypatch, mode):
+    from geometrikks.server import lifecycle as lc
+
+    monkeypatch.setenv("APP_MODE", mode)
+    for variable in ("PGSSLROOTCERT", "PGSSLCERT", "PGSSLKEY"):
+        monkeypatch.delenv(variable, raising=False)
+    _patch_startup_collaborators(
+        monkeypatch, lc, db_available=True, ensure=AsyncMock(return_value=True)
+    )
+    monkeypatch.setattr(lc, "wait_for_schema", AsyncMock(return_value="ready"))
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    with structlog.testing.capture_logs() as captured:
+        async with enter_lifespan(app):
+            pass
+
+    assert _tls_file_events(captured) == []
+
+
 async def test_startup_failure_unwinds_started_managers(monkeypatch):
     """A migration failure fails startup, but the CrowdSec client the earlier
     manager already opened must still be closed (partial-startup cleanup)."""
@@ -195,6 +248,88 @@ async def test_ingestion_start_failure_still_stops_service(monkeypatch):
     assert not hasattr(app.state, "ingestion_service")
     await lc.stop_ingestion(cast("Any", app))
     ingestion.stop.assert_awaited_once()
+
+
+@pytest.mark.parametrize("db_available", [True, False])
+async def test_ingestion_stops_counting_as_starting_once_startup_reaches_it(monkeypatch, db_available):
+    """Heartbeats sent before startup reaches ingestion report it as starting,
+    not degraded. Once startup has tried to start ingestion, the next heartbeat
+    goes out at once."""
+    from geometrikks.domain.instances.heartbeat import HeartbeatWriter
+    from geometrikks.server import lifecycle as lc
+
+    ingestion, _ = _patch_startup_collaborators(
+        monkeypatch, lc, db_available=db_available, ensure=AsyncMock(return_value=True)
+    )
+    app = SimpleNamespace(state=SimpleNamespace())
+    starting_while_ingestion_starts: list[bool] = []
+    ingestion.start = AsyncMock(
+        side_effect=lambda **_: starting_while_ingestion_starts.append(app.state.ingestion_starting)
+    )
+    beat_soon = MagicMock()
+    monkeypatch.setattr(HeartbeatWriter, "beat_soon", beat_soon)
+
+    async with enter_lifespan(app):
+        assert app.state.ingestion_starting is False
+        beat_soon.assert_called_once_with()
+
+    assert starting_while_ingestion_starts == ([True] if db_available else [])
+
+
+@pytest.mark.parametrize("failing_step", ["scheduler", "ingestion"])
+async def test_failed_startup_writes_a_last_heartbeat_after_stopping_the_loop(monkeypatch, failing_step):
+    from geometrikks.domain.instances.heartbeat import HeartbeatWriter
+    from geometrikks.server import lifecycle as lc
+
+    ingestion, _ = _patch_startup_collaborators(
+        monkeypatch, lc, db_available=True, ensure=AsyncMock(return_value=True)
+    )
+    app = SimpleNamespace(state=SimpleNamespace())
+    order: list[str] = []
+    starting_at_last_beat: list[bool] = []
+    if failing_step == "scheduler":
+        scheduler = cast("AsyncMock", lc.create_scheduler).return_value
+        scheduler.start = MagicMock(side_effect=RuntimeError("startup exploded"))
+    else:
+        ingestion.start = AsyncMock(side_effect=RuntimeError("startup exploded"))
+        ingestion.stop = AsyncMock(side_effect=lambda timeout=None: order.append("ingestion"))
+
+    async def record_stop(self) -> None:
+        order.append("writer_stop")
+
+    async def record_beat(self) -> bool:
+        order.append("beat")
+        starting_at_last_beat.append(app.state.ingestion_starting)
+        return True
+
+    monkeypatch.setattr(HeartbeatWriter, "stop", record_stop)
+    monkeypatch.setattr(HeartbeatWriter, "beat", record_beat)
+
+    with pytest.raises(RuntimeError, match="startup exploded"):
+        async with enter_lifespan(app):
+            pass
+
+    stopped_ingestion = ["ingestion"] if failing_step == "ingestion" else []
+    assert order == [*stopped_ingestion, "writer_stop", "beat", "writer_stop"]
+    assert starting_at_last_beat == [False]
+
+
+async def test_a_failure_after_startup_writes_no_extra_heartbeat(monkeypatch):
+    from geometrikks.domain.instances.heartbeat import HeartbeatWriter
+    from geometrikks.server import lifecycle as lc
+
+    _patch_startup_collaborators(
+        monkeypatch, lc, db_available=True, ensure=AsyncMock(return_value=True)
+    )
+    beat = AsyncMock(return_value=True)
+    monkeypatch.setattr(HeartbeatWriter, "beat", beat)
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    with pytest.raises(RuntimeError, match="served and then failed"):
+        async with enter_lifespan(app):
+            raise RuntimeError("served and then failed")
+
+    beat.assert_not_awaited()
 
 
 async def test_db_degraded_mode_skips_scheduler_and_ingestion(monkeypatch):
@@ -343,8 +478,8 @@ async def test_cancelled_ingestion_stop_retains_handle_for_later_cleanup(
 async def test_agent_mode_waits_for_schema_and_skips_crowdsec(monkeypatch):
     """Agent mode never migrates or manages TimescaleDB objects -- it waits
     for the primary instance's schema instead -- and never wires CrowdSec."""
-    from geometrikks.server import lifecycle as lc
     from geometrikks.config.settings import Settings
+    from geometrikks.server import lifecycle as lc
 
     monkeypatch.setenv("APP_MODE", "agent")
     _patch_startup_collaborators(
@@ -370,8 +505,8 @@ async def test_agent_mode_waits_for_schema_and_skips_crowdsec(monkeypatch):
 async def test_agent_mode_schema_timeout_is_db_degraded(monkeypatch):
     """A schema wait that never reaches ready/newer degrades like an
     unreachable database: no scheduler, no ingestion."""
-    from geometrikks.server import lifecycle as lc
     from geometrikks.config.settings import Settings
+    from geometrikks.server import lifecycle as lc
 
     monkeypatch.setenv("APP_MODE", "agent")
     _patch_startup_collaborators(
@@ -394,8 +529,8 @@ async def test_ingestion_disabled_by_config_skips_construction(monkeypatch):
     the service -- mirrors the DB-degraded no-op path. /health tells
     "disabled by configuration" apart from degraded by reading
     settings.logparser.enabled directly."""
-    from geometrikks.server import lifecycle as lc
     from geometrikks.config.settings import Settings
+    from geometrikks.server import lifecycle as lc
 
     monkeypatch.setenv("LOGPARSER_ENABLED", "false")
     _patch_startup_collaborators(
@@ -414,8 +549,8 @@ async def test_ingestion_disabled_by_config_skips_construction(monkeypatch):
 async def test_agent_schema_ready_triggers_server_location_upsert(monkeypatch):
     """A successful schema wait records this agent's detected location for
     each server name it tails."""
-    from geometrikks.server import lifecycle as lc
     from geometrikks.config.settings import Settings
+    from geometrikks.server import lifecycle as lc
 
     monkeypatch.setenv("APP_MODE", "agent")
     _patch_startup_collaborators(
@@ -439,8 +574,8 @@ async def test_agent_schema_ready_triggers_server_location_upsert(monkeypatch):
 async def test_agent_schema_timeout_skips_server_location_upsert(monkeypatch):
     """A timed-out schema wait leaves server_locations untouched: the agent is
     already going degraded, there is nothing trustworthy to record."""
-    from geometrikks.server import lifecycle as lc
     from geometrikks.config.settings import Settings
+    from geometrikks.server import lifecycle as lc
 
     monkeypatch.setenv("APP_MODE", "agent")
     _patch_startup_collaborators(
@@ -461,8 +596,8 @@ async def test_agent_schema_timeout_skips_server_location_upsert(monkeypatch):
 async def test_full_startup_reconciles_overrides_and_upserts(monkeypatch):
     """A primary instance always reconciles MAP_SERVER_LOCATIONS overrides and,
     when it also tails logs, records its own auto-detected location."""
-    from geometrikks.server import lifecycle as lc
     from geometrikks.config.settings import Settings
+    from geometrikks.server import lifecycle as lc
 
     _patch_startup_collaborators(
         monkeypatch, lc, db_available=True, ensure=AsyncMock(return_value=True)
@@ -484,8 +619,8 @@ async def test_full_startup_reconciles_overrides_and_upserts(monkeypatch):
 async def test_ui_head_reconciles_but_does_not_upsert(monkeypatch):
     """LOGPARSER_ENABLED=false tails nothing under its own server name, so it
     still reconciles overrides but skips the auto upsert."""
-    from geometrikks.server import lifecycle as lc
     from geometrikks.config.settings import Settings
+    from geometrikks.server import lifecycle as lc
 
     monkeypatch.setenv("LOGPARSER_ENABLED", "false")
     _patch_startup_collaborators(
@@ -508,8 +643,8 @@ async def test_ui_head_reconciles_but_does_not_upsert(monkeypatch):
 async def test_full_startup_server_location_failure_does_not_block_startup(monkeypatch):
     """Server locations are presentation data: a write failure logs a warning and
     startup still reaches a healthy, DB-available state."""
-    from geometrikks.server import lifecycle as lc
     from geometrikks.config.settings import Settings
+    from geometrikks.server import lifecycle as lc
 
     _patch_startup_collaborators(
         monkeypatch, lc, db_available=True, ensure=AsyncMock(return_value=True)
@@ -527,8 +662,8 @@ async def test_full_startup_server_location_failure_does_not_block_startup(monke
 async def test_ingestion_wires_per_file_server_names(monkeypatch):
     """Each tailed file's source gets its positional server name; the service
     fallback gets the first resolved server name."""
-    from geometrikks.server import lifecycle as lc
     from geometrikks.config.settings import Settings
+    from geometrikks.server import lifecycle as lc
 
     monkeypatch.setenv("LOGPARSER_LOG_PATHS", '["/a.log", "/b.log"]')
     monkeypatch.setenv("LOGPARSER_SERVER_NAME", '["vps-1", "vps-2"]')
@@ -1069,11 +1204,11 @@ async def test_recovery_respects_disabled_ingestion(monkeypatch):
 
 
 async def test_recovery_elapsed_time_includes_bringup_and_service_start(monkeypatch):
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
     from geometrikks.server import lifecycle as lc
 
-    now = datetime(2026, 9, 6, tzinfo=timezone.utc)
+    now = datetime(2026, 9, 6, tzinfo=UTC)
 
     class RecoveryDateTime(datetime):
         @classmethod

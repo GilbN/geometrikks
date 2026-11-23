@@ -2,11 +2,10 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timedelta, timezone
-
-from sqlalchemy import text
+from datetime import UTC, datetime, timedelta
 
 import pytest
+from sqlalchemy import text
 
 from geometrikks.config.settings import get_settings
 from geometrikks.server import timescale
@@ -14,7 +13,7 @@ from geometrikks.server.timescale import refresh_caggs_range, setup_timescaledb
 
 pytestmark = pytest.mark.anyio
 
-NOW = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+NOW = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
 RETENTION_DAYS = get_settings().analytics.raw_retention_days
 
 OLD_SUMMARY_HOURLY = """

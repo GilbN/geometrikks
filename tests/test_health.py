@@ -1,7 +1,7 @@
 """/health is liveness (always 200); /health/ready is readiness (503 without DB)."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
@@ -13,7 +13,7 @@ from litestar.testing import TestClient
 
 from geometrikks.domain.system.controllers import health as health_module
 from geometrikks.domain.system.controllers.health import health, health_ready
-from geometrikks.services.ingestion import LogInput, LogIngestionService
+from geometrikks.services.ingestion import LogIngestionService, LogInput
 from geometrikks.services.ingestion.service import BatchError
 from geometrikks.services.logparser.logparser import LogParser
 from geometrikks.services.logsources import FileSource
@@ -110,7 +110,7 @@ def test_ready_200_for_agent_past_schema_gate(monkeypatch):
             assert client.get("/health/ready").status_code == 200
 
 
-def _running_service(file_missing: bool) -> "LogIngestionService":
+def _running_service(file_missing: bool) -> LogIngestionService:
     """A real (never-started) service so Litestar DI type validation passes."""
     source = FileSource(Path("nginx_logs/access.log"))
     source._unavailable_reason = "missing" if file_missing else None
@@ -163,10 +163,10 @@ def test_health_started_at_from_app_state(monkeypatch):
         return True
     monkeypatch.setattr(health_module, "_database_reachable", db_up)
 
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     app = make_app()
-    app.state.started_at = datetime(2026, 7, 31, 8, 0, 0, tzinfo=timezone.utc)
+    app.state.started_at = datetime(2026, 7, 31, 8, 0, 0, tzinfo=UTC)
     with TestClient(app=app) as client:
         body = client.get("/health").json()
     assert body["startedAt"] == "2026-07-31T08:00:00+00:00"
@@ -267,6 +267,20 @@ def test_health_ingestion_status_degraded_when_service_not_running(monkeypatch):
         body = client.get("/health").json()
     assert body["ingestion"]["status"] == "degraded"
     assert body["ingestion"]["running"] is False
+
+
+def test_health_ingestion_status_starting_before_startup_reaches_ingestion(monkeypatch):
+    async def db_up(app, timeout: float = 2.0) -> bool:
+        return True
+    monkeypatch.setattr(health_module, "_database_reachable", db_up)
+
+    app = make_app()
+    app.state.ingestion_starting = True
+    with TestClient(app=app) as client:
+        body = client.get("/health").json()
+    assert body["ingestion"]["status"] == "starting"
+    assert body["ingestion"]["running"] is False
+    assert body["status"] == "healthy"
 
 
 def test_health_logparser_disabled_is_not_degraded(monkeypatch):
@@ -456,7 +470,10 @@ def test_health_reports_server_count_advisory_without_container_ids(monkeypatch)
     monkeypatch.setattr(health_module, "_database_reachable", db_up)
 
     from geometrikks.server import timescale
-    from geometrikks.server.timescale import DISTINCT_SERVER_CEILING, ServerNamePollution
+    from geometrikks.server.timescale import (
+        DISTINCT_SERVER_CEILING,
+        ServerNamePollution,
+    )
     monkeypatch.setattr(
         timescale, "_server_name_pollution",
         ServerNamePollution(distinct_count=DISTINCT_SERVER_CEILING + 1, container_id_count=0),
@@ -609,7 +626,7 @@ def test_health_write_failure_advisory_reports_stopped_ingestion(monkeypatch):
     assert "restart the app" in advisory["detail"]
 
 
-WRITE_FAILURES_AT = datetime(2026, 10, 30, 12, 0, tzinfo=timezone.utc)
+WRITE_FAILURES_AT = datetime(2026, 10, 30, 12, 0, tzinfo=UTC)
 SECRET_ARGUMENT_ERROR = (
     "(sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: "
     "invalid input for query argument $4: '/login?token=s3cr3t' (expected str, got int)"
@@ -673,7 +690,7 @@ def test_public_health_never_quotes_the_write_error(monkeypatch):
     from geometrikks.server import timescale
 
     monkeypatch.setattr(timescale, "_server_name_pollution", None)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     service = _running_service(file_missing=False)
     service.failed_batches = 2
     service.failed_records = 2
@@ -761,7 +778,7 @@ def test_proxy_advisory_setting_suppresses_scan_failure(monkeypatch):
 
     monkeypatch.setattr(timescale, "_server_name_pollution", None)
     monkeypatch.setattr(proxy_scan, "get_scan_error", lambda: "db down")
-    monkeypatch.setattr(proxy_scan, "get_scan_findings", lambda: [])
+    monkeypatch.setattr(proxy_scan, "get_scan_findings", list)
 
     with TestClient(app=make_app()) as client:
         advisory_ids = {
@@ -1059,3 +1076,38 @@ def test_listener_advisory_is_suppressed_while_database_is_unavailable(monkeypat
         "degraded",
         db_available=False,
     ) == []
+
+
+def test_health_lists_a_failed_daily_job_until_it_succeeds(monkeypatch):
+    from apscheduler.schedulers.asyncio import AsyncIOScheduler
+    from apscheduler.triggers.interval import IntervalTrigger
+
+    from geometrikks.server import timescale
+    from geometrikks.server.scheduler_tracking import JobRunTracker
+
+    async def db_up(app, timeout: float = 2.0) -> bool:
+        return True
+
+    async def noop() -> None:
+        return None
+
+    monkeypatch.setattr(health_module, "_database_reachable", db_up)
+    monkeypatch.setattr(timescale, "_server_name_pollution", None)
+    app = make_app()
+    scheduler = AsyncIOScheduler(timezone=UTC)
+    scheduler.add_job(noop, IntervalTrigger(days=1), id="geoip-refresh", name="Refresh GeoLite2 databases from MaxMind")
+    tracker = JobRunTracker()
+    app.state.scheduler = scheduler
+    app.state.scheduler_tracker = tracker
+    tracker._on_executed(
+        cast("Any", SimpleNamespace(job_id="geoip-refresh", exception=RuntimeError("[Errno -3] internal.lan")))
+    )
+
+    with TestClient(app=app) as client:
+        failing = client.get("/health").json()["advisories"]
+        tracker._on_executed(cast("Any", SimpleNamespace(job_id="geoip-refresh", exception=None)))
+        recovered = client.get("/health").json()["advisories"]
+
+    assert [advisory["id"] for advisory in failing] == ["scheduled-jobs-failing"]
+    assert "internal.lan" not in msgspec.json.encode(failing).decode()
+    assert recovered == []

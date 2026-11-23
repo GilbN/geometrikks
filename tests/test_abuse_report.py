@@ -1,7 +1,7 @@
 """Abuse reports: redaction, the endpoint contract and CrowdSec degradation."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
@@ -9,6 +9,13 @@ from litestar import Litestar
 from litestar.di import Provide
 from litestar.testing import AsyncTestClient
 
+from geometrikks.domain.drop.snapshot import (
+    EMPTY_DROP_SNAPSHOT,
+    DropAsnEntry,
+    DropNetworkMatch,
+    DropSnapshot,
+    FeedState,
+)
 from geometrikks.domain.reports.abuse_report import (
     AbuseReportRepository,
     AsnSelection,
@@ -20,24 +27,22 @@ from geometrikks.domain.reports.abuse_report import (
     registrable_domain,
     secret_param,
 )
-from geometrikks.domain.drop.snapshot import (
-    EMPTY_DROP_SNAPSHOT,
-    DropAsnEntry,
-    DropNetworkMatch,
-    DropSnapshot,
-    FeedState,
-)
 from geometrikks.domain.reports.controllers import ReportsController
 from geometrikks.domain.reports.crowdsec import alert_in_window, gather_crowdsec
 from geometrikks.server.exceptions import EXCEPTION_HANDLERS
 from geometrikks.server.routes import create_api_v1_router
-from geometrikks.services.crowdsec import Alert, CrowdSecService, CrowdSecUnavailableError, Decision
+from geometrikks.services.crowdsec import (
+    Alert,
+    CrowdSecService,
+    CrowdSecUnavailableError,
+    Decision,
+)
 from geometrikks.services.crowdsec.schemas import AlertSource
 from tests.support import ambient_settings_dependency
 
 pytestmark = pytest.mark.anyio
 
-NOW = datetime(2026, 9, 26, 12, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 9, 26, 12, 0, tzinfo=UTC)
 START = NOW - timedelta(days=7)
 WINDOW = {"startDate": START.isoformat(), "endDate": NOW.isoformat()}
 

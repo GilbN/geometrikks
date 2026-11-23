@@ -1,10 +1,10 @@
 """Import job bookkeeping for batch log imports: files by checksum, Loki by time range."""
 from datetime import datetime
 
+from advanced_alchemy import base
+from advanced_alchemy.types import DateTimeUTC
 from sqlalchemy import BigInteger, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
-from advanced_alchemy.types import DateTimeUTC
-from advanced_alchemy import base
 
 
 class ImportJob(base.BigIntAuditBase):

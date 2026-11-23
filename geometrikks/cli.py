@@ -8,7 +8,7 @@ loads the logparser package but constructs none of those.
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -90,7 +90,7 @@ def import_logs_command(
         if not server:
             raise click.BadParameter("must not be blank", param_hint="'--server'")
     if before is not None and before.tzinfo is None:
-        before = before.replace(tzinfo=timezone.utc)
+        before = before.replace(tzinfo=UTC)
     asyncio.run(
         _run_import(
             list(paths),
@@ -122,7 +122,10 @@ async def _run_import(
         UnrecognizedLogFormatError,
         import_file,
     )
-    from geometrikks.services.ingestion.service import LogIngestionService, create_reader
+    from geometrikks.services.ingestion.service import (
+        LogIngestionService,
+        create_reader,
+    )
     from geometrikks.services.logparser.logparser import LogParser
 
     settings = get_settings()
@@ -292,9 +295,9 @@ def import_loki_command(
     earlier import.
     """
     if since.tzinfo is None:
-        since = since.replace(tzinfo=timezone.utc)
+        since = since.replace(tzinfo=UTC)
     if before is not None and before.tzinfo is None:
-        before = before.replace(tzinfo=timezone.utc)
+        before = before.replace(tzinfo=UTC)
     if before is not None and since >= before:
         raise click.BadParameter("must be earlier than --before", param_hint="'--since'")
     asyncio.run(
@@ -309,7 +312,7 @@ def import_loki_command(
 
 
 def select_loki_queries(
-    settings: "Settings", query_index: int | None
+    settings: Settings, query_index: int | None
 ) -> list[tuple[int, str, str, str]]:
     """(position, selector, format, server) for every selector, or the one asked for."""
     loki = settings.loki
@@ -455,7 +458,12 @@ async def _run_loki_import(
     from geometrikks.server.plugins import get_sqlalchemy_config
     from geometrikks.server.timescale import refresh_caggs_range
     from geometrikks.services.importer import UnrecognizedLogFormatError
-    from geometrikks.services.ingestion.service import LogIngestionService, create_reader
+    from geometrikks.services.ingestion.service import (
+        LogIngestionService,
+        create_reader,
+    )
+    from geometrikks.services.logparser.logparser import LogParser
+    from geometrikks.services.logsources.loki import LokiRejected, LokiSource
     from geometrikks.services.loki_importer import (
         LokiImportOverlapError,
         LokiImportProgress,
@@ -463,8 +471,6 @@ async def _run_loki_import(
         claim_loki_range,
         import_loki_range,
     )
-    from geometrikks.services.logparser.logparser import LogParser
-    from geometrikks.services.logsources.loki import LokiRejected, LokiSource
 
     logger = get_logger(__name__)
     settings = get_settings()
@@ -897,7 +903,7 @@ async def _iter_null_asn_ips(
         async with engine.connect() as conn:
             rows = (await conn.execute(text(
                 f"SELECT DISTINCT ip_address, host(ip_address) AS ip_text "
-                f"FROM {table} WHERE {where} "  # noqa: S608 - allowlisted identifier
+                f"FROM {table} WHERE {where} "
                 f"ORDER BY ip_address LIMIT :lim"
             ), params)).all()
         if not rows:
@@ -942,7 +948,7 @@ async def _apply_asn_mapping(engine, chunks, *, table: str = "access_logs") -> i
         if not mapped:
             return 0
         return (await conn.execute(text(
-            f"UPDATE {table} t "  # noqa: S608 - allowlisted identifier
+            f"UPDATE {table} t "
             "SET autonomous_system_number = m.asn, "
             "    autonomous_system_organization = m.org "
             "FROM tmp_asn_map m "
@@ -956,7 +962,10 @@ async def _run_backfill_asn(*, yes: bool, tables: tuple[str, ...]) -> None:
     from geometrikks.config.settings import get_settings
     from geometrikks.server.logging import get_logger
     from geometrikks.server.plugins import get_sqlalchemy_config
-    from geometrikks.server.timescale import IP_LOCATION_CAGGS_NAMES, refresh_caggs_range
+    from geometrikks.server.timescale import (
+        IP_LOCATION_CAGGS_NAMES,
+        refresh_caggs_range,
+    )
     from geometrikks.services.ingestion.service import create_reader
 
     if not tables or any(table not in ASN_BACKFILL_TABLES for table in tables):
@@ -985,7 +994,7 @@ async def _run_backfill_asn(*, yes: bool, tables: tuple[str, ...]) -> None:
             needs_fill = [
                 table for table in tables
                 if bool((await conn.execute(text(
-                    f"SELECT EXISTS (SELECT 1 FROM {table} "  # noqa: S608
+                    f"SELECT EXISTS (SELECT 1 FROM {table} "
                     "WHERE autonomous_system_number IS NULL)"
                 ))).scalar())
             ]
@@ -1001,7 +1010,7 @@ async def _run_backfill_asn(*, yes: bool, tables: tuple[str, ...]) -> None:
         async with engine.connect() as conn:
             for table in needs_fill:
                 null_rows, distinct_ips = (await conn.execute(text(
-                    f"SELECT COUNT(*), COUNT(DISTINCT ip_address) FROM {table} "  # noqa: S608
+                    f"SELECT COUNT(*), COUNT(DISTINCT ip_address) FROM {table} "
                     "WHERE autonomous_system_number IS NULL"
                 ))).one()
                 click.echo(f"{table}: {null_rows:,} rows across {distinct_ips:,} distinct IPs lack ASN data.")
@@ -1020,7 +1029,7 @@ async def _run_backfill_asn(*, yes: bool, tables: tuple[str, ...]) -> None:
             # refresh range for the changed rows would be lost.
             async with engine.connect() as conn:
                 bounds = (await conn.execute(text(
-                    f"SELECT MIN(timestamp), MAX(timestamp) FROM {table} "  # noqa: S608
+                    f"SELECT MIN(timestamp), MAX(timestamp) FROM {table} "
                     "WHERE autonomous_system_number IS NULL"
                 ))).one()
 
@@ -1135,7 +1144,7 @@ def backfill_timings_command(server: str | None, before: datetime | None, yes: b
     for minutes on large databases.
     """
     if before is not None and before.tzinfo is None:
-        before = before.replace(tzinfo=timezone.utc)
+        before = before.replace(tzinfo=UTC)
     asyncio.run(_run_backfill_timings(server=server, before=before, yes=yes))
 
 
@@ -1251,8 +1260,11 @@ async def _run_backfill_geo_servers(*, yes: bool) -> None:
     from sqlalchemy import text
 
     from geometrikks.config.settings import get_settings
-    from geometrikks.server.server_backfill import pending_server_range, server_backfill_ranges
     from geometrikks.server.plugins import get_sqlalchemy_config
+    from geometrikks.server.server_backfill import (
+        pending_server_range,
+        server_backfill_ranges,
+    )
     from geometrikks.server.timescale import refresh_caggs_range
 
     engine = get_sqlalchemy_config().get_engine()
@@ -1269,7 +1281,7 @@ async def _run_backfill_geo_servers(*, yes: bool) -> None:
             try:
                 await lock_conn.commit()
                 ranges = await server_backfill_ranges(
-                    lock_conn, now=datetime.now(timezone.utc),
+                    lock_conn, now=datetime.now(UTC),
                     raw_retention_days=analytics.raw_retention_days,
                     hourly_retention_days=analytics.hourly_retention_days,
                 )

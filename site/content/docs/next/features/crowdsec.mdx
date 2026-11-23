@@ -32,6 +32,8 @@ The integration is on once both are set. With only one of them, or neither, it s
 
 Decisions reach the browser live. The app polls the LAPI decision stream every `CROWDSEC_STREAM_POLL_INTERVAL` seconds, 15 by default, and pushes the changes over the `/ws/crowdsec` WebSocket. The fills and badges change within seconds when CrowdSec bans or unbans an IP anywhere, not only from this app.
 
+GeoMetrikks keeps every active decision from this stream in memory. The fills, the badges, the Banned view and the banned DROP networks read that copy. So do the Security page's decision list, search and counts, and the decision count in `GET /api/v1/integration/summary`. None of them asks the LAPI for every decision when a page or an IP's details open. The stream carries decisions in the Ip, Range, Country and AS scopes only. A decision in any other scope, such as `username`, is left out of the list and the counts. The LAPI tracks how far each bouncer key has read the stream, so give GeoMetrikks a key of its own. When another bouncer polls with the same key, the changes it reads never reach GeoMetrikks, and the list stays wrong until GeoMetrikks reloads the full state, which it does every 10 minutes.
+
 ## Ban and unban
 
 To ban and unban from the app, add machine credentials. The `-f -` flag prints the credentials instead of overwriting the container's own `/etc/crowdsec/local_api_credentials.yaml`:

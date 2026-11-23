@@ -6,15 +6,10 @@
  * GeoLogFiltersContext like everything else on the page. Selecting a row
  * opens GeoLogDetailSheet.
  */
-import { memo, useMemo, useState } from "react"
+import { memo, useEffect, useMemo, useState } from "react"
 import { Columns3 } from "lucide-react"
 import { CountryFlag, CountryLabel } from "@/components/country-flag"
-import {
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useNarrowLayout } from "@/components/data/narrow-layout"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { sortOptions } from "@/components/data/sort-options"
@@ -50,6 +45,7 @@ import { IpActionsMenu, IpFilterTargetsProvider } from "@/components/ip-actions/
 import { IpLabel } from "@/components/ip-actions/ip-label"
 import { geoLogFilterTargets } from "@/lib/ip-filter-targets"
 import { useGeoLogs } from "@/lib/queries"
+import { pageToClamp } from "@/lib/use-muted-page"
 import { cn } from "@/lib/utils"
 import { useColumnVisibility } from "@/lib/column-visibility"
 
@@ -64,7 +60,11 @@ function renderCell(column: GeoLogColumn, r: GeoLogEntry): React.ReactNode {
     case "state":
       return <span className="whitespace-nowrap">{r.state ?? "-"}</span>
     case "countryCode":
-      return <CountryLabel code={r.countryCode} name={r.countryName}>{r.countryCode}</CountryLabel>
+      return (
+        <CountryLabel code={r.countryCode} name={r.countryName}>
+          {r.countryCode}
+        </CountryLabel>
+      )
     case "countryName":
       return <span className="whitespace-nowrap">{r.countryName}</span>
     case "ipAddress":
@@ -106,6 +106,7 @@ const SORT_OPTIONS = sortOptions(GEO_LOG_COLUMNS)
 function GeoLogIpActions({ row }: { row: GeoLogEntry }) {
   return (
     <IpActionsMenu
+      muteToggle
       ip={row.ipAddress}
       locationId={row.locationId}
       countryCode={row.countryCode}
@@ -125,7 +126,9 @@ function GeoLogNarrowCell({ row }: { row: GeoLogEntry }) {
         <CountryFlag code={row.countryCode} name={row.countryName} />
         <span className="min-w-0 flex-1 truncate">
           {row.city ?? row.countryName ?? "-"}
-          {row.city && row.countryName && <span className="text-muted-foreground">, {row.countryName}</span>}
+          {row.city && row.countryName && (
+            <span className="text-muted-foreground">, {row.countryName}</span>
+          )}
         </span>
         <span className="shrink-0 font-medium tabular-nums">{formatNumber(row.eventCount)}</span>
       </div>
@@ -154,7 +157,11 @@ const GeoLogTableBody = memo(function GeoLogTableBody({
   onSelect: (row: GeoLogEntry) => void
 }) {
   return (
-    <VirtualTableBody rows={rows} columnCount={narrow ? 1 : shownColumns.length} getRowKey={getRowKey}>
+    <VirtualTableBody
+      rows={rows}
+      columnCount={narrow ? 1 : shownColumns.length}
+      getRowKey={getRowKey}
+    >
       {(row) => (
         <TableRow
           key={`${row.locationId}-${row.ipAddress}`}
@@ -165,7 +172,10 @@ const GeoLogTableBody = memo(function GeoLogTableBody({
             <GeoLogNarrowCell row={row} />
           ) : (
             shownColumns.map((c) => (
-              <TableCell key={c.key} className={cn(c.grow && "max-w-0 truncate", c.align === "right" && "text-right")}>
+              <TableCell
+                key={c.key}
+                className={cn(c.grow && "max-w-0 truncate", c.align === "right" && "text-right")}
+              >
                 {renderCell(c, row)}
                 {c.key === "ipAddress" && <GeoLogIpActions row={row} />}
               </TableCell>
@@ -198,10 +208,16 @@ export function GeoLogsTable({
   const [layoutRef, narrow] = useNarrowLayout<HTMLDivElement>()
   const isMobile = useIsMobile()
   const { range, customRange } = useTimeRange()
-  const { filters, setFilters } = useGeoLogFilters()
-  const filterTargetsFor = useMemo(() => geoLogFilterTargets(filters, setFilters), [filters, setFilters])
-  const { visible, shownColumns, toggleColumn, resetColumns, hasOverrides } =
-    useColumnVisibility("geometrikks-columns-geo-logs", GEO_LOG_COLUMNS, GEO_LOG_RENAMED_COLUMN_KEYS)
+  const { filters, setFilters, muted } = useGeoLogFilters()
+  const filterTargetsFor = useMemo(
+    () => geoLogFilterTargets(filters, setFilters),
+    [filters, setFilters],
+  )
+  const { visible, shownColumns, toggleColumn, resetColumns, hasOverrides } = useColumnVisibility(
+    "geometrikks-columns-geo-logs",
+    GEO_LOG_COLUMNS,
+    GEO_LOG_RENAMED_COLUMN_KEYS,
+  )
 
   const { data, isLoading, isError, isPlaceholderData } = useGeoLogs({
     currentPage: page,
@@ -213,6 +229,16 @@ export function GeoLogsTable({
   const rows = data?.items ?? []
   const total = data?.total ?? 0
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
+
+  useEffect(() => {
+    const target = pageToClamp({ loaded: !!data, placeholder: isPlaceholderData, page, pageCount })
+    if (target !== null) onPageChange(target)
+  }, [data, isPlaceholderData, page, pageCount, onPageChange])
+
+  // A changed hidden set can leave the open row off the list.
+  useEffect(() => {
+    setSelected(null)
+  }, [muted.flag, muted.version])
   const state = dataState(isLoading, isError, rows.length)
 
   function toggleSort(field: GeoLogSortField) {
@@ -263,7 +289,12 @@ export function GeoLogsTable({
           stickyHeader={narrow && isMobile}
           tools={
             narrow ? (
-              <TableSortDrawer options={SORT_OPTIONS} sortField={sortField} sortOrder={sortOrder} onSortChange={onSortChange} />
+              <TableSortDrawer
+                options={SORT_OPTIONS}
+                sortField={sortField}
+                sortOrder={sortOrder}
+                onSortChange={onSortChange}
+              />
             ) : (
               columnsMenu
             )
@@ -284,7 +315,22 @@ export function GeoLogsTable({
             />
           }
         >
-          <VirtualTable narrow={narrow} columns={shownColumns} rowCount={rows.length} resetKey={JSON.stringify([page, pageSize, sortField, sortOrder, filters, range, customRange])}>
+          <VirtualTable
+            narrow={narrow}
+            columns={shownColumns}
+            rowCount={rows.length}
+            resetKey={JSON.stringify([
+              page,
+              pageSize,
+              sortField,
+              sortOrder,
+              filters,
+              range,
+              customRange,
+              muted.flag,
+              muted.version,
+            ])}
+          >
             {!narrow && (
               <TableHeader>
                 <TableRow>
@@ -311,7 +357,13 @@ export function GeoLogsTable({
                 </TableRow>
               </TableHeader>
             )}
-            <GeoLogTableBody key={narrow ? "narrow" : "wide"} rows={rows} shownColumns={shownColumns} narrow={narrow} onSelect={setSelected} />
+            <GeoLogTableBody
+              key={narrow ? "narrow" : "wide"}
+              rows={rows}
+              shownColumns={shownColumns}
+              narrow={narrow}
+              onSelect={setSelected}
+            />
           </VirtualTable>
         </DataTableFrame>
       </div>

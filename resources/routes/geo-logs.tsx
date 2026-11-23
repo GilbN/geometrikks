@@ -8,12 +8,13 @@
  * GeoLogFiltersContext live in lib/geo-logs-search.ts. The date range stays
  * global via TimeRangeProvider and is deliberately not in the URL.
  */
-import { lazy, Suspense } from "react"
+import { lazy, Suspense, useCallback } from "react"
 import { createFileRoute } from "@tanstack/react-router"
 import { PageHeader } from "@/components/page-header"
 import { CardChartsSwitch } from "@/components/dashboard/card-charts-switch"
 import { JumpBar, JumpTarget, type JumpSection } from "@/components/jump-bar"
 import { SignalPanel } from "@/components/data/signal-panel"
+import { GeoLogsMutedNote } from "@/components/geo-logs/geo-logs-muted-note"
 import { GeoLogsFilterBar } from "@/components/geo-logs/geo-logs-filter-bar"
 import { GeoLogsStats } from "@/components/geo-logs/geo-logs-stats"
 import { GeoLogsChart } from "@/components/geo-logs/geo-logs-chart"
@@ -23,6 +24,7 @@ import { GeoLogsTable } from "@/components/geo-logs/geo-logs-table"
 import { GeoLogFiltersProvider } from "@/lib/geo-log-filters-context"
 import { useUrlFilters } from "@/hooks/use-url-filters"
 import { dropDefault } from "@/lib/url-filters"
+import { useMutedPage } from "@/lib/use-muted-page"
 import {
   decodeGeoLogsSearch,
   encodeGeoLogFilters,
@@ -70,13 +72,24 @@ function GeoLogsPage() {
     resetOnChange: GEO_LOGS_RESET_ON_CHANGE,
   })
 
+  const { muted, toggleMuted } = useMutedPage(filters.ips.length > 0, patchSearch)
+  const onPageChange = useCallback(
+    (next: number) => patchSearch({ page: dropDefault(next, 1) }),
+    [patchSearch],
+  )
+
   const page = search.page ?? 1
   const pageSize = search.pageSize ?? 50
   const sortBy: GeoLogSortField = search.sortBy ?? "eventCount"
   const sort: GeoLogSortOrder = search.sort ?? "desc"
 
   return (
-    <GeoLogFiltersProvider filters={filters} setFilters={setFilters}>
+    <GeoLogFiltersProvider
+      filters={filters}
+      setFilters={setFilters}
+      muted={muted}
+      toggleMuted={toggleMuted}
+    >
       <div className="p-4 space-y-4">
         <PageHeader
           title="Geo Logs"
@@ -87,6 +100,7 @@ function GeoLogsPage() {
         />
         <JumpBar sections={SECTIONS} />
         <GeoLogsFilterBar />
+        <GeoLogsMutedNote scope={muted} />
         <GeoLogsStats />
         <div className="grid gap-4 lg:grid-cols-2">
           <JumpTarget id="map">
@@ -103,11 +117,17 @@ function GeoLogsPage() {
               <GeoLogsMap />
             </Suspense>
           </JumpTarget>
-          <JumpTarget id="over-time"><GeoLogsChart /></JumpTarget>
+          <JumpTarget id="over-time">
+            <GeoLogsChart />
+          </JumpTarget>
         </div>
         <div className="grid gap-4 lg:grid-cols-2">
-          <JumpTarget id="top-ips"><GeoTopIpsTable /></JumpTarget>
-          <JumpTarget id="locations"><GeoTopCountriesCities /></JumpTarget>
+          <JumpTarget id="top-ips">
+            <GeoTopIpsTable />
+          </JumpTarget>
+          <JumpTarget id="locations">
+            <GeoTopCountriesCities />
+          </JumpTarget>
         </div>
         <JumpTarget id="events">
           <GeoLogsTable
@@ -115,7 +135,7 @@ function GeoLogsPage() {
             pageSize={pageSize}
             sortField={sortBy}
             sortOrder={sort}
-            onPageChange={(next) => patchSearch({ page: dropDefault(next, 1) })}
+            onPageChange={onPageChange}
             onPageSizeChange={(next) =>
               patchSearch({ pageSize: dropDefault(next, 50), page: undefined })
             }

@@ -54,6 +54,7 @@ GOOD_FACTS = Facts(
     esri_key_needed=True,
     esri_key_set=True,
     site_deps_installed=True,
+    browser_starts=True,
     vite_dev_running=False,
     ledger_exists=False,
     database_exists=False,
@@ -240,6 +241,7 @@ def test_entry_point_scrubs_hostile_settings(tmp_path: Path) -> None:
         ({"city_db_exists": False}, "--city-db"),
         ({"asn_db_exists": False}, "--asn-db"),
         ({"site_deps_installed": False}, "bun install"),
+        ({"browser_starts": False}, "npx playwright install chromium"),
         ({"containers_exist": ("geometrikks-shots-net",)}, "geometrikks-shots-net"),
     ],
 )

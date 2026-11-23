@@ -29,7 +29,7 @@ export function SettingsPage({
       <div
         className={cn(
           "space-y-4 rounded-xl bg-glass-card px-5 py-4 ring-1 ring-border shadow-[var(--shadow-card)] backdrop-blur-[2px]",
-          !toolbar && "max-md:contents"
+          !toolbar && "max-md:contents",
         )}
       >
         <PageHeader

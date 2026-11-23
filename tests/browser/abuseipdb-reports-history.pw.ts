@@ -1,5 +1,8 @@
 import { expect, test, type Page } from "@playwright/test"
-import type { AbuseIpdbStatusResponse, StoredReportDto } from "../../resources/generated/api/types.gen"
+import type {
+  AbuseIpdbStatusResponse,
+  StoredReportDto,
+} from "../../resources/generated/api/types.gen"
 
 test.use({ serviceWorkers: "block" })
 
@@ -37,48 +40,83 @@ const reportingOn: AbuseIpdbStatusResponse = {
 async function login(page: Page) {
   const password = process.env.SMOKE_ADMIN_PASSWORD ?? process.env.APP_ADMIN_PASSWORD
   if (!password) throw new Error("Administrator credentials are required")
-  expect((await page.request.post("/api/v1/auth/login", { data: { username: "admin", password } })).ok()).toBe(true)
+  expect(
+    (await page.request.post("/api/v1/auth/login", { data: { username: "admin", password } })).ok(),
+  ).toBe(true)
 }
 
-async function setup(page: Page, options: { crowdsec?: boolean; reporting?: boolean; dropLoaded?: boolean } = {}) {
-  const { crowdsec = true, reporting = true, dropLoaded = false } = options
+async function setup(
+  page: Page,
+  options: {
+    crowdsec?: boolean
+    reporting?: boolean
+    dropLoaded?: boolean
+    aboutDelayMs?: number
+  } = {},
+) {
+  const { crowdsec = true, reporting = true, dropLoaded = false, aboutDelayMs = 0 } = options
   const requests: URL[] = []
   await login(page)
   await page.route("**/api/v1/abuseipdb/status", (route) =>
-    route.fulfill({ json: reporting ? reportingOn : { ...reportingOn, enabled: false, reportingEnabled: false } }),
+    route.fulfill({
+      json: reporting ? reportingOn : { ...reportingOn, enabled: false, reportingEnabled: false },
+    }),
   )
   await page.route("**/api/v1/abuseipdb/reports/history**", (route) => {
     const url = new URL(route.request().url())
     requests.push(url)
     const items = url.searchParams.get("q") === "nothing" ? [] : [SENT, UNCONFIRMED]
-    return route.fulfill({ json: { items, total: items.length, limit: 10, offset: 0 } })
+    // Three pages, so a test can leave page one.
+    return route.fulfill({
+      json: { items, total: items.length === 0 ? 0 : 25, limit: 10, offset: 0 },
+    })
   })
   await page.route("**/api/v1/crowdsec/status", (route) =>
-    route.fulfill({ json: { enabled: crowdsec, writeEnabled: false, lapiReachable: true, liveUpdates: false } }),
+    route.fulfill({
+      json: { enabled: crowdsec, writeEnabled: false, lapiReachable: true, liveUpdates: false },
+    }),
   )
-  await page.route("**/api/v1/crowdsec/stats**", (route) => route.fulfill({ json: { total: 0, byOrigin: [], topScenarios: [] } }))
+  await page.route("**/api/v1/crowdsec/stats**", (route) =>
+    route.fulfill({ json: { total: 0, byOrigin: [], topScenarios: [] } }),
+  )
   await page.route("**/api/v1/crowdsec/banned-ips", (route) => route.fulfill({ json: [] }))
-  await page.route("**/api/v1/crowdsec/decisions**", (route) => route.fulfill({ json: { items: [], total: 0, limit: 10, offset: 0 } }))
+  await page.route("**/api/v1/crowdsec/decisions**", (route) =>
+    route.fulfill({ json: { items: [], total: 0, limit: 10, offset: 0 } }),
+  )
   // Read once up front: a route.fetch still running when a short test ends fails that test.
   const about = await (await page.request.get("/api/v1/system/about")).json()
   const fetchedAt = dropLoaded ? "2026-11-09T06:00:00Z" : null
   const feeds = [{ feed: "v4", fetchedAt, entries: 1, lastAttemptAt: fetchedAt, lastError: null }]
-  await page.route("**/api/v1/system/about", (route) =>
-    route.fulfill({ json: { ...about, dropLists: { ...about.dropLists, enabled: dropLoaded, feeds } } }),
-  )
+  await page.route("**/api/v1/system/about", async (route) => {
+    if (aboutDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, aboutDelayMs))
+    // The test may have ended during the delay.
+    await route
+      .fulfill({
+        json: { ...about, dropLists: { ...about.dropLists, enabled: dropLoaded, feeds } },
+      })
+      .catch(() => {})
+  })
   await page.route(
-    (url) => url.pathname.startsWith("/api/") && url.pathname.includes("/drop") && url.pathname.includes("networks"),
-    (route) => route.fulfill({ json: { loaded: true, items: [], totalNetworks: 0, totalRequests: 0, limit: 10, offset: 0 } }),
+    (url) =>
+      url.pathname.startsWith("/api/") &&
+      url.pathname.includes("/drop") &&
+      url.pathname.includes("networks"),
+    (route) =>
+      route.fulfill({
+        json: { loaded: true, items: [], totalNetworks: 0, totalRequests: 0, limit: 10, offset: 0 },
+      }),
   )
   return requests
 }
 
-const reportRow = (page: Page, ip: string) => page.getByRole("button", { name: new RegExp(`^Report of ${ip.replaceAll(".", "\\.")},`) })
+const reportRow = (page: Page, ip: string) =>
+  page.getByRole("button", { name: new RegExp(`^Report of ${ip.replaceAll(".", "\\.")},`) })
 const reportsTab = (page: Page) => page.getByRole("tab", { name: "Reports", exact: true })
 const decisionsTab = (page: Page) => page.getByRole("tab", { name: "Decisions", exact: true })
 async function pickFilters(page: Page, name: string, options: string[]) {
   await page.locator("button", { hasText: new RegExp(`^${name}`) }).click()
-  for (const option of options) await page.getByRole("option", { name: option, exact: true }).click()
+  for (const option of options)
+    await page.getByRole("option", { name: option, exact: true }).click()
   await page.keyboard.press("Escape")
 }
 
@@ -119,7 +157,9 @@ test.describe("desktop", () => {
     const row = reportRow(page, "3.5.140.9")
     await expect(row).toContainText("Unconfirmed")
     await row.getByText("Unconfirmed", { exact: true }).hover()
-    await expect(page.getByRole("tooltip")).toHaveText("AbuseIPDB did not confirm this report. It may have been sent.")
+    await expect(page.getByRole("tooltip")).toHaveText(
+      "AbuseIPDB did not confirm this report. It may have been sent.",
+    )
     await expect(row).toContainText("homepage")
     await expect(row).not.toContainText("100")
   })
@@ -138,16 +178,43 @@ test.describe("desktop", () => {
     await page.goto("/security?tab=reports")
     await reportRow(page, "3.5.140.2").waitFor()
 
+    const toPageTwo = async () => {
+      await page.getByRole("button", { name: "Next" }).click()
+      await expect.poll(() => lastRequest(requests).get("currentPage")).toBe("2")
+    }
+
+    await toPageTwo()
     await page.getByRole("searchbox", { name: "Search AbuseIPDB reports" }).fill("3.5.")
     await expect.poll(() => lastRequest(requests).get("q")).toBe("3.5.")
+    expect(lastRequest(requests).get("currentPage")).toBe("1")
 
+    await toPageTwo()
     await pickFilters(page, "Category", ["Brute-Force", "Port Scan"])
     await expect.poll(() => lastRequest(requests).getAll("categoryIn").sort()).toEqual(["14", "18"])
+    expect(lastRequest(requests).get("currentPage")).toBe("1")
 
+    await toPageTwo()
     await pickFilters(page, "Status", ["Unconfirmed"])
     await expect.poll(() => lastRequest(requests).getAll("statusIn")).toEqual(["unconfirmed"])
-    expect(lastRequest(requests).get("q")).toBe("3.5.")
     expect(lastRequest(requests).get("currentPage")).toBe("1")
+    expect(lastRequest(requests).get("q")).toBe("3.5.")
+  })
+
+  test("a tab keeps its search after another tab was open", async ({ page }) => {
+    await setup(page)
+    await page.goto("/security?tab=reports")
+    await page.getByRole("searchbox", { name: "Search AbuseIPDB reports" }).fill("3.5.")
+    await decisionsTab(page).click()
+    await page.getByRole("searchbox", { name: "Search active decisions" }).fill("1.2.3.4")
+    await reportsTab(page).click()
+    await expect(page.getByRole("searchbox", { name: "Search AbuseIPDB reports" })).toHaveValue(
+      "3.5.",
+    )
+    await expect(page.getByRole("searchbox", { name: "Search active decisions" })).toBeHidden()
+    await decisionsTab(page).click()
+    await expect(page.getByRole("searchbox", { name: "Search active decisions" })).toHaveValue(
+      "1.2.3.4",
+    )
   })
 
   test("says so when nothing matches", async ({ page }) => {
@@ -160,13 +227,33 @@ test.describe("desktop", () => {
   test("a link to the DROP section opens the DROP tab", async ({ page }) => {
     await setup(page, { dropLoaded: true })
     await page.goto("/security#drop-networks")
-    await expect(page.getByRole("tab", { name: "DROP", exact: true })).toHaveAttribute("aria-selected", "true")
+    await expect(page.getByRole("tab", { name: "DROP", exact: true })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    )
     await expect(page.locator("#drop-networks")).toBeVisible()
+  })
+
+  test("a DROP link waits for the lists instead of opening Decisions first", async ({ page }) => {
+    await setup(page, { dropLoaded: true, aboutDelayMs: 1500 })
+    const decisionRequests: string[] = []
+    page.on("request", (request) => {
+      if (new URL(request.url()).pathname.startsWith("/api/v1/crowdsec/decisions"))
+        decisionRequests.push(request.url())
+    })
+    await page.goto("/security?tab=drop")
+    await expect(page.getByRole("tab", { name: "DROP", exact: true })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    )
+    expect(decisionRequests).toEqual([])
   })
 
   test("the DROP tab is absent until the lists have loaded", async ({ page }) => {
     await setup(page, { dropLoaded: false })
+    const aboutAnswered = page.waitForResponse("**/api/v1/system/about")
     await page.goto("/security")
+    await aboutAnswered
     await expect(decisionsTab(page)).toBeVisible()
     await expect(page.getByRole("tab", { name: "DROP", exact: true })).toHaveCount(0)
   })
@@ -195,11 +282,15 @@ test.describe("phone", () => {
   test("Security is in the tab bar without CrowdSec when reporting is on", async ({ page }) => {
     await setup(page, { crowdsec: false })
     await page.goto("/")
-    await expect(page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Security" })).toBeVisible()
+    await expect(
+      page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Security" }),
+    ).toBeVisible()
   })
 
   test("Category and Status are rows in one Filters drawer", async ({ page }) => {
-    await page.addInitScript(() => Object.defineProperty(HTMLSelectElement.prototype, "offsetHeight", { get: () => 44 }))
+    await page.addInitScript(() =>
+      Object.defineProperty(HTMLSelectElement.prototype, "offsetHeight", { get: () => 44 }),
+    )
     const requests = await setup(page)
     await page.goto("/security?tab=reports")
     await reportRow(page, SENT.ipAddress).waitFor()
@@ -224,7 +315,9 @@ test.describe("phone", () => {
     const row = reportRow(page, SENT.ipAddress)
     await expect(row).toContainText(SENT.ipAddress)
     await expect(row).toContainText("100")
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true)
     await row.click()
     await expect(page.getByText(SENT.comment).first()).toBeVisible()
   })

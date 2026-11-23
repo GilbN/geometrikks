@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test"
 import { QueryClient, QueryObserver } from "@tanstack/react-query"
 import type { AbuseIpdbBlacklistResponse } from "@/generated/api/types.gen"
 
@@ -10,7 +10,10 @@ const mocks = vi.hoisted(() => ({
 }))
 vi.mock("@tanstack/react-query", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-query")>()),
-  useQuery: (options: { queryKey: readonly string[]; select?: (response: AbuseIpdbBlacklistResponse) => unknown }) => {
+  useQuery: (options: {
+    queryKey: readonly string[]
+    select?: (response: AbuseIpdbBlacklistResponse) => unknown
+  }) => {
     if (options.queryKey[1] === "status") return { data: mocks.status }
     mocks.listQueryKeys.push(options.queryKey)
     const response = mocks.cachedBlacklist
@@ -32,8 +35,15 @@ const BLACKLIST_KEY = ["abuseipdb", "blacklist"]
 const MINUTE_MS = 60_000
 const REFRESHED_AT = "2026-11-08T06:05:00Z"
 
-function blacklistResponse(overrides: Partial<AbuseIpdbBlacklistResponse> = {}): AbuseIpdbBlacklistResponse {
-  return { generatedAt: "2026-11-08T06:00:00Z", refreshedAt: REFRESHED_AT, ips: ["3.5.140.2"], ...overrides }
+function blacklistResponse(
+  overrides: Partial<AbuseIpdbBlacklistResponse> = {},
+): AbuseIpdbBlacklistResponse {
+  return {
+    generatedAt: "2026-11-08T06:00:00Z",
+    refreshedAt: REFRESHED_AT,
+    ips: ["3.5.140.2"],
+    ...overrides,
+  }
 }
 
 let queryClient: QueryClient
@@ -101,7 +111,9 @@ it("gives no generation time once the feature turns off, though the list stays c
 it("builds one Set per response however many IPs read it", async () => {
   mocks.fetchAbuseIpdbBlacklist.mockResolvedValue(blacklistResponse())
   const observers = Array.from({ length: 5 }, () => observe())
-  await vi.waitFor(() => expect(observers.every((observer) => observer.getCurrentResult().data)).toBe(true))
+  await vi.waitFor(() =>
+    expect(observers.every((observer) => observer.getCurrentResult().data)).toBe(true),
+  )
   const blacklistSets = new Set(observers.map((observer) => observer.getCurrentResult().data))
   expect(blacklistSets.size).toBe(1)
   expect(mocks.fetchAbuseIpdbBlacklist).toHaveBeenCalledTimes(1)

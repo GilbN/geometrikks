@@ -7,11 +7,9 @@ tests cover the two project-specific providers appended alongside it.
 from __future__ import annotations
 
 import inspect
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
-from geometrikks.domain.exceptions import DomainValidationError
-from sqlalchemy import or_
 from advanced_alchemy.filters import (
     CollectionFilter,
     FilterGroup,
@@ -19,11 +17,14 @@ from advanced_alchemy.filters import (
     NullFilter,
     OnBeforeAfter,
 )
+from sqlalchemy import or_
 
+from geometrikks.domain.exceptions import DomainValidationError
 from geometrikks.domain.logs.controllers.access_logs import (
     provide_access_log_in_filters,
     provide_access_log_time_window,
 )
+from geometrikks.lib.ip_filters import IpMatchFilter
 
 
 class TestTimeWindow:
@@ -31,8 +32,8 @@ class TestTimeWindow:
         assert provide_access_log_time_window(None, None).filters == []
 
     def test_adds_inclusive_window_on_timestamp(self) -> None:
-        start = datetime(2026, 7, 1, tzinfo=timezone.utc)
-        end = datetime(2026, 7, 2, tzinfo=timezone.utc)
+        start = datetime(2026, 7, 1, tzinfo=UTC)
+        end = datetime(2026, 7, 2, tzinfo=UTC)
         result = provide_access_log_time_window(start, end).filters
         assert len(result) == 1
         window = result[0]
@@ -42,7 +43,7 @@ class TestTimeWindow:
         assert window.on_or_before == end
 
     def test_open_ended_window_when_only_one_bound(self) -> None:
-        start = datetime(2026, 7, 1, tzinfo=timezone.utc)
+        start = datetime(2026, 7, 1, tzinfo=UTC)
         result = provide_access_log_time_window(start, None).filters
         assert len(result) == 1
         window = result[0]
@@ -59,7 +60,7 @@ class TestTimeWindow:
         assert window_filter.on_or_after == result.start
         assert window_filter.on_or_before == result.end
 
-    @pytest.mark.parametrize("bounds", [(datetime.now(timezone.utc), None), (None, datetime.now(timezone.utc))])
+    @pytest.mark.parametrize("bounds", [(datetime.now(UTC), None), (None, datetime.now(UTC))])
     def test_relative_window_rejects_either_explicit_bound(self, bounds) -> None:
         with pytest.raises(DomainValidationError) as error:
             provide_access_log_time_window(*bounds, window="10m")
@@ -84,9 +85,9 @@ class TestInFilters:
         assert isinstance(method, CollectionFilter)
         assert method.field_name == "method"
         assert method.values == ["GET", "POST"]
-        assert isinstance(ip, CollectionFilter)
-        assert ip.field_name == "ip_address"
+        assert isinstance(ip, IpMatchFilter)
         assert ip.values == ["10.0.0.1"]
+        assert ip.exclude is False
 
     def test_accepts_ipv6(self) -> None:
         result = provide_access_log_in_filters(None, ["2001:db8::1"])
@@ -94,7 +95,7 @@ class TestInFilters:
 
     def test_invalid_ip_raises_validation_error(self) -> None:
         # ip_address is INET — free text must 400, not fail bind-param encoding.
-        with pytest.raises(DomainValidationError, match="Invalid IP address"):
+        with pytest.raises(DomainValidationError, match="Enter an IP address or CIDR network"):
             provide_access_log_in_filters(None, ["u"])
 
     def test_builds_city_and_country_filters(self) -> None:
@@ -112,19 +113,31 @@ class TestInFilters:
         assert provide_access_log_in_filters(None, None, None, None) == []
         assert provide_access_log_in_filters(None, None, [], []) == []
 
-    def test_ip_address_not_in_yields_not_in_collection_filter(self) -> None:
+    def test_ip_address_not_in_yields_an_exclude_filter(self) -> None:
         result = provide_access_log_in_filters(
             None, None, None, None, None, ["10.0.0.5", "10.0.0.6"]
         )
         assert len(result) == 1
         excluded = result[0]
-        assert isinstance(excluded, NotInCollectionFilter)
-        assert excluded.field_name == "ip_address"
+        assert isinstance(excluded, IpMatchFilter)
         assert excluded.values == ["10.0.0.5", "10.0.0.6"]
+        assert excluded.exclude is True
+
+    def test_accepts_cidr_ranges(self) -> None:
+        result = provide_access_log_in_filters(None, ["198.51.100.0/24"], None, None, None, ["2001:db8::/64"])
+        assert [(f.values, f.exclude) for f in result if isinstance(f, IpMatchFilter)] == [
+            (["198.51.100.0/24"], False),
+            (["2001:db8::/64"], True),
+        ]
+
+    def test_range_with_host_bits_raises_validation_error(self) -> None:
+        with pytest.raises(DomainValidationError, match="not the start of a range") as raised:
+            provide_access_log_in_filters(None, ["10.0.0.5/8"])
+        assert raised.value.code == "invalid_network"
 
     def test_invalid_excluded_ip_raises_validation_error(self) -> None:
         # Same INET bind-param hazard as the include list.
-        with pytest.raises(DomainValidationError, match="Invalid IP address"):
+        with pytest.raises(DomainValidationError, match="Enter an IP address or CIDR network"):
             provide_access_log_in_filters(None, None, None, None, None, ["nope"])
 
     def test_host_in_yields_collection_filter(self) -> None:
@@ -160,8 +173,8 @@ class TestInFilters:
             None, ["10.0.0.1"], None, None, None, ["10.0.0.2"], ["a.example.com"], ["b.example.com"]
         )
         assert [type(f).__name__ for f in result] == [
-            "CollectionFilter",
-            "NotInCollectionFilter",
+            "IpMatchFilter",
+            "IpMatchFilter",
             "CollectionFilter",
             "FilterGroup",
         ]

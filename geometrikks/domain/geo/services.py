@@ -13,7 +13,9 @@ Query routing follows the repository convention:
 """
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import datetime
+from ipaddress import IPv4Network, IPv6Network
 
 from advanced_alchemy.repository import SQLAlchemyAsyncRepository
 from advanced_alchemy.service import SQLAlchemyAsyncRepositoryService
@@ -22,7 +24,6 @@ from sqlalchemy import func, select, text
 from geometrikks.domain.analytics.asn_classification import classify_asn
 from geometrikks.domain.drop.snapshot import DropSnapshot
 from geometrikks.domain.exceptions import DomainValidationError
-
 from geometrikks.domain.geo.models import GeoEvent, GeoLocation
 from geometrikks.domain.geo.repositories import (
     GeoLocationRepository,
@@ -764,6 +765,7 @@ class GeoLocationService(SQLAlchemyAsyncRepositoryService[GeoLocation]):
         servers: list[str] | None = None,
         asns: list[int] | None = None,
         asns_exclude: list[int] | None = None,
+        muted_networks: Sequence[IPv4Network | IPv6Network] | None = None,
     ) -> list[LocationWithEventCount]:
         """Locations with event counts for the GeoJSON map layer."""
         return await self.repository.get_all_with_event_counts(
@@ -776,6 +778,7 @@ class GeoLocationService(SQLAlchemyAsyncRepositoryService[GeoLocation]):
             servers=servers,
             asns=asns,
             asns_exclude=asns_exclude,
+            muted_networks=muted_networks,
         )
 
     async def get_global_top_ips(

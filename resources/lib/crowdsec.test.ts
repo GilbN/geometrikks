@@ -1,58 +1,19 @@
-import { AxiosError } from "axios"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 import {
   bgpAsUrl,
   crowdsecCtiUrl,
-  crowdsecErrorMessage,
   crowdsecHubUrl,
   decisionLabel,
   decisionPopupColor,
   decisionWinner,
   distinctScenarioCount,
   forDuration,
-  isClientError,
   isValidBanDuration,
   isValidBanTarget,
   rangeSizeLabel,
   resolveDecision,
   winningDecision,
 } from "./crowdsec"
-
-describe("crowdsecErrorMessage", () => {
-  it("prefers the backend detail from an axios error", () => {
-    const err = new AxiosError(
-      "Request failed with status code 502",
-      "ERR_BAD_RESPONSE",
-      undefined,
-      undefined,
-      // Minimal AxiosResponse shape; only .data is read
-      { data: { detail: "CrowdSec LAPI is unreachable" }, status: 502 } as never,
-    )
-    expect(crowdsecErrorMessage(err, "fallback")).toBe("CrowdSec LAPI is unreachable")
-  })
-
-  it("falls back for non-axios errors and missing detail", () => {
-    expect(crowdsecErrorMessage(new Error("boom"), "fallback")).toBe("fallback")
-    const bare = new AxiosError("network down", "ERR_NETWORK")
-    expect(crowdsecErrorMessage(bare, "fallback")).toBe("fallback")
-  })
-})
-
-describe("isClientError", () => {
-  const withStatus = (status: number) =>
-    new AxiosError("Request failed", "ERR_BAD_REQUEST", undefined, undefined, { data: {}, status } as never)
-
-  it("is true for a 4xx answer", () => {
-    expect(isClientError(withStatus(400))).toBe(true)
-    expect(isClientError(withStatus(409))).toBe(true)
-  })
-
-  it("is false for server errors, network errors and anything else", () => {
-    expect(isClientError(withStatus(502))).toBe(false)
-    expect(isClientError(new AxiosError("network down", "ERR_NETWORK"))).toBe(false)
-    expect(isClientError(new Error("boom"))).toBe(false)
-  })
-})
 
 describe("decisionWinner", () => {
   it("ranks ban over captcha over any other name", () => {
@@ -115,13 +76,40 @@ describe("decisionLabel and decisionPopupColor", () => {
 
 describe("isValidBanTarget", () => {
   it("accepts IPs and ranges", () => {
-    for (const value of ["203.0.113.7", "2001:db8::1", "203.0.113.0/24", "203.0.113.9/24", "2001:db8::/48", "10.0.0.1/32", "::ffff:203.0.113.7", "::ffff:203.0.113.0/120", "2001:db8::/96"]) {
+    for (const value of [
+      "203.0.113.7",
+      "2001:db8::1",
+      "203.0.113.0/24",
+      "203.0.113.9/24",
+      "2001:db8::/48",
+      "10.0.0.1/32",
+      "::ffff:203.0.113.7",
+      "::ffff:203.0.113.0/120",
+      "2001:db8::/96",
+    ]) {
       expect(isValidBanTarget(value), value).toBe(true)
     }
   })
 
   it("rejects partial values, bad prefixes and /0", () => {
-    for (const value of ["203.0.113", "203.0.113.0/", "203.0.113.0/33", "2001:db8::/129", "0.0.0.0/0", "::/0", "10.0.0.0/08", "10.0.0.0/2a", "::1]#", "::1]?x", "2001:db8::1]/a[", "::\t1", "fe80::1%eth0", "::ffff:0:0/96", "::ffff:203.0.113.9/96", "0:0:0:0:0:ffff:0.0.0.0/90"]) {
+    for (const value of [
+      "203.0.113",
+      "203.0.113.0/",
+      "203.0.113.0/33",
+      "2001:db8::/129",
+      "0.0.0.0/0",
+      "::/0",
+      "10.0.0.0/08",
+      "10.0.0.0/2a",
+      "::1]#",
+      "::1]?x",
+      "2001:db8::1]/a[",
+      "::\t1",
+      "fe80::1%eth0",
+      "::ffff:0:0/96",
+      "::ffff:203.0.113.9/96",
+      "0:0:0:0:0:ffff:0.0.0.0/90",
+    ]) {
       expect(isValidBanTarget(value), value).toBe(false)
     }
   })
@@ -175,7 +163,13 @@ describe("external links", () => {
   })
 
   it("has no hub link for our own, list or free-text scenarios", () => {
-    for (const scenario of ["geometrikks/manual-ban", "geometrikks/manual-ban: scanner", "lists:firehol_cruzit", "update : +15000/-0 IPs", "manual ban"]) {
+    for (const scenario of [
+      "geometrikks/manual-ban",
+      "geometrikks/manual-ban: scanner",
+      "lists:firehol_cruzit",
+      "update : +15000/-0 IPs",
+      "manual ban",
+    ]) {
       expect(crowdsecHubUrl(scenario), scenario).toBeNull()
     }
   })

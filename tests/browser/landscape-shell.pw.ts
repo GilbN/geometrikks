@@ -7,7 +7,9 @@ async function login(page: Page) {
   const password = process.env.SMOKE_ADMIN_PASSWORD ?? process.env.APP_ADMIN_PASSWORD
   if (!password) throw new Error("Administrator credentials are required")
   const username = process.env.SMOKE_ADMIN_USER ?? process.env.APP_ADMIN_USER ?? "admin"
-  expect((await page.request.post("/api/v1/auth/login", { data: { username, password } })).ok()).toBe(true)
+  expect(
+    (await page.request.post("/api/v1/auth/login", { data: { username, password } })).ok(),
+  ).toBe(true)
 }
 
 const sidebar = (page: Page) => page.locator('[data-slot="sidebar"]').first()
@@ -33,7 +35,12 @@ test.describe("phone held sideways", () => {
     await expect
       .poll(async () => {
         const box = await card.boundingBox()
-        return box && { left: box.x >= left && box.x <= left + 2, clearsRight: box.x + box.width <= 932 - right }
+        return (
+          box && {
+            left: box.x >= left && box.x <= left + 2,
+            clearsRight: box.x + box.width <= 932 - right,
+          }
+        )
       })
       .toEqual({ left: true, clearsRight: true })
 
@@ -59,7 +66,12 @@ test.describe("phone held sideways", () => {
 
     // The phone map has no header.
     await page.goto("/")
-    const headerContent = (await page.locator("header").first().locator(":scope > *").first().boundingBox())!
+    const headerContent = (await page
+      .locator("header")
+      .first()
+      .locator(":scope > *")
+      .first()
+      .boundingBox())!
     expect(headerContent.x).toBeGreaterThanOrEqual(left)
 
     const headerButtons = page.locator("header").first().getByRole("button")
@@ -71,7 +83,11 @@ test.describe("phone held sideways", () => {
     const sheet = page.getByRole("dialog").filter({ hasText: "192.0.2.1" })
     await expect(sheet).toBeVisible()
     // The sheet slides in from the right, so measure it once that ends.
-    await sheet.evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished.catch(() => undefined))))
+    await sheet.evaluate((element) =>
+      Promise.all(
+        element.getAnimations().map((animation) => animation.finished.catch(() => undefined)),
+      ),
+    )
     const close = (await sheet.getByRole("button", { name: "Close" }).first().boundingBox())!
     expect(close.x + close.width).toBeLessThanOrEqual(932 - right)
   })

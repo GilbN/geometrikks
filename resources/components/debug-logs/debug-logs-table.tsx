@@ -4,19 +4,11 @@
  * city, malformed tri-state. Clicking a row opens the raw-line detail
  * dialog. Pairs with GET /api/v1/access-log-debug/.
  */
-import { memo, useCallback, useEffect, useState } from "react"
+import { memo, useCallback, useEffect, useId, useState } from "react"
 import { useSearch } from "@tanstack/react-router"
 import { CountryFlag, CountryLabel } from "@/components/country-flag"
-import {
-  Columns3,
-  Search,
-} from "lucide-react"
-import {
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { Columns3, Search } from "lucide-react"
+import { TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useNarrowLayout } from "@/components/data/narrow-layout"
 import { sortOptions, type SortKind } from "@/components/data/sort-options"
 import { SortableHead } from "@/components/data/sortable-head"
@@ -54,10 +46,15 @@ import { rowActivation } from "@/components/data/row-activation"
 import { dataState } from "@/components/data/types"
 import { IpActionsMenu, IpFilterTargetsProvider } from "@/components/ip-actions/ip-actions-menu"
 import { IpLabel } from "@/components/ip-actions/ip-label"
-import { countryLabel, listFilterTarget, singleFilterTarget, type IpRowValues } from "@/lib/ip-filter-targets"
+import {
+  countryLabel,
+  listFilterTarget,
+  singleFilterTarget,
+  type IpRowValues,
+} from "@/lib/ip-filter-targets"
 import { useAccessLogDebug, useAccessLogFacets, useCrowdsecLiveUpdates } from "@/lib/queries"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
-import { isValidIp } from "@/lib/crowdsec"
+import { ipFilterHint, isValidIpFilter } from "@/lib/ip-filter-values"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { usePhoneLayout } from "@/hooks/use-phone-map"
 import type { AccessLogDebugEntry, AccessLogDebugSortField, SortOrder } from "@/lib/api"
@@ -175,7 +172,8 @@ const COLUMNS: ColumnDef[] = [
     sortField: "ipAddress",
     defaultVisible: true,
     mobileHidden: true,
-    render: (r) => (r.ipAddress ? <IpLabel ip={r.ipAddress} /> : <span className="font-mono">-</span>),
+    render: (r) =>
+      r.ipAddress ? <IpLabel ip={r.ipAddress} /> : <span className="font-mono">-</span>,
   },
   {
     key: "url",
@@ -219,7 +217,13 @@ const COLUMNS: ColumnDef[] = [
     defaultVisible: false,
     render: (r) => (
       <span className="whitespace-nowrap" title={r.countryName ?? undefined}>
-        {r.countryCode ? <CountryLabel code={r.countryCode} name={r.countryName}>{r.countryCode}</CountryLabel> : "-"}
+        {r.countryCode ? (
+          <CountryLabel code={r.countryCode} name={r.countryName}>
+            {r.countryCode}
+          </CountryLabel>
+        ) : (
+          "-"
+        )}
       </span>
     ),
   },
@@ -251,7 +255,12 @@ const SORT_OPTIONS = sortOptions(COLUMNS)
 function DebugLogIpActions({ row }: { row: AccessLogDebugEntry }) {
   if (!row.ipAddress) return null
   return (
-    <IpActionsMenu ip={row.ipAddress} countryCode={row.countryCode} countryName={row.countryName} city={row.city} />
+    <IpActionsMenu
+      ip={row.ipAddress}
+      countryCode={row.countryCode}
+      countryName={row.countryName}
+      city={row.city}
+    />
   )
 }
 
@@ -261,14 +270,18 @@ function DebugLogNarrowCell({ row }: { row: AccessLogDebugEntry }) {
     <TableCell className="py-2.5">
       <div className="flex min-w-0 items-center gap-2">
         {row.isMalformed && (
-          <Badge className="shrink-0 border-transparent bg-amber-500/15 text-amber-600 dark:text-amber-400">Malformed</Badge>
+          <Badge className="shrink-0 border-transparent bg-amber-500/15 text-amber-600 dark:text-amber-400">
+            Malformed
+          </Badge>
         )}
         <span className="min-w-0 flex-1 truncate font-mono text-xs" title={row.rawLine}>
           {row.rawLine}
         </span>
       </div>
       <div className="mt-1 flex min-w-0 items-center gap-2 text-xs">
-        <span className="shrink-0 whitespace-nowrap text-muted-foreground">{formatRowTime(row.createdAt)}</span>
+        <span className="shrink-0 whitespace-nowrap text-muted-foreground">
+          {formatRowTime(row.createdAt)}
+        </span>
         {row.parseError && (
           <span className="min-w-0 truncate text-muted-foreground" title={row.parseError}>
             {row.parseError}
@@ -297,7 +310,11 @@ const DebugLogTableBody = memo(function DebugLogTableBody({
   onSelect: (row: AccessLogDebugEntry) => void
 }) {
   return (
-    <VirtualTableBody rows={rows} columnCount={narrow ? 1 : shownColumns.length} getRowKey={getRowKey}>
+    <VirtualTableBody
+      rows={rows}
+      columnCount={narrow ? 1 : shownColumns.length}
+      getRowKey={getRowKey}
+    >
       {(row) => (
         <TableRow
           key={row.id}
@@ -339,7 +356,12 @@ export function DebugLogsTable() {
   const [countries, setCountries] = useState<string[]>([])
   const filterTargetsFor = useCallback(
     ({ ip, countryCode, countryName }: IpRowValues) => [
-      singleFilterTarget({ noun: "IP", value: ip, current: ipInput || undefined, setValue: (next) => setIpInput(next ?? "") }),
+      singleFilterTarget({
+        noun: "IP",
+        value: ip,
+        current: ipInput || undefined,
+        setValue: (next) => setIpInput(next ?? ""),
+      }),
       ...(countryCode
         ? [
             listFilterTarget({
@@ -347,7 +369,8 @@ export function DebugLogsTable() {
               value: countryCode,
               label: countryLabel(countryCode, countryName),
               filters: { countries },
-              setFilters: (updater) => setCountries((prev) => updater({ countries: prev }).countries),
+              setFilters: (updater) =>
+                setCountries((prev) => updater({ countries: prev }).countries),
               includeKey: "countries",
               excludeKey: null,
             }),
@@ -356,19 +379,27 @@ export function DebugLogsTable() {
     ],
     [ipInput, countries],
   )
-  const [malformedFilter, setMalformedFilter] = useState<MalformedFilter>(initial.malformed ?? "all")
+  const [malformedFilter, setMalformedFilter] = useState<MalformedFilter>(
+    initial.malformed ?? "all",
+  )
   // Facet values are fetched lazily, on first open of either dropdown.
   const [facetsEnabled, setFacetsEnabled] = useState(false)
   const { data: facets } = useAccessLogFacets({ enabled: facetsEnabled })
   const search = useDebouncedValue(searchInput, 300)
-  const ip = useDebouncedValue(ipInput, 300)
+  const ip = useDebouncedValue(ipInput.trim(), 300)
+  const ipDraft = ipInput.trim()
+  const ipInvalid = ipDraft !== "" && !isValidIpFilter(ipDraft)
+  const ipHint = ipInvalid ? ipFilterHint(ipDraft) : null
+  const ipHintId = useId()
 
   // Sorting.
   const [sortField, setSortField] = useState<AccessLogDebugSortField>("createdAt")
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc")
 
-  const { visible, shownColumns, toggleColumn, resetColumns, hasOverrides } =
-    useColumnVisibility("geometrikks-columns-debug-logs", COLUMNS)
+  const { visible, shownColumns, toggleColumn, resetColumns, hasOverrides } = useColumnVisibility(
+    "geometrikks-columns-debug-logs",
+    COLUMNS,
+  )
 
   // Detail sheet.
   const [selected, setSelected] = useState<AccessLogDebugEntry | null>(null)
@@ -386,12 +417,11 @@ export function DebugLogsTable() {
     currentPage: page,
     pageSize,
     searchString: search || undefined,
-    // Only forward complete IPs; partial text cannot match an INET column.
-    ipAddressIn: ip && isValidIp(ip) ? [ip] : undefined,
+    // Only forward complete values; partial text cannot match an INET column.
+    ipAddressIn: ip && isValidIpFilter(ip) ? [ip] : undefined,
     countryCodeIn: countries.length ? countries : undefined,
     cityIn: cities.length ? cities : undefined,
-    malformed:
-      malformedFilter === "all" ? undefined : malformedFilter === "malformed",
+    malformed: malformedFilter === "all" ? undefined : malformedFilter === "malformed",
     sortField,
     sortOrder,
   })
@@ -440,14 +470,24 @@ export function DebugLogsTable() {
       </FilterField>
     )
     const ipField = (
-      <FilterField label="IP address">
+      <FilterField label="IP address" className={inDrawer ? "w-full" : "w-36"}>
         <Input
           value={ipInput}
           onChange={(e) => setIpInput(e.target.value)}
           placeholder="203.0.113.7"
-          aria-invalid={ipInput !== "" && !isValidIp(ipInput)}
-          className={cn("h-8 font-mono text-xs", inDrawer ? "w-full" : "w-36")}
+          aria-invalid={ipInvalid}
+          aria-describedby={ipHint ? ipHintId : undefined}
+          className="h-8 w-full font-mono text-xs"
         />
+        {ipHint && (
+          <span
+            id={ipHintId}
+            aria-hidden
+            className="block break-all font-mono text-[11px] text-destructive"
+          >
+            {ipHint}
+          </span>
+        )}
       </FilterField>
     )
     const malformedField = (
@@ -461,7 +501,9 @@ export function DebugLogsTable() {
           </SelectTrigger>
           <SelectContent>
             {MALFORMED_OPTIONS.map((option) => (
-              <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -570,10 +612,10 @@ export function DebugLogsTable() {
             {c.label}
           </DropdownMenuCheckboxItem>
         ))}
-      <DropdownMenuSeparator />
-      <DropdownMenuItem disabled={!hasOverrides} onSelect={resetColumns}>
-        Reset to defaults
-      </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem disabled={!hasOverrides} onSelect={resetColumns}>
+          Reset to defaults
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )
@@ -631,17 +673,30 @@ export function DebugLogsTable() {
               />
             }
           >
-            <VirtualTable narrow={narrow} columns={shownColumns} rowCount={rows.length} resetKey={JSON.stringify([page, pageSize, sortField, sortOrder, search, ip, cities, countries, malformedFilter, range, customRange])}>
+            <VirtualTable
+              narrow={narrow}
+              columns={shownColumns}
+              rowCount={rows.length}
+              resetKey={JSON.stringify([
+                page,
+                pageSize,
+                sortField,
+                sortOrder,
+                search,
+                ip,
+                cities,
+                countries,
+                malformedFilter,
+                range,
+                customRange,
+              ])}
+            >
               {!narrow && (
                 <TableHeader>
                   <TableRow>
                     {shownColumns.map((c) => {
                       if (!c.sortField) {
-                        return (
-                          <TableHead key={c.key}>
-                            {c.label}
-                          </TableHead>
-                        )
+                        return <TableHead key={c.key}>{c.label}</TableHead>
                       }
                       const columnSortField = c.sortField
                       return (
@@ -657,7 +712,13 @@ export function DebugLogsTable() {
                   </TableRow>
                 </TableHeader>
               )}
-              <DebugLogTableBody key={narrow ? "narrow" : "wide"} rows={rows} shownColumns={shownColumns} narrow={narrow} onSelect={setSelected} />
+              <DebugLogTableBody
+                key={narrow ? "narrow" : "wide"}
+                rows={rows}
+                shownColumns={shownColumns}
+                narrow={narrow}
+                onSelect={setSelected}
+              />
             </VirtualTable>
           </DataTableFrame>
         </div>

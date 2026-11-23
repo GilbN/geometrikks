@@ -1,9 +1,13 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 
 import type { RawLineField, RawLineFields } from "@/lib/api"
 import { breakSegments, rawLineSections } from "./raw-line-sections"
 
-const field = (key: string, group: RawLineField["group"], storedAs: string | null = null): RawLineField => ({
+const field = (
+  key: string,
+  group: RawLineField["group"],
+  storedAs: string | null = null,
+): RawLineField => ({
   key,
   value: "v",
   group,
@@ -59,13 +63,21 @@ describe("rawLineSections", () => {
 
 describe("breakSegments", () => {
   it("splits camel case keys between words", () => {
-    expect(breakSegments("DownstreamContentSize", { key: true })).toEqual(["Downstream", "Content", "Size"])
+    expect(breakSegments("DownstreamContentSize", { key: true })).toEqual([
+      "Downstream",
+      "Content",
+      "Size",
+    ])
   })
 
   it("splits after separators, keeping them on the left", () => {
     expect(breakSegments("203.0.113.40:51022")).toEqual(["203.0.113.40:", "51022"])
     expect(breakSegments("TLS_AES_128")).toEqual(["TLS_", "AES_", "128"])
-    expect(breakSegments("request.tls.version", { key: true })).toEqual(["request.", "tls.", "version"])
+    expect(breakSegments("request.tls.version", { key: true })).toEqual([
+      "request.",
+      "tls.",
+      "version",
+    ])
     expect(breakSegments("/api/orders?page=2")).toEqual(["/", "api/", "orders?", "page=", "2"])
   })
 

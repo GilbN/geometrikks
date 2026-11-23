@@ -35,6 +35,12 @@ updates:
         update-types:
           - "minor"
           - "patch"
+    ignore:
+      # "vite" is an alias of @voidzero-dev/vite-plus-core and must move in
+      # lockstep with vite-plus; Dependabot bumps them separately. Upgrade with
+      # `bunx --package=vite-plus@<version> vp migrate --no-interactive`.
+      - dependency-name: "vite"
+      - dependency-name: "vite-plus"
     target-branch: "develop"
 
   # GitHub Actions used by ci.yml and release.yml

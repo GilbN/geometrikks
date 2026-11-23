@@ -8,7 +8,10 @@ export function InlineMarkdown({ text }: { text: string }) {
         switch (token.type) {
           case "code":
             return (
-              <code key={index} className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em] text-foreground">
+              <code
+                key={index}
+                className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em] text-foreground"
+              >
                 {token.value}
               </code>
             )

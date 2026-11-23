@@ -7,13 +7,16 @@ GeoEventFilters SQL fragments consumed by the aggregate endpoints.
 from __future__ import annotations
 
 import inspect
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from advanced_alchemy.filters import CollectionFilter, NotInCollectionFilter, OnBeforeAfter
-from geometrikks.domain.exceptions import DomainValidationError
+from advanced_alchemy.filters import (
+    CollectionFilter,
+    OnBeforeAfter,
+)
 
+from geometrikks.domain.exceptions import DomainValidationError
 from geometrikks.domain.geo.controllers.events import (
     GeoEventController,
     provide_geo_event_filters,
@@ -21,6 +24,7 @@ from geometrikks.domain.geo.controllers.events import (
     provide_geo_event_time_window,
 )
 from geometrikks.domain.geo.schemas import GeoEventFilters, GeoLogPeriod
+from geometrikks.lib.ip_filters import IpMatchFilter
 
 pytestmark = pytest.mark.anyio
 
@@ -30,8 +34,8 @@ class TestTimeWindow:
         assert provide_geo_event_time_window(None, None) == []
 
     def test_adds_inclusive_window_on_timestamp(self) -> None:
-        start = datetime(2026, 7, 1, tzinfo=timezone.utc)
-        end = datetime(2026, 7, 2, tzinfo=timezone.utc)
+        start = datetime(2026, 7, 1, tzinfo=UTC)
+        end = datetime(2026, 7, 2, tzinfo=UTC)
         result = provide_geo_event_time_window(start, end)
         assert len(result) == 1
         window = result[0]
@@ -47,8 +51,8 @@ class TestTimeWindow:
         window = provide_geo_event_time_window(start, end)[0]
 
         assert isinstance(window, OnBeforeAfter)
-        assert window.on_or_after == datetime(2026, 7, 1, tzinfo=timezone.utc)
-        assert window.on_or_before == datetime(2026, 7, 2, tzinfo=timezone.utc)
+        assert window.on_or_after == datetime(2026, 7, 1, tzinfo=UTC)
+        assert window.on_or_before == datetime(2026, 7, 2, tzinfo=UTC)
 
 
 class TestInFilters:
@@ -60,12 +64,10 @@ class TestInFilters:
         result = provide_geo_event_in_filters(["10.0.0.1"], ["10.0.0.2"], server_in=["web1"])
         assert len(result) == 3
         include, exclude, server = result
-        assert isinstance(include, CollectionFilter)
-        assert include.field_name == "ip_address"
-        assert include.values == ["10.0.0.1"]
-        assert isinstance(exclude, NotInCollectionFilter)
-        assert exclude.field_name == "ip_address"
-        assert exclude.values == ["10.0.0.2"]
+        assert isinstance(include, IpMatchFilter)
+        assert (include.values, include.exclude) == (["10.0.0.1"], False)
+        assert isinstance(exclude, IpMatchFilter)
+        assert (exclude.values, exclude.exclude) == (["10.0.0.2"], True)
         assert isinstance(server, CollectionFilter)
         assert server.field_name == "server"
         assert server.values == ["web1"]
@@ -84,11 +86,11 @@ class TestInFilters:
 
     def test_invalid_include_ip_raises(self) -> None:
         # ip_address is INET — free text must 400, not fail bind-param encoding.
-        with pytest.raises(DomainValidationError, match="Invalid IP address"):
+        with pytest.raises(DomainValidationError, match="Enter an IP address or CIDR network"):
             provide_geo_event_in_filters(["not-an-ip"], None, None)
 
     def test_invalid_exclude_ip_raises(self) -> None:
-        with pytest.raises(DomainValidationError, match="Invalid IP address"):
+        with pytest.raises(DomainValidationError, match="Enter an IP address or CIDR network"):
             provide_geo_event_in_filters(None, ["not-an-ip"], None)
 
 
@@ -111,9 +113,9 @@ class TestAggregateFilters:
         assert filters.is_active()
 
     def test_invalid_ips_raise_in_both_lists(self) -> None:
-        with pytest.raises(DomainValidationError, match="Invalid IP address"):
+        with pytest.raises(DomainValidationError, match="Enter an IP address or CIDR network"):
             provide_geo_event_filters(None, None, ["bad"], None, None)
-        with pytest.raises(DomainValidationError, match="Invalid IP address"):
+        with pytest.raises(DomainValidationError, match="Enter an IP address or CIDR network"):
             provide_geo_event_filters(None, None, None, ["bad"], None)
 
     def test_only_servers_force_raw(self) -> None:
@@ -132,8 +134,8 @@ class TestAggregateFilters:
 
 class TestSummaryComparison:
     async def test_previous_period_is_adjacent_and_equal_length(self) -> None:
-        start = datetime(2026, 7, 2, tzinfo=timezone.utc)
-        end = datetime(2026, 7, 3, tzinfo=timezone.utc)
+        start = datetime(2026, 7, 2, tzinfo=UTC)
+        end = datetime(2026, 7, 3, tzinfo=UTC)
         current = GeoLogPeriod(total_events=10, unique_ips=5, unique_countries=2, unique_cities=3)
         previous = GeoLogPeriod(total_events=5, unique_ips=4, unique_countries=2, unique_cities=2)
         service = MagicMock()
@@ -145,7 +147,7 @@ class TestSummaryComparison:
 
         assert service.get_summary.await_args_list[0].args[:2] == (start, end)
         assert service.get_summary.await_args_list[1].args[:2] == (
-            datetime(2026, 7, 1, tzinfo=timezone.utc),
+            datetime(2026, 7, 1, tzinfo=UTC),
             start,
         )
         assert response.previous_period == previous
@@ -172,8 +174,8 @@ class TestFiltersSqlConditions:
         assert "AND NOT (ge.ip_address = ANY(CAST(:filter_ips_excl AS inet[])))" in sql
         assert "AND ge.server = ANY(:filter_servers)" in sql
         assert params["filter_countries"] == ["NO"]  # normalized upper-case
-        assert params["filter_ips"] == ["10.0.0.1"]
-        assert params["filter_ips_excl"] == ["10.0.0.2"]
+        assert params["filter_ips"] == ["10.0.0.1", "::ffff:10.0.0.1"]
+        assert params["filter_ips_excl"] == ["10.0.0.2", "::ffff:10.0.0.2"]
 
     def test_asn_fragments_default_to_the_raw_column(self) -> None:
         sql, params = GeoEventFilters(asn_include=[13335], asn_exclude=[24940]).sql_conditions("ge", "gl")

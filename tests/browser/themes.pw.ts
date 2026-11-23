@@ -1,5 +1,11 @@
 import { expect, test, type Locator, type Page } from "@playwright/test"
-import { COLOR_THEMES, THEME_CATALOG, THEME_STORAGE_KEYS, themeColor, type ColorTheme } from "../../resources/lib/theme"
+import {
+  COLOR_THEMES,
+  THEME_CATALOG,
+  THEME_STORAGE_KEYS,
+  themeColor,
+  type ColorTheme,
+} from "../../resources/lib/theme"
 
 type RGBA = [number, number, number, number]
 
@@ -8,10 +14,14 @@ function composite(fg: RGBA, bg: RGBA): RGBA {
 }
 
 function contrast(a: RGBA, b: RGBA): number {
-  const luminance = (rgba: RGBA) => rgba.slice(0, 3).reduce((sum, value, i) => {
-    const v = value / 255
-    return sum + (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4) * [0.2126, 0.7152, 0.0722][i]
-  }, 0)
+  const luminance = (rgba: RGBA) =>
+    rgba.slice(0, 3).reduce((sum, value, i) => {
+      const v = value / 255
+      return (
+        sum +
+        (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4) * [0.2126, 0.7152, 0.0722][i]
+      )
+    }, 0)
   const [lighter, darker] = [luminance(a), luminance(b)].sort((x, y) => y - x)
   return (lighter + 0.05) / (darker + 0.05)
 }
@@ -49,11 +59,14 @@ const palettes: { mode: "light" | "dark"; theme: ColorTheme }[] = COLOR_THEMES.f
 type Scheme = { mode: "light" | "dark"; theme: ColorTheme }
 
 function saveScheme(page: Page, { mode, theme }: Scheme) {
-  return page.addInitScript(({ keys, mode, theme }) => {
-    localStorage.setItem(keys.mode, mode)
-    localStorage.setItem(keys.lightTheme, theme)
-    localStorage.setItem(keys.darkTheme, theme)
-  }, { keys: THEME_STORAGE_KEYS, mode, theme })
+  return page.addInitScript(
+    ({ keys, mode, theme }) => {
+      localStorage.setItem(keys.mode, mode)
+      localStorage.setItem(keys.lightTheme, theme)
+      localStorage.setItem(keys.darkTheme, theme)
+    },
+    { keys: THEME_STORAGE_KEYS, mode, theme },
+  )
 }
 
 const galleryPalette = (page: Page) => page.getByRole("group", { name: "Preview palette" })
@@ -68,9 +81,14 @@ async function expectBodyMatchesChrome(page: Page) {
       ctx.fillRect(0, 0, 1, 1)
       return Array.from(ctx.getImageData(0, 0, 1, 1).data).slice(0, 3)
     }
-    return { body: rgb(getComputedStyle(document.body).backgroundColor), chrome: rgb(document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')!.content) }
+    return {
+      body: rgb(getComputedStyle(document.body).backgroundColor),
+      chrome: rgb(document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')!.content),
+    }
   })
-  colors.body.forEach((channel, i) => expect(Math.abs(channel - colors.chrome[i])).toBeLessThanOrEqual(2))
+  colors.body.forEach((channel, i) =>
+    expect(Math.abs(channel - colors.chrome[i])).toBeLessThanOrEqual(2),
+  )
 }
 
 for (const { mode, theme } of palettes) {
@@ -80,39 +98,60 @@ for (const { mode, theme } of palettes) {
     await page.goto("/static/resources/dev/themes.html")
     await expect(page.locator("html")).toHaveClass(mode)
     await expect(page.locator("html")).toHaveAttribute("data-theme", theme)
-    await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute("content", themeColor(mode, theme))
+    await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute(
+      "content",
+      themeColor(mode, theme),
+    )
     await expectBodyMatchesChrome(page)
     await expect(page.locator("#app")).toBeEmpty()
   })
 }
 
 test("a saved legacy accent paints its theme before React loads", async ({ page }) => {
-  await page.addInitScript((key) => localStorage.setItem(key, "green"), THEME_STORAGE_KEYS.legacyAccent)
+  await page.addInitScript(
+    (key) => localStorage.setItem(key, "green"),
+    THEME_STORAGE_KEYS.legacyAccent,
+  )
   await page.route("**/resources/dev/themes.tsx*", (route) => route.abort())
   await page.goto("/static/resources/dev/themes.html")
   await expect(page.locator("html")).toHaveClass("dark")
   await expect(page.locator("html")).toHaveAttribute("data-theme", "moss")
-  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute("content", themeColor("dark", "moss"))
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute(
+    "content",
+    themeColor("dark", "moss"),
+  )
   await expectBodyMatchesChrome(page)
   await expect(page.locator("#app")).toBeEmpty()
 })
 
 test("the provider keeps a legacy accent's theme without saving it", async ({ page }) => {
-  await page.addInitScript((key) => localStorage.setItem(key, "green"), THEME_STORAGE_KEYS.legacyAccent)
+  await page.addInitScript(
+    (key) => localStorage.setItem(key, "green"),
+    THEME_STORAGE_KEYS.legacyAccent,
+  )
   await page.goto("/static/resources/dev/themes.html")
   await expect(page.getByRole("heading", { name: "Theme component preview" })).toBeVisible()
   await expect(page.locator("html")).toHaveAttribute("data-theme", "moss")
-  await expect(galleryPalette(page).getByRole("button", { name: "Moss", exact: true })).toHaveAttribute("aria-pressed", "true")
-  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute("content", themeColor("dark", "moss"))
+  await expect(
+    galleryPalette(page).getByRole("button", { name: "Moss", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true")
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute(
+    "content",
+    themeColor("dark", "moss"),
+  )
   for (const key of [THEME_STORAGE_KEYS.lightTheme, THEME_STORAGE_KEYS.darkTheme]) {
     expect(await page.evaluate((key) => localStorage.getItem(key), key)).toBeNull()
   }
 })
 
 const storedSides = (page: Page) =>
-  page.evaluate((keys) => [localStorage.getItem(keys.lightTheme), localStorage.getItem(keys.darkTheme)], THEME_STORAGE_KEYS)
+  page.evaluate(
+    (keys) => [localStorage.getItem(keys.lightTheme), localStorage.getItem(keys.darkTheme)],
+    THEME_STORAGE_KEYS,
+  )
 
-const settingsThemes = (page: Page) => page.getByTestId("settings-preview").getByRole("group", { name: "Themes" })
+const settingsThemes = (page: Page) =>
+  page.getByTestId("settings-preview").getByRole("group", { name: "Themes" })
 
 test("the provider falls back to a legacy accent on the light side", async ({ page }) => {
   await page.addInitScript((keys) => {
@@ -123,11 +162,15 @@ test("the provider falls back to a legacy accent on the light side", async ({ pa
   await expect(page.getByRole("heading", { name: "Theme component preview" })).toBeVisible()
   await expect(page.locator("html")).toHaveClass("light")
   await expect(page.locator("html")).toHaveAttribute("data-theme", "moss")
-  await expect(settingsThemes(page).getByRole("button", { name: "Moss light theme", exact: true })).toHaveAttribute("aria-pressed", "true")
+  await expect(
+    settingsThemes(page).getByRole("button", { name: "Moss light theme", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true")
   expect(await storedSides(page)).toEqual([null, null])
 })
 
-test("a saved side wins over the legacy accent, which still fills the other side", async ({ page }) => {
+test("a saved side wins over the legacy accent, which still fills the other side", async ({
+  page,
+}) => {
   await page.addInitScript((keys) => {
     localStorage.setItem(keys.mode, "light")
     localStorage.setItem(keys.lightTheme, "forge")
@@ -140,7 +183,9 @@ test("a saved side wins over the legacy accent, which still fills the other side
   await page.getByRole("button", { name: "Dark", exact: true }).click()
   await expect(page.locator("html")).toHaveClass("dark")
   await expect(page.locator("html")).toHaveAttribute("data-theme", "moss")
-  await expect(settingsThemes(page).getByRole("button", { name: "Moss dark theme", exact: true })).toHaveAttribute("aria-pressed", "true")
+  await expect(
+    settingsThemes(page).getByRole("button", { name: "Moss dark theme", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true")
   expect(await storedSides(page)).toEqual(["forge", null])
 })
 
@@ -152,7 +197,10 @@ for (const width of [1280, 390]) {
       await page.goto("/static/resources/dev/themes.html")
       await expect(page.getByRole("heading", { name: "Theme component preview" })).toBeVisible()
       await expect(page.locator("html")).toHaveAttribute("data-theme", theme)
-      await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute("content", themeColor(mode, theme))
+      await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute(
+        "content",
+        themeColor(mode, theme),
+      )
 
       const mapPanel = page.getByRole("complementary", { name: "Preview map panel" })
       expect((await panelColors(mapPanel)).background[3]).toBeCloseTo(0.85, 1)
@@ -165,23 +213,32 @@ for (const width of [1280, 390]) {
         probe.remove()
         return fill
       })
-      expect(await mapPanel.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(floatingFill)
+      expect(await mapPanel.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(
+        floatingFill,
+      )
 
       const card = page.getByTestId("card")
       const heatmap = card.getByRole("tab", { name: "Heatmap" })
       const inactiveColor = await heatmap.evaluate((el) => getComputedStyle(el).color)
       await heatmap.hover()
-      await expect.poll(() => heatmap.evaluate((el) => getComputedStyle(el).color)).not.toBe(inactiveColor)
+      await expect
+        .poll(() => heatmap.evaluate((el) => getComputedStyle(el).color))
+        .not.toBe(inactiveColor)
       await heatmap.click()
       await expect(heatmap).toHaveAttribute("aria-selected", "true")
       const input = card.getByRole("textbox")
       const unfocusedShadow = await input.evaluate((el) => getComputedStyle(el).boxShadow)
       await input.focus()
-      await expect.poll(() => input.evaluate((el) => getComputedStyle(el).boxShadow)).not.toBe(unfocusedShadow)
+      await expect
+        .poll(() => input.evaluate((el) => getComputedStyle(el).boxShadow))
+        .not.toBe(unfocusedShadow)
       const select = card.getByRole("combobox")
       const restingBackground = await select.evaluate((el) => getComputedStyle(el).backgroundColor)
       await select.hover()
-      if (mode === "dark") await expect.poll(() => select.evaluate((el) => getComputedStyle(el).backgroundColor)).not.toBe(restingBackground)
+      if (mode === "dark")
+        await expect
+          .poll(() => select.evaluate((el) => getComputedStyle(el).backgroundColor))
+          .not.toBe(restingBackground)
       await select.click()
       await page.getByRole("option", { name: "Norway" }).click()
       await expect(select).toContainText("Norway")
@@ -193,11 +250,17 @@ for (const width of [1280, 390]) {
       const colors = await panelColors(drawer)
       expect(colors.background[3]).toBe(1)
       // Catch fills collapsing into the containing panel, the original Night regression.
-      expect(contrast(colors.tabs, colors.background)).toBeGreaterThan(mode === "light" ? 1.04 : 1.1)
-      expect(contrast(colors.badge, colors.background)).toBeGreaterThan(mode === "light" ? 1.04 : 1.1)
+      expect(contrast(colors.tabs, colors.background)).toBeGreaterThan(
+        mode === "light" ? 1.04 : 1.1,
+      )
+      expect(contrast(colors.badge, colors.background)).toBeGreaterThan(
+        mode === "light" ? 1.04 : 1.1,
+      )
       expect(contrast(colors.badgeText, colors.badge)).toBeGreaterThan(4.5)
       const handle = composite(colors.handle!, colors.background)
-      expect(contrast(handle, colors.background)).toBeGreaterThan(mode === "dark" && theme === "night" ? 3 : 1.04)
+      expect(contrast(handle, colors.background)).toBeGreaterThan(
+        mode === "dark" && theme === "night" ? 3 : 1.04,
+      )
       await page.screenshot({ path: testInfo.outputPath("drawer.png") })
       await page.keyboard.press("Escape")
       await expect(drawer).not.toBeVisible()
@@ -211,11 +274,16 @@ for (const width of [1280, 390]) {
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width)
 
       const rootToken = (name: string) =>
-        page.evaluate((name) => getComputedStyle(document.documentElement).getPropertyValue(name), name)
+        page.evaluate(
+          (name) => getComputedStyle(document.documentElement).getPropertyValue(name),
+          name,
+        )
       const chartColor = await rootToken("--chart-1")
       const primaryColors = new Set<string>()
       for (const id of COLOR_THEMES) {
-        await galleryPalette(page).getByRole("button", { name: THEME_CATALOG[id].label, exact: true }).click()
+        await galleryPalette(page)
+          .getByRole("button", { name: THEME_CATALOG[id].label, exact: true })
+          .click()
         await expect(page.locator("html")).toHaveAttribute("data-theme", id)
         primaryColors.add(await rootToken("--primary"))
         expect(await rootToken("--chart-1")).toBe(chartColor)
@@ -232,16 +300,28 @@ async function openGallery(page: Page, scheme: Scheme) {
 }
 
 const tokensOf = (element: Locator) =>
-  element.evaluate((el, names) => Object.fromEntries(names.map((name) => [name, getComputedStyle(el).getPropertyValue(name)])), [
-    "--background",
-    "--glass-card",
-  ])
+  element.evaluate(
+    (el, names) =>
+      Object.fromEntries(names.map((name) => [name, getComputedStyle(el).getPropertyValue(name)])),
+    ["--background", "--glass-card"],
+  )
 
 for (const { host, probe, own } of [
-  { host: { mode: "dark", theme: "night" }, probe: "preview-light", own: { mode: "light", theme: "moss" } },
-  { host: { mode: "light", theme: "aurora" }, probe: "preview-dark", own: { mode: "dark", theme: "forge" } },
+  {
+    host: { mode: "dark", theme: "night" },
+    probe: "preview-light",
+    own: { mode: "light", theme: "moss" },
+  },
+  {
+    host: { mode: "light", theme: "aurora" },
+    probe: "preview-dark",
+    own: { mode: "dark", theme: "forge" },
+  },
 ] satisfies Array<{ host: Scheme; probe: string; own: Scheme }>) {
-  test(`${probe} renders ${own.mode}/${own.theme} inside a ${host.mode}/${host.theme} page`, async ({ context, page }) => {
+  test(`${probe} renders ${own.mode}/${own.theme} inside a ${host.mode}/${host.theme} page`, async ({
+    context,
+    page,
+  }) => {
     // Expected values come from a page where that palette is the root, so a
     // rule leaking from the host page cannot shift expected and actual together.
     const isolated = await context.newPage()
@@ -279,16 +359,28 @@ test("System switches palettes live and retains the saved theme", async ({ page 
 test("System swaps between the light and dark side themes", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "light" })
   await page.goto("/static/resources/dev/themes.html")
-  await page.getByRole("group", { name: "Light side" }).getByRole("button", { name: "Moss light", exact: true }).click()
-  await page.getByRole("group", { name: "Dark side" }).getByRole("button", { name: "Forge dark", exact: true }).click()
+  await page
+    .getByRole("group", { name: "Light side" })
+    .getByRole("button", { name: "Moss light", exact: true })
+    .click()
+  await page
+    .getByRole("group", { name: "Dark side" })
+    .getByRole("button", { name: "Forge dark", exact: true })
+    .click()
   await page.getByRole("button", { name: "System", exact: true }).click()
   await expect(page.locator("html")).toHaveClass("light")
   await expect(page.locator("html")).toHaveAttribute("data-theme", "moss")
-  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute("content", themeColor("light", "moss"))
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute(
+    "content",
+    themeColor("light", "moss"),
+  )
   await page.emulateMedia({ colorScheme: "dark" })
   await expect(page.locator("html")).toHaveClass("dark")
   await expect(page.locator("html")).toHaveAttribute("data-theme", "forge")
-  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute("content", themeColor("dark", "forge"))
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute(
+    "content",
+    themeColor("dark", "forge"),
+  )
   await page.emulateMedia({ colorScheme: "light" })
   await expect(page.locator("html")).toHaveClass("light")
   await expect(page.locator("html")).toHaveAttribute("data-theme", "moss")
@@ -302,7 +394,10 @@ test("theme menu only switches color mode", async ({ page }) => {
     await page.getByRole("button", { name: "Toggle theme", exact: true }).click()
     await expect(page.getByRole("menuitemradio")).toHaveCount(3)
     for (const label of ["Light", "Dark", "System"]) {
-      await expect(page.getByRole("menuitemradio", { name: label, exact: true })).toHaveAttribute("aria-checked", String(label === mode))
+      await expect(page.getByRole("menuitemradio", { name: label, exact: true })).toHaveAttribute(
+        "aria-checked",
+        String(label === mode),
+      )
     }
     for (const label of ["Night", "Aurora"]) {
       await expect(page.getByRole("menuitemradio", { name: label, exact: true })).toHaveCount(0)
@@ -322,17 +417,23 @@ test("settings page mixes light and dark themes", async ({ context, page }) => {
   const schemes = settings.getByRole("radiogroup", { name: "Color scheme" })
   const themes = settings.getByRole("group", { name: "Themes" })
   const themeCard = (id: ColorTheme) =>
-    themes.locator('[data-slot="theme-card"]').filter({ has: page.getByRole("button", { name: THEME_CATALOG[id].label, exact: true }) })
+    themes
+      .locator('[data-slot="theme-card"]')
+      .filter({ has: page.getByRole("button", { name: THEME_CATALOG[id].label, exact: true }) })
   const schemeRadio = (name: string) => schemes.getByRole("radio", { name, exact: true })
   const sideToggle = (id: ColorTheme, side: "light" | "dark") =>
     themes.getByRole("button", { name: `${THEME_CATALOG[id].label} ${side} theme`, exact: true })
-  const nameButton = (id: ColorTheme) => themes.getByRole("button", { name: THEME_CATALOG[id].label, exact: true })
+  const nameButton = (id: ColorTheme) =>
+    themes.getByRole("button", { name: THEME_CATALOG[id].label, exact: true })
   const stored = () => storedSides(page)
   const expectSides = async (light: ColorTheme, dark: ColorTheme) => {
     for (const id of COLOR_THEMES) {
       await expect(sideToggle(id, "light")).toHaveAttribute("aria-pressed", String(id === light))
       await expect(sideToggle(id, "dark")).toHaveAttribute("aria-pressed", String(id === dark))
-      await expect(nameButton(id)).toHaveAttribute("aria-pressed", String(id === light && id === dark))
+      await expect(nameButton(id)).toHaveAttribute(
+        "aria-pressed",
+        String(id === light && id === dark),
+      )
     }
   }
 
@@ -341,7 +442,9 @@ test("settings page mixes light and dark themes", async ({ context, page }) => {
 
   // A light orb on a dark page must keep its own palette.
   const lightMossOrb = sideToggle("moss", "light").locator('.light[data-theme="moss"]')
-  expect(await lightMossOrb.evaluate((el) => getComputedStyle(el).backgroundImage)).toContain(lightMossBackground)
+  expect(await lightMossOrb.evaluate((el) => getComputedStyle(el).backgroundImage)).toContain(
+    lightMossBackground,
+  )
 
   await schemeRadio("Light").click()
   await expect(page.locator("html")).toHaveClass("light")
@@ -369,9 +472,15 @@ test("settings page mixes light and dark themes", async ({ context, page }) => {
   await reloaded.goto("/static/resources/dev/themes.html")
   await expect(reloaded.locator("html")).toHaveClass("dark")
   await expect(reloaded.locator("html")).toHaveAttribute("data-theme", "forge")
-  const reloadedThemes = reloaded.getByTestId("settings-preview").getByRole("group", { name: "Themes" })
-  await expect(reloadedThemes.getByRole("button", { name: "Moss light theme", exact: true })).toHaveAttribute("aria-pressed", "true")
-  await expect(reloadedThemes.getByRole("button", { name: "Forge dark theme", exact: true })).toHaveAttribute("aria-pressed", "true")
+  const reloadedThemes = reloaded
+    .getByTestId("settings-preview")
+    .getByRole("group", { name: "Themes" })
+  await expect(
+    reloadedThemes.getByRole("button", { name: "Moss light theme", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true")
+  await expect(
+    reloadedThemes.getByRole("button", { name: "Forge dark theme", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true")
   await reloaded.close()
 
   await nameButton("night").click()

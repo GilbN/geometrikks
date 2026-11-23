@@ -40,7 +40,14 @@ import {
   DrawerTrigger,
 } from "@/components/ui/drawer"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { MonoChip, StatusLed } from "@/components/settings/status-led"
 import { SectionIcon } from "@/components/settings/status-overview"
@@ -74,7 +81,10 @@ function LastUsedCell({ apiKey, now }: { apiKey: ApiKeyView; now: number }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span tabIndex={0} className="rounded-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50">
+        <span
+          tabIndex={0}
+          className="rounded-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        >
           {label}
         </span>
       </TooltipTrigger>
@@ -127,7 +137,12 @@ function RevokeKeyButton({ apiKey, onRevoked }: { apiKey: ApiKeyView; onRevoked:
                     setConfirming(false)
                     return
                   }
-                  toast.error(apiErrorMessage(error, `Could not ${verb.toLowerCase()} ${apiKey.name}. Try again.`))
+                  toast.error(
+                    apiErrorMessage(
+                      error,
+                      `Could not ${verb.toLowerCase()} ${apiKey.name}. Try again.`,
+                    ),
+                  )
                 },
               })
             }}
@@ -144,7 +159,15 @@ const LEAVE_REVEAL_TITLE = "Leave without the key?"
 const LEAVE_REVEAL_TEXT =
   "GeoMetrikks shows the key only once. If you leave now, you will have to revoke it and create a new one."
 
-function LeaveRevealConfirm({ open, onStay, onLeave }: { open: boolean; onStay: () => void; onLeave: () => void }) {
+function LeaveRevealConfirm({
+  open,
+  onStay,
+  onLeave,
+}: {
+  open: boolean
+  onStay: () => void
+  onLeave: () => void
+}) {
   return (
     <AlertDialog open={open} onOpenChange={(nextOpen) => !nextOpen && onStay()}>
       <AlertDialogContent>
@@ -211,7 +234,13 @@ function LeaveRevealInDrawer({ onStay, onLeave }: { onStay: () => void; onLeave:
  * The Create key button and its dialog, or its drawer on a narrow card or a
  * phone: the form, then the one-time reveal.
  */
-export function CreateApiKey({ narrow, triggerRef }: { narrow: boolean; triggerRef?: React.Ref<HTMLButtonElement> }) {
+export function CreateApiKey({
+  narrow,
+  triggerRef,
+}: {
+  narrow: boolean
+  triggerRef?: React.Ref<HTMLButtonElement>
+}) {
   const [open, setOpen] = useState(false)
   const [created, setCreated] = useState<CreatedApiKey | null>(null)
   const phoneLayout = usePhoneLayout()
@@ -232,7 +261,11 @@ export function CreateApiKey({ narrow, triggerRef }: { narrow: boolean; triggerR
   const revealingRef = useRef(false)
   revealingRef.current = open && created !== null && copiedKeyId !== created.apiKey.id
   const revealingNow = useCallback(() => revealingRef.current, [])
-  const leaveBlocker = useBlocker({ shouldBlockFn: revealingNow, enableBeforeUnload: revealingNow, withResolver: true })
+  const leaveBlocker = useBlocker({
+    shouldBlockFn: revealingNow,
+    enableBeforeUnload: revealingNow,
+    withResolver: true,
+  })
   const overlays = useOverlayHistory()
   // Fixed while open, so a rotation doesn't remount the form mid-request.
   const drawer = usePhoneDrawer("create-api-key", open, () => changeOpen(false), {
@@ -299,7 +332,13 @@ export function CreateApiKey({ narrow, triggerRef }: { narrow: boolean; triggerR
             </div>
             {!created && !creating && (
               <DrawerClose asChild>
-                <Button type="button" variant="ghost" size="icon" aria-label="Close" className="-mt-1 -mr-2 shrink-0">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Close"
+                  className="-mt-1 -mr-2 shrink-0"
+                >
                   <X className="size-[18px]" />
                 </Button>
               </DrawerClose>
@@ -316,7 +355,11 @@ export function CreateApiKey({ narrow, triggerRef }: { narrow: boolean; triggerR
               />
             )}
             {created ? (
-              <ApiKeyReveal created={created} onDone={finishReveal} onCopied={() => setCopiedKeyId(created.apiKey.id)} />
+              <ApiKeyReveal
+                created={created}
+                onDone={finishReveal}
+                onCopied={() => setCopiedKeyId(created.apiKey.id)}
+              />
             ) : (
               <ApiKeyCreateForm onCreated={setCreated} onCancel={() => changeOpen(false)} />
             )}
@@ -344,7 +387,11 @@ export function CreateApiKey({ narrow, triggerRef }: { narrow: boolean; triggerR
                 <DialogTitle>Key created</DialogTitle>
                 <DialogDescription>{createdKeyLine(created.apiKey)}</DialogDescription>
               </DialogHeader>
-              <ApiKeyReveal created={created} onDone={finishReveal} onCopied={() => setCopiedKeyId(created.apiKey.id)} />
+              <ApiKeyReveal
+                created={created}
+                onDone={finishReveal}
+                onCopied={() => setCopiedKeyId(created.apiKey.id)}
+              />
             </>
           ) : (
             <>
@@ -395,7 +442,9 @@ function ApiKeysTable({
             <TableCell>
               <ApiKeyScopeBadge apiKey={apiKey} />
             </TableCell>
-            <TableCell className="font-mono text-xs text-muted-foreground">{apiKey.displayPrefix}…</TableCell>
+            <TableCell className="font-mono text-xs text-muted-foreground">
+              {apiKey.displayPrefix}…
+            </TableCell>
             <TableCell>
               <LastUsedCell apiKey={apiKey} now={now} />
             </TableCell>
@@ -417,17 +466,27 @@ function ApiKeysTable({
  * Create button above it can pick a drawer too. `focusOutsideList` takes
  * focus when a revoke empties the list and the card goes with it.
  */
-export function ApiKeysOverview({ narrow, focusOutsideList }: { narrow: boolean; focusOutsideList: () => void }) {
+export function ApiKeysOverview({
+  narrow,
+  focusOutsideList,
+}: {
+  narrow: boolean
+  focusOutsideList: () => void
+}) {
   const { data, isError } = useApiKeys()
   const cardRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
-  const [drawer, setDrawer] = useState<{ keyId: string | null; open: boolean }>({ keyId: null, open: false })
+  const [drawer, setDrawer] = useState<{ keyId: string | null; open: boolean }>({
+    keyId: null,
+    open: false,
+  })
   // The row that opened the drawer gets focus back when it closes.
   const openerRef = useRef<HTMLElement | null>(null)
   const revokedRef = useRef(false)
   const keyCount = data?.keys.length ?? 0
   const setDrawerOpen = useCallback(
-    (open: boolean) => setDrawer((previous) => (previous.open === open ? previous : { ...previous, open })),
+    (open: boolean) =>
+      setDrawer((previous) => (previous.open === open ? previous : { ...previous, open })),
     [],
   )
 
@@ -472,8 +531,9 @@ export function ApiKeysOverview({ narrow, focusOutsideList }: { narrow: boolean;
           <div className="space-y-1">
             <p className="text-sm font-medium">The API is already open</p>
             <p className="max-w-[70ch] text-xs leading-relaxed text-muted-foreground">
-              <MonoChip>APP_AUTH_DISABLED=true</MonoChip> turns off the built-in login, so every API route and live
-              feed answers without a key. Keys only matter once the login is on again.
+              <MonoChip>APP_AUTH_DISABLED=true</MonoChip> turns off the built-in login, so every API
+              route and live feed answers without a key. Keys only matter once the login is on
+              again.
             </p>
           </div>
         </CardContent>
@@ -489,9 +549,9 @@ export function ApiKeysOverview({ narrow, focusOutsideList }: { narrow: boolean;
           <div className="min-w-0 flex-1 space-y-1">
             <p className="text-sm font-medium">No keys yet</p>
             <p className="max-w-[70ch] text-xs leading-relaxed text-muted-foreground">
-              Create one key for each script, monitor or dashboard that reads GeoMetrikks. Each tool sends its
-              key in an <MonoChip>Authorization: Bearer</MonoChip> header, and revoking one key leaves the others
-              working.
+              Create one key for each script, monitor or dashboard that reads GeoMetrikks. Each tool
+              sends its key in an <MonoChip>Authorization: Bearer</MonoChip> header, and revoking
+              one key leaves the others working.
             </p>
           </div>
         </CardContent>
@@ -501,7 +561,9 @@ export function ApiKeysOverview({ narrow, focusOutsideList }: { narrow: boolean;
 
   // Holds whether or not the refetch without the revoked key has landed yet.
   const focusAfterRevoke = (revokedKeyId: string) =>
-    data.keys.some((apiKey) => apiKey.id !== revokedKeyId) ? cardRef.current?.focus() : focusOutsideList()
+    data.keys.some((apiKey) => apiKey.id !== revokedKeyId)
+      ? cardRef.current?.focus()
+      : focusOutsideList()
 
   if (!narrow) {
     return (
@@ -515,7 +577,12 @@ export function ApiKeysOverview({ narrow, focusOutsideList }: { narrow: boolean;
   const drawerKey = data.keys.find((apiKey) => apiKey.id === drawer.keyId) ?? null
   return (
     <>
-      <Card ref={cardRef} tabIndex={-1} aria-label="API keys" className="gap-0 overflow-hidden py-0 outline-none">
+      <Card
+        ref={cardRef}
+        tabIndex={-1}
+        aria-label="API keys"
+        className="gap-0 overflow-hidden py-0 outline-none"
+      >
         <div ref={listRef}>
           <ApiKeyList
             apiKeys={data.keys}
@@ -547,7 +614,9 @@ export function ApiKeysOverview({ narrow, focusOutsideList }: { narrow: boolean;
           const row = listRef.current?.querySelector<HTMLElement>(
             `[data-api-key-row="${CSS.escape(drawer.keyId ?? "")}"]`,
           )
-          const target = [openerRef.current, row, cardRef.current].find((candidate) => candidate?.isConnected)
+          const target = [openerRef.current, row, cardRef.current].find(
+            (candidate) => candidate?.isConnected,
+          )
           if (target) target.focus()
           else focusOutsideList()
         }}

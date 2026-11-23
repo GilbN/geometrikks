@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useId, useState } from "react"
 import { Ban, X } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -10,11 +10,13 @@ import { cn } from "@/lib/utils"
  * locally and hands the committed value to `onAdd`; `validate` blocks commits
  * and marks the field invalid while the draft fails. A return-key hint shows
  * once there is something to commit, so the placeholder can be an example
- * value instead of an instruction.
+ * value instead of an instruction. `hint` explains an invalid draft under the
+ * field when it has something more useful to say than the red border.
  */
 export function TagInput({
   onAdd,
   validate,
+  hint,
   placeholder,
   exclude = false,
   className,
@@ -23,43 +25,64 @@ export function TagInput({
 }: Omit<React.ComponentProps<typeof Input>, "value" | "onChange" | "onKeyDown"> & {
   onAdd: (value: string) => void
   validate?: (value: string) => boolean
+  hint?: (value: string) => string | null
   exclude?: boolean
   inputClassName?: string
 }) {
   const [draft, setDraft] = useState("")
   const value = draft.trim()
   const invalid = value !== "" && validate !== undefined && !validate(value)
+  const hintText = invalid && hint ? hint(value) : null
+  const hintId = useId()
 
   return (
-    <div className={cn("relative min-w-0", className)}>
-      {exclude && (
-        <Ban
-          aria-hidden
-          className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-destructive/70"
+    <div className={cn("min-w-0", className)}>
+      <div className="relative">
+        {exclude && (
+          <Ban
+            aria-hidden
+            className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-destructive/70"
+          />
+        )}
+        <Input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key !== "Enter") return
+            e.preventDefault()
+            if (!value || invalid) return
+            onAdd(value)
+            setDraft("")
+          }}
+          placeholder={placeholder}
+          aria-invalid={invalid}
+          aria-describedby={hintText ? hintId : undefined}
+          className={cn(
+            "h-8 w-full font-mono text-xs",
+            exclude && "pl-7",
+            value && "pr-7",
+            inputClassName,
+          )}
+          {...props}
         />
-      )}
-      <Input
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key !== "Enter") return
-          e.preventDefault()
-          if (!value || invalid) return
-          onAdd(value)
-          setDraft("")
-        }}
-        placeholder={placeholder}
-        aria-invalid={invalid}
-        className={cn("h-8 w-full font-mono text-xs", exclude && "pl-7", value && "pr-7", inputClassName)}
-        {...props}
-      />
-      {value && (
-        <kbd
+        {value && (
+          <kbd
+            aria-hidden
+            className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 font-sans text-[10px] text-muted-foreground"
+          >
+            {invalid ? "" : "↵"}
+          </kbd>
+        )}
+      </div>
+      {hintText && (
+        // aria-hidden keeps the hint out of a wrapping label's name. aria-describedby still reads it.
+        <span
+          id={hintId}
           aria-hidden
-          className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 font-sans text-[10px] text-muted-foreground"
+          className="mt-1 block break-all font-mono text-[11px] text-destructive"
         >
-          {invalid ? "" : "↵"}
-        </kbd>
+          {hintText}
+        </span>
       )}
     </div>
   )

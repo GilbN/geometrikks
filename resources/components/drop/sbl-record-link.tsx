@@ -9,7 +9,10 @@ export function SblRecordLink({ sblId, className }: { sblId: string; className?:
       target="_blank"
       rel="noopener noreferrer"
       title={`Open ${sblId} on check.spamhaus.org`}
-      className={cn("tap-area underline decoration-dotted underline-offset-2 hover:text-foreground", className)}
+      className={cn(
+        "tap-area underline decoration-dotted underline-offset-2 hover:text-foreground",
+        className,
+      )}
     >
       {sblId}
     </a>

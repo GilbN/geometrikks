@@ -23,6 +23,7 @@ import { TopAsnsTable } from "@/components/analytics/top-asns-table"
 import { TrafficOriginCard } from "@/components/analytics/traffic-origin-card"
 import { TopIpsTable } from "@/components/analytics/top-ips-table"
 import { TopCountriesCities } from "@/components/analytics/top-countries-cities"
+import { AnalyticsMutedNote } from "@/components/analytics/analytics-muted-note"
 import { AnalyticsFilterBar } from "@/components/analytics/analytics-filter-bar"
 import {
   AnalyticsFiltersProvider,
@@ -30,14 +31,18 @@ import {
 } from "@/lib/analytics-filters-context"
 import { useUrlFilters } from "@/hooks/use-url-filters"
 import { arrayParam } from "@/lib/url-filters"
+import { useMutedPage } from "@/lib/use-muted-page"
 
 // Absent keys mean "default"; navigate() writes undefined for defaults so
-// clean states produce clean URLs. Param names match the geo-logs page.
+// clean states produce clean URLs. Param names match the geo-logs and
+// access-logs pages.
 const analyticsSearchSchema = z.object({
   country: z.array(z.string()).optional().catch(undefined),
   city: z.array(z.string()).optional().catch(undefined),
   ip: z.array(z.string()).optional().catch(undefined),
   ipx: z.array(z.string()).optional().catch(undefined),
+  host: z.array(z.string()).optional().catch(undefined),
+  hostx: z.array(z.string()).optional().catch(undefined),
   asn: z.array(z.number().int()).optional().catch(undefined),
   asnx: z.array(z.number().int()).optional().catch(undefined),
 })
@@ -58,6 +63,8 @@ function decode(search: AnalyticsSearch): AnalyticsFilterState {
     cities: search.city ?? [],
     ips: search.ip ?? [],
     ipsExclude: search.ipx ?? [],
+    hosts: search.host ?? [],
+    hostsExclude: search.hostx ?? [],
     asns: search.asn ?? [],
     asnsExclude: search.asnx ?? [],
   }
@@ -69,6 +76,8 @@ function encode(filters: AnalyticsFilterState): Partial<AnalyticsSearch> {
     city: arrayParam(filters.cities),
     ip: arrayParam(filters.ips),
     ipx: arrayParam(filters.ipsExclude),
+    host: arrayParam(filters.hosts),
+    hostx: arrayParam(filters.hostsExclude),
     asn: arrayParam(filters.asns),
     asnx: arrayParam(filters.asnsExclude),
   }
@@ -93,8 +102,15 @@ function AnalyticsPage() {
   // No pagination on this page, so nothing to reset on a filter change.
   const { filters, setFilters } = useUrlFilters({ search, navigate, decode, encode })
 
+  const { muted, toggleMuted } = useMutedPage(filters.ips.length > 0)
+
   return (
-    <AnalyticsFiltersProvider filters={filters} setFilters={setFilters}>
+    <AnalyticsFiltersProvider
+      filters={filters}
+      setFilters={setFilters}
+      muted={muted}
+      toggleMuted={toggleMuted}
+    >
       <div className="p-4 space-y-4">
         <PageHeader
           title="Analytics"
@@ -102,28 +118,49 @@ function AnalyticsPage() {
         />
         <JumpBar sections={SECTIONS} />
         <AnalyticsFilterBar />
+        <AnalyticsMutedNote scope={muted} />
         <SectionHeader>Traffic</SectionHeader>
         <div className="grid gap-4 md:grid-cols-2">
-          <JumpTarget id="requests"><RequestsChart /></JumpTarget>
-          <JumpTarget id="status"><StatusChart /></JumpTarget>
-          <JumpTarget id="bandwidth"><BytesChart /></JumpTarget>
-          <JumpTarget id="latency"><LatencyChart /></JumpTarget>
+          <JumpTarget id="requests">
+            <RequestsChart />
+          </JumpTarget>
+          <JumpTarget id="status">
+            <StatusChart />
+          </JumpTarget>
+          <JumpTarget id="bandwidth">
+            <BytesChart />
+          </JumpTarget>
+          <JumpTarget id="latency">
+            <LatencyChart />
+          </JumpTarget>
         </div>
         <SectionHeader>Top Lists</SectionHeader>
         <div className="grid gap-4 lg:grid-cols-2">
-          <JumpTarget id="top-ips"><TopIpsTable /></JumpTarget>
-          <JumpTarget id="locations"><TopCountriesCities /></JumpTarget>
+          <JumpTarget id="top-ips">
+            <TopIpsTable />
+          </JumpTarget>
+          <JumpTarget id="locations">
+            <TopCountriesCities />
+          </JumpTarget>
         </div>
         <div className="grid gap-4 lg:grid-cols-2">
-          <JumpTarget id="urls"><TopUrlsTable /></JumpTarget>
-          <JumpTarget id="user-agents"><TopUserAgentsTable /></JumpTarget>
+          <JumpTarget id="urls">
+            <TopUrlsTable />
+          </JumpTarget>
+          <JumpTarget id="user-agents">
+            <TopUserAgentsTable />
+          </JumpTarget>
         </div>
         <SectionHeader>Traffic Origin</SectionHeader>
         {/* A grid gap, because space-y margins don't apply to JumpTarget's
             display: contents wrapper. */}
         <div className="grid gap-4">
-          <JumpTarget id="origin"><TrafficOriginCard /></JumpTarget>
-          <JumpTarget id="asns"><TopAsnsTable /></JumpTarget>
+          <JumpTarget id="origin">
+            <TrafficOriginCard />
+          </JumpTarget>
+          <JumpTarget id="asns">
+            <TopAsnsTable />
+          </JumpTarget>
         </div>
       </div>
     </AnalyticsFiltersProvider>

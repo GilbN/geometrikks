@@ -13,6 +13,7 @@ from geometrikks.config.settings import AbuseIpdbSettings
 from geometrikks.lib.outbound import USER_AGENT
 from geometrikks.services import abuseipdb
 from geometrikks.services.abuseipdb import (
+    MAX_BLACKLIST_RESPONSE_BYTES,
     MAX_RESPONSE_BYTES,
     AbuseIpdbAuthError,
     AbuseIpdbClient,
@@ -21,7 +22,6 @@ from geometrikks.services.abuseipdb import (
     AbuseIpdbRejectedError,
     AbuseIpdbUnavailableError,
     BlacklistResult,
-    MAX_BLACKLIST_RESPONSE_BYTES,
     RateLimit,
     ReportResult,
     get_abuseipdb_client,
@@ -433,7 +433,7 @@ async def test_blacklist_is_never_cached():
 
 
 async def test_blacklist_takes_an_answer_above_the_check_cap():
-    ip_addresses = [f"3.{first}.{second}.1" for first in range(5, 60) for second in range(0, 200)]
+    ip_addresses = [f"3.{first}.{second}.1" for first in range(5, 60) for second in range(200)]
     response = httpx2.Response(200, json=blacklist_body(*ip_addresses))
     assert len(response.content) > MAX_RESPONSE_BYTES
     client, _ = build_client(response)

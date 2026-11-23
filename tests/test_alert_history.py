@@ -160,7 +160,7 @@ async def walk_pages(
     *,
     limit: int = 50,
     now: datetime = NOW,
-    filters: AlertFilters = AlertFilters(),
+    filters: AlertFilters = AlertFilters(),  # noqa: B008
     start: AlertCursor | None = None,
 ) -> list[int | None]:
     walked: list[int | None] = []

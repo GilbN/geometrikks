@@ -1,5 +1,5 @@
 /**
- * Shared country/city/IP/ASN include and exclude filters for the analytics page.
+ * Shared country/city/IP/host/ASN include and exclude filters for the analytics page.
  * Threaded into the seven analytics hooks (time-series, top-urls,
  * top-user-agents, top-asns, top-ips, top-country-stats, top-city-stats) so
  * the filter bar reshapes every chart and top-list at once.
@@ -10,12 +10,15 @@
  * mounts this provider as a plain conduit.
  */
 import { createContext, useContext } from "react"
+import { DEFAULT_MUTED_SCOPE, type MutedScope } from "./muted-ips"
 
 export interface AnalyticsFilterState {
   countryCodes: string[]
   cities: string[]
   ips: string[]
   ipsExclude: string[]
+  hosts: string[]
+  hostsExclude: string[]
   asns: number[]
   asnsExclude: number[]
 }
@@ -25,6 +28,8 @@ export const EMPTY_FILTERS: AnalyticsFilterState = {
   cities: [],
   ips: [],
   ipsExclude: [],
+  hosts: [],
+  hostsExclude: [],
   asns: [],
   asnsExclude: [],
 }
@@ -37,6 +42,8 @@ export function countActiveAnalyticsFilters(filters: AnalyticsFilterState): numb
     (filters.cities.length ? 1 : 0) +
     (filters.ips.length ? 1 : 0) +
     (filters.ipsExclude.length ? 1 : 0) +
+    (filters.hosts.length ? 1 : 0) +
+    (filters.hostsExclude.length ? 1 : 0) +
     (filters.asns.length ? 1 : 0) +
     (filters.asnsExclude.length ? 1 : 0)
   )
@@ -49,6 +56,10 @@ export function hasActiveAnalyticsFilters(filters: AnalyticsFilterState): boolea
 interface AnalyticsFiltersValue {
   filters: AnalyticsFilterState
   setFilters: (updater: (prev: AnalyticsFilterState) => AnalyticsFilterState) => void
+  /** The muted IPs scope for this page; the flag is off outside the provider. */
+  muted: MutedScope
+  /** Flips the per-browser switch. */
+  toggleMuted: () => void
 }
 
 // Default = empty filters: hooks shared with the dashboard keep working
@@ -56,15 +67,19 @@ interface AnalyticsFiltersValue {
 const AnalyticsFiltersContext = createContext<AnalyticsFiltersValue>({
   filters: EMPTY_FILTERS,
   setFilters: () => {},
+  muted: DEFAULT_MUTED_SCOPE,
+  toggleMuted: () => {},
 })
 
 export function AnalyticsFiltersProvider({
   filters,
   setFilters,
+  muted,
+  toggleMuted,
   children,
 }: AnalyticsFiltersValue & { children: React.ReactNode }) {
   return (
-    <AnalyticsFiltersContext.Provider value={{ filters, setFilters }}>
+    <AnalyticsFiltersContext.Provider value={{ filters, setFilters, muted, toggleMuted }}>
       {children}
     </AnalyticsFiltersContext.Provider>
   )
@@ -72,4 +87,8 @@ export function AnalyticsFiltersProvider({
 
 export function useAnalyticsFilters() {
   return useContext(AnalyticsFiltersContext)
+}
+
+export function useMutedScope(): MutedScope {
+  return useAnalyticsFilters().muted
 }

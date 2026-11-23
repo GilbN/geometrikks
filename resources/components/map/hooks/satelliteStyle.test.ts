@@ -1,20 +1,41 @@
 import type { StyleSpecification } from "maplibre-gl"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 
 import { buildSatelliteStyle } from "./satelliteStyle"
 
 const cartoDark: StyleSpecification = {
   version: 8,
   glyphs: "https://tiles.basemaps.cartocdn.com/fonts/{fontstack}/{range}.pbf",
-  sources: { protomaps: { type: "vector", url: "https://tiles.basemaps.cartocdn.com/vectortiles/carto.streets/v1/tiles.json" } },
+  sources: {
+    protomaps: {
+      type: "vector",
+      url: "https://tiles.basemaps.cartocdn.com/vectortiles/carto.streets/v1/tiles.json",
+    },
+  },
   layers: [
     { id: "background", type: "background", paint: { "background-color": "#0e0e0e" } },
     { id: "water", type: "fill", source: "protomaps", "source-layer": "water" },
     { id: "road_pri_fill_noramp", type: "line", source: "protomaps", "source-layer": "roads" },
     { id: "boundary_county", type: "line", source: "protomaps", "source-layer": "boundaries" },
-    { id: "boundary_state", type: "line", source: "protomaps", "source-layer": "boundaries", paint: { "line-width": 1 } },
-    { id: "boundary_country_outline", type: "line", source: "protomaps", "source-layer": "boundaries" },
-    { id: "boundary_country_inner", type: "line", source: "protomaps", "source-layer": "boundaries" },
+    {
+      id: "boundary_state",
+      type: "line",
+      source: "protomaps",
+      "source-layer": "boundaries",
+      paint: { "line-width": 1 },
+    },
+    {
+      id: "boundary_country_outline",
+      type: "line",
+      source: "protomaps",
+      "source-layer": "boundaries",
+    },
+    {
+      id: "boundary_country_inner",
+      type: "line",
+      source: "protomaps",
+      "source-layer": "boundaries",
+    },
     { id: "watername_ocean", type: "symbol", source: "protomaps", "source-layer": "water" },
     { id: "place_country_1", type: "symbol", source: "protomaps", "source-layer": "places" },
     { id: "poi_park", type: "symbol", source: "protomaps", "source-layer": "pois" },
@@ -47,7 +68,9 @@ describe("buildSatelliteStyle", () => {
 
     expect(source).toMatchObject({
       type: "raster",
-      tiles: ["https://ibasemaps-api.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}?token=a%20b%26c"],
+      tiles: [
+        "https://ibasemaps-api.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}?token=a%20b%26c",
+      ],
     })
     expect(source).toHaveProperty("attribution", expect.stringContaining("Powered by"))
   })

@@ -7,8 +7,18 @@ from geometrikks.services.crowdsec.exceptions import (
     CrowdSecUnreachableError,
     CrowdSecUnsupportedError,
 )
-from geometrikks.services.crowdsec.schemas import Alert, AlertContext, AlertEvent, Decision
-from geometrikks.services.crowdsec.service import CrowdSecService, DecisionScope, DecisionType, manual_reason
+from geometrikks.services.crowdsec.schemas import (
+    Alert,
+    AlertContext,
+    AlertEvent,
+    Decision,
+)
+from geometrikks.services.crowdsec.service import (
+    CrowdSecService,
+    DecisionScope,
+    DecisionType,
+    manual_reason,
+)
 
 __all__ = [
     "Alert",

@@ -84,14 +84,16 @@ VITE_DEV_MODE=false uv run litestar --app geometrikks.server.core:create_app ass
 
 CI runs the same command with `VITE_DEV_MODE=false` and fails when `resources/generated/` differs from what you committed. A dev-mode run adds dev-only Vite routes to `routes.json`, and starting the app rewrites these files as well, so run `git status` on `resources/generated/` before you commit and regenerate if something unexpected changed.
 
-## Type checks
+## Lint and type checks
 
 ```bash
+uv run ruff check
 uv run ty check geometrikks tests
+bun run check
 bun run typecheck
 ```
 
-CI runs both, the second against the regenerated types.
+CI runs all four, and `bun run typecheck` runs against the regenerated types. `bun run check` runs Oxfmt and Oxlint and fails on unformatted files. `bun run fmt` formats them.
 
 ## Tests
 
@@ -138,7 +140,7 @@ Never set either on a running app. With the first, the app skips its startup wai
 ### Frontend
 
 ```bash
-bun run test        # vitest unit tests
+bun run test        # unit tests through Vite+ (Vitest)
 ```
 
 The Playwright tests drive a running app at `SMOKE_BASE_URL` (default `http://127.0.0.1:8000`) and log in with `SMOKE_ADMIN_USER` and `SMOKE_ADMIN_PASSWORD`. Set both to the admin login of the app under test. Playwright does not read `.env`, and tests such as `chart-options.pw.ts` fail without `SMOKE_ADMIN_PASSWORD`:

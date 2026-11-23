@@ -7,22 +7,22 @@ CAGG reads mention the *_stats view name).
 from __future__ import annotations
 
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, cast
+
+import pytest
 
 from geometrikks.domain.analytics.repositories import (
     AnalyticsFilters,
     SummaryStatsRepository,
 )
 
-import pytest
-
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
 pytestmark = pytest.mark.anyio
 
-NOW = datetime(2026, 7, 16, 12, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 7, 16, 12, 0, tzinfo=UTC)
 SHORT_START = NOW - timedelta(hours=6)     # RAW routing
 WEEK_START = NOW - timedelta(days=7)       # HOURLY routing
 LONG_START = NOW - timedelta(days=60)      # DAILY routing
@@ -74,6 +74,31 @@ async def test_top_urls_any_filter_forces_raw():
     assert "FROM access_logs" in session.statements[-1]
 
 
+async def test_top_urls_host_only_filter_uses_hourly_cagg():
+    session = _RecordingSession()
+    await _repo(session).get_top_urls(
+        WEEK_START, NOW, filters=AnalyticsFilters(hosts=["a.example"])
+    )
+    assert "url_hourly_stats" in session.statements[-1]
+
+
+async def test_top_urls_host_exclude_only_uses_daily_cagg():
+    session = _RecordingSession()
+    await _repo(session).get_top_urls(
+        LONG_START, NOW, filters=AnalyticsFilters(hosts_exclude=["a.example"])
+    )
+    assert "url_daily_stats" in session.statements[-1]
+
+
+async def test_top_urls_host_and_country_forces_raw():
+    session = _RecordingSession()
+    await _repo(session).get_top_urls(
+        WEEK_START, NOW, filters=AnalyticsFilters(hosts=["a.example"], country_codes=["NO"])
+    )
+    assert "url_hourly_stats" not in session.statements[-1]
+    assert "FROM access_logs" in session.statements[-1]
+
+
 async def test_top_user_agents_week_range_uses_hourly_cagg():
     session = _RecordingSession()
     await _repo(session).get_top_user_agents(WEEK_START, NOW)
@@ -102,6 +127,30 @@ async def test_top_ips_week_range_uses_hourly_cagg_even_filtered():
         WEEK_START, NOW, filters=AnalyticsFilters(country_codes=["NO"])
     )
     assert "log_ip_hourly_stats" in session.statements[-1]
+
+
+@pytest.mark.parametrize(
+    ("start", "filters", "source"),
+    [
+        (SHORT_START, AnalyticsFilters(), "FROM access_logs"),
+        (WEEK_START, AnalyticsFilters(), "FROM log_ip_hourly_stats"),
+        (LONG_START, AnalyticsFilters(), "FROM log_ip_daily_stats"),
+        (WEEK_START, AnalyticsFilters(country_codes=["NO"]), "FROM log_ip_hourly_stats"),
+        (WEEK_START, AnalyticsFilters(hosts=["a.example"]), "FROM access_logs"),
+    ],
+    ids=["raw", "hourly", "daily", "hourly-country", "week-host"],
+)
+async def test_top_ips_count_distinct_ips_in_the_same_statement(start, filters, source):
+    session = _RecordingSession()
+    await _repo(session).get_top_ips(start, NOW, filters=filters)
+    [sql] = [statement for statement in session.statements if "GROUP BY ip_address" in statement]
+    assert source in sql
+    assert "COUNT(*) OVER ()" in sql
+    assert not any("COUNT(DISTINCT" in statement for statement in session.statements)
+    if source == "FROM access_logs":
+        assert "log_ip_" not in sql
+    if filters.hosts:
+        assert "host = ANY(:filter_hosts)" in sql
 
 
 async def test_top_countries_long_range_uses_daily_cagg():

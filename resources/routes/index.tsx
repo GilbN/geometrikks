@@ -7,9 +7,9 @@ export const Route = createFileRoute("/")({
 })
 
 function SummaryPage() {
-  return  (
-  <>
-  <Summary />
-  </>
+  return (
+    <>
+      <Summary />
+    </>
   )
 }

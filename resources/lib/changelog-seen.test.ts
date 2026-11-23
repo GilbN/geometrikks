@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 import {
   CHANGELOG_SEEN_STORAGE_KEY,
   currentBuildKey,
@@ -28,7 +28,9 @@ vi.stubGlobal("localStorage", {
 
 describe("currentBuildKey", () => {
   it("is the changelog digest, which changes with every build that has something new to read", () => {
-    expect(currentBuildKey({ version: "0.12.0", changelogDigest: "abc123def456" })).toBe("abc123def456")
+    expect(currentBuildKey({ version: "0.12.0", changelogDigest: "abc123def456" })).toBe(
+      "abc123def456",
+    )
   })
 
   it("falls back to the package version when the install has no changelog", () => {

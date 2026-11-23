@@ -31,7 +31,12 @@ export function DropBadge({
   className?: string
 }) {
   const label = dropBadgeLabel(list, showListName)
-  const title = list === "asn-drop" ? "On the ASN-DROP list" : sblId ? `On the DROP list as ${sblId}` : "On the DROP list"
+  const title =
+    list === "asn-drop"
+      ? "On the ASN-DROP list"
+      : sblId
+        ? `On the DROP list as ${sblId}`
+        : "On the DROP list"
   return (
     <BadgeHint hint={title} tappable={!insideButton} holdsLink={linked} hover={hover}>
       <Badge
@@ -49,7 +54,10 @@ export function DropBadge({
             <span aria-hidden>·</span>
             {linked ? (
               <span onClick={(event) => event.stopPropagation()}>
-                <SblRecordLink sblId={sblId} className="font-mono text-[11px] font-medium opacity-85 hover:text-current hover:opacity-100" />
+                <SblRecordLink
+                  sblId={sblId}
+                  className="font-mono text-[11px] font-medium opacity-85 hover:text-current hover:opacity-100"
+                />
               </span>
             ) : (
               <span className="font-mono text-[11px] font-medium opacity-85">{sblId}</span>

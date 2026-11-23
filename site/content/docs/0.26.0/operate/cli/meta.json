@@ -1,0 +1,4 @@
+{
+  "title": "CLI",
+  "pages": ["index", "import-logs", "import-loki", "backfills", "large-imports"]
+}

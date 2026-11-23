@@ -8,17 +8,27 @@ import { DataTableFrame } from "@/components/data/data-table-frame"
 import { dataState } from "@/components/data/types"
 import { useFitLayout } from "@/components/data/narrow-layout"
 import { RankedNarrowCell, RankedNarrowHeader } from "@/components/data/ranked-narrow"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AsnCategoryInfo } from "@/components/analytics/asn-category-info"
 import { CategoryBadge } from "@/components/analytics/top-asns-table"
 import { AsnCell } from "@/components/geo-logs/asn-cell"
-import { AsnReportButton, useAbuseReportDialog } from "@/components/abuse-report/abuse-report-dialog"
+import {
+  AsnReportButton,
+  useAbuseReportDialog,
+} from "@/components/abuse-report/abuse-report-dialog"
 import { formatNumber } from "@/lib/api"
 import { useGeoLogTopAsns, useGeoLogTopCities, useGeoLogTopCountries } from "@/lib/queries"
 import { useGeoLogFilters } from "@/lib/geo-log-filters-context"
 import { asnFilterTarget } from "@/lib/ip-filter-targets"
-import { AsnActionsMenu } from "@/components/ip-actions/asn-actions-menu"
+import { FilterActionsMenu } from "@/components/ip-actions/filter-actions-menu"
 import { TablePaginationFooter, usePagedRows } from "@/components/analytics/table-pagination"
 
 type View = "countries" | "cities" | "asns"
@@ -36,10 +46,19 @@ export function GeoTopCountriesCities() {
   const asnActions = (asn: number, organization: string | null | undefined) => (
     <span className="inline-flex items-center">
       <AsnReportButton asn={asn} organization={organization} onOpen={report.openFor} />
-      <AsnActionsMenu asn={asn} organization={organization} target={asnFilterTarget(asn, filters, setFilters)} />
+      <FilterActionsMenu
+        title={`AS${asn}`}
+        subtitle={organization}
+        drawerFallbackSubtitle="Unknown organization"
+        triggerTitle="ASN actions"
+        drawerKey="asn-actions"
+        target={asnFilterTarget(asn, filters, setFilters)}
+      />
     </span>
   )
-  const [layoutRef, narrow] = useFitLayout<HTMLDivElement>(`${view}:${asnItems.map((row) => row.asn).join()}`)
+  const [layoutRef, narrow] = useFitLayout<HTMLDivElement>(
+    `${view}:${asnItems.map((row) => row.asn).join()}`,
+  )
 
   const active = view === "countries" ? countries : view === "cities" ? cities : asns
   const pagination =
@@ -81,9 +100,15 @@ export function GeoTopCountriesCities() {
               <TableBody>
                 {countryItems.map((row) => (
                   <TableRow key={row.countryCode}>
-                    <TableCell><CountryLabel code={row.countryCode} name={row.countryName} /></TableCell>
-                    <TableCell className="text-right tabular-nums">{formatNumber(row.eventCount)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatNumber(row.uniqueIps)}</TableCell>
+                    <TableCell>
+                      <CountryLabel code={row.countryCode} name={row.countryName} />
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatNumber(row.eventCount)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatNumber(row.uniqueIps)}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -100,9 +125,15 @@ export function GeoTopCountriesCities() {
               <TableBody>
                 {cityItems.map((row, index) => (
                   <TableRow key={`${row.city}-${row.countryCode}-${index}`}>
-                    <TableCell><CountryLabel code={row.countryCode}>{row.city}</CountryLabel></TableCell>
-                    <TableCell className="text-right tabular-nums">{formatNumber(row.eventCount)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatNumber(row.uniqueIps)}</TableCell>
+                    <TableCell>
+                      <CountryLabel code={row.countryCode}>{row.city}</CountryLabel>
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatNumber(row.eventCount)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatNumber(row.uniqueIps)}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -122,14 +153,20 @@ export function GeoTopCountriesCities() {
                 {asnItems.map((row) => (
                   <TableRow key={row.asn}>
                     <RankedNarrowCell
-                      primary={<span className="line-clamp-2" title={row.organization ?? undefined}>{row.organization ?? "Unknown"}</span>}
+                      primary={
+                        <span className="line-clamp-2" title={row.organization ?? undefined}>
+                          {row.organization ?? "Unknown"}
+                        </span>
+                      }
                       value={formatNumber(row.eventCount)}
                       trailing={asnActions(row.asn, row.organization)}
                       secondary={
                         <>
                           <span className="font-mono">AS{row.asn}</span>
                           <CategoryBadge category={row.category} />
-                          <span>{formatNumber(row.uniqueIps)} {row.uniqueIps === 1 ? "IP" : "IPs"}</span>
+                          <span>
+                            {formatNumber(row.uniqueIps)} {row.uniqueIps === 1 ? "IP" : "IPs"}
+                          </span>
                         </>
                       }
                     />
@@ -150,7 +187,9 @@ export function GeoTopCountriesCities() {
                   </TableHead>
                   <TableHead className="text-right">Events</TableHead>
                   <TableHead className="text-right">Unique IPs</TableHead>
-                  <TableHead className="w-16"><span className="sr-only">Actions</span></TableHead>
+                  <TableHead className="w-16">
+                    <span className="sr-only">Actions</span>
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -159,10 +198,18 @@ export function GeoTopCountriesCities() {
                     <TableCell className="max-w-[260px]">
                       <AsnCell asn={row.asn} organization={row.organization} />
                     </TableCell>
-                    <TableCell><CategoryBadge category={row.category} /></TableCell>
-                    <TableCell className="text-right tabular-nums">{formatNumber(row.eventCount)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatNumber(row.uniqueIps)}</TableCell>
-                    <TableCell className="py-0 text-right">{asnActions(row.asn, row.organization)}</TableCell>
+                    <TableCell>
+                      <CategoryBadge category={row.category} />
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatNumber(row.eventCount)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatNumber(row.uniqueIps)}
+                    </TableCell>
+                    <TableCell className="py-0 text-right">
+                      {asnActions(row.asn, row.organization)}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>

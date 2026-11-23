@@ -5,9 +5,11 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shlex
 import shutil
 import signal
 import subprocess
+import time
 from collections.abc import Callable, Generator, Iterator, Sequence
 from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass, field, replace
@@ -494,6 +496,25 @@ def test_dry_run_exits_refused_on_problems_else_failed_when_the_list_fails(
     assert not list(isolated.root.glob("dry-*"))
 
 
+def test_dry_run_teardown_kills_a_browser_left_by_the_preflight(
+    isolated: Isolated, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    markers: list[Callable[[bytes], bool]] = []
+
+    def record(marker: Callable[[bytes], bool]) -> tuple[list[str], bool]:
+        markers.append(marker)
+        return [], False
+
+    monkeypatch.setattr(run, "sweep_marked", record)
+    monkeypatch.setattr(run, "gather_facts", lambda args, runner, ledger_exists: None)
+    monkeypatch.setattr(run, "preflight_problems", lambda facts: [])
+    monkeypatch.setattr(run.Runner, "which", lambda runner, name: f"/usr/bin/{name}")
+    monkeypatch.setattr(run.Runner, "run", lambda runner, argv, **_: 0)
+    run.dry_run(run_args())
+    plan = f"SHOTS_PLAN={isolated.root / f'dry-{os.getpid()}' / 'plan.json'}".encode()
+    assert [marker(plan) for marker in markers] == [True]
+
+
 # --- steps 8 and 12, the shared helper, and the preflight --------------------------------------------------
 
 
@@ -576,6 +597,111 @@ def test_preflight_skips_the_shared_server_with_own_db(tmp_path: Path, monkeypat
     monkeypatch.setattr(run, "_database_exists", database_check(OSError("connection refused")))
     facts = run.gather_facts(run_args(own_db=True), no_docker(tmp_path), ledger_exists=False)
     assert facts.database_reachable is True
+
+
+def stub_node(tmp_path: Path, script: str) -> run.Runner:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    node = bin_dir / "node"
+    node.write_text(f"#!/bin/sh\n{script}\n")
+    node.chmod(0o755)
+    logs = tmp_path / "run" / "logs"
+    logs.mkdir(parents=True)
+    return run.Runner(ledger=Ledger(tmp_path / "ledger.json"), env={"PATH": str(bin_dir)}, log_dir=logs)
+
+
+def test_preflight_refuses_when_chromium_does_not_start(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    runner = stub_node(tmp_path, 'printf "Host system is missing dependencies\\nrun install-deps\\n" >&2; exit 1')
+    facts = run.gather_facts(run_args(own_db=True), runner, ledger_exists=False)
+    assert facts.browser_starts is False
+    out = capsys.readouterr().out
+    assert "Host system is missing dependencies" in out and "run install-deps" in out
+    assert any("npx playwright install chromium" in problem for problem in preflight_problems(facts))
+
+
+def test_preflight_takes_a_chromium_that_starts(tmp_path: Path) -> None:
+    node_args = tmp_path / "node-args"
+    runner = stub_node(tmp_path, f"printf '%s\\0' \"$@\" > {shlex.quote(str(node_args))}")
+    facts = run.gather_facts(run_args(own_db=True), runner, ledger_exists=False)
+    assert facts.browser_starts is True
+    assert node_args.read_text().split("\0")[:-1] == ["--input-type=module", "-e", run.BROWSER_PROBE]
+
+
+def test_preflight_keeps_the_start_of_a_long_probe_error(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    lines = f"{shutil.which('seq')} -f 'call log line %g' 60"
+    assert run._browser_starts(stub_node(tmp_path, f"echo 'Failed to launch' >&2; {lines} >&2; exit 1")) is False
+    assert "Failed to launch" in capsys.readouterr().out
+
+
+def test_preflight_refuses_when_the_sweep_cannot_stop_a_browser(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(run, "sweep_marked", lambda marker: (["could not stop stray process 4242 from a capture"], True))
+    assert run._browser_starts(stub_node(tmp_path, "exit 0")) is False
+    assert "could not stop stray process 4242" in capsys.readouterr().out
+
+
+def test_preflight_names_the_exit_code_of_a_silent_probe(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    assert run._browser_starts(stub_node(tmp_path, "exit 3")) is False
+    assert "the probe exited 3 without a message" in capsys.readouterr().out
+
+
+def test_preflight_refuses_when_chromium_hangs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(run, "BROWSER_SECONDS", 0.5)
+    assert run._browser_starts(stub_node(tmp_path, f"echo 'slow start' >&2; exec {shutil.which('sleep')} 300")) is False
+    out = capsys.readouterr().out
+    assert "did not start within 0.5 s" in out and "slow start" in out
+
+
+def test_the_browser_probe_keeps_playwright_temp_files_in_the_run_folder(tmp_path: Path) -> None:
+    seen = tmp_path / "seen"
+    runner = stub_node(tmp_path, f'printf %s "$TMPDIR" > {shlex.quote(str(seen))}')
+    assert run._browser_starts(runner) is True
+    temp_dir = Path(seen.read_text())
+    assert temp_dir.is_dir() and temp_dir.is_relative_to(runner.log_dir)
+
+
+def test_the_browser_probe_stops_a_browser_its_node_left_running(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    pid_file = tmp_path / "pid"
+    quoted_pid = shlex.quote(str(pid_file))
+    # Playwright starts the browser in a process group of its own, as setsid does here.
+    browser_script = f"echo $$ > {quoted_pid}; exec {shutil.which('sleep')} 300"
+    detached = f"{shutil.which('setsid')} {shutil.which('sh')} -c {shlex.quote(browser_script)} &"
+    wait = f"while [ ! -s {quoted_pid} ]; do {shutil.which('sleep')} 0.05; done"
+    assert run._browser_starts(stub_node(tmp_path, f"{detached} {wait}; exit 1")) is False
+    assert "from the browser probe" in capsys.readouterr().out
+    browser = Path("/proc") / pid_file.read_text().strip()
+    deadline = time.monotonic() + 5
+    while browser.exists() and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert not browser.exists()
+
+
+def test_preflight_refuses_without_node(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    facts = run.gather_facts(run_args(own_db=True), no_docker(tmp_path), ledger_exists=False)
+    assert facts.browser_starts is False
+    assert "node is not on the run's PATH" in capsys.readouterr().out
+
+
+@pytest.mark.skipif(
+    shutil.which("node") is None or not (run.REPO_ROOT / "node_modules").is_dir(),
+    reason="needs node and the root node_modules",
+)
+def test_the_browser_probe_reports_a_missing_chromium_build(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    browsers = tmp_path / "browsers"
+    browsers.mkdir()
+    env = {"PATH": os.environ["PATH"], "HOME": str(tmp_path), "PLAYWRIGHT_BROWSERS_PATH": str(browsers)}
+    logs = tmp_path / "run" / "logs"
+    logs.mkdir(parents=True)
+    runner = run.Runner(ledger=Ledger(tmp_path / "ledger.json"), env=env, log_dir=logs)
+    assert run._browser_starts(runner) is False
+    assert str(browsers) in capsys.readouterr().out
 
 
 ABUSEIPDB_OFF: dict[str, object] = {"enabled": False, "reportingEnabled": False, "blacklistEnabled": False}
@@ -800,6 +926,9 @@ class RecordingRunner:
         return 0, ""
 
 
+ROOT_PACKAGE = run.REPO_ROOT / "package.json"
+
+
 def bare_run(tmp_path: Path) -> tuple[run.FullRun, RecordingRunner]:
     full = object.__new__(run.FullRun)
     full.run_dir = tmp_path / "run"
@@ -813,16 +942,25 @@ def bare_run(tmp_path: Path) -> tuple[run.FullRun, RecordingRunner]:
     return full, runner
 
 
-def test_the_build_runs_vite_through_the_wrapper_config_with_an_empty_env_dir(tmp_path: Path) -> None:
+def test_the_build_runs_vp_build_through_the_wrapper_config_with_an_empty_env_dir(tmp_path: Path) -> None:
     full, runner = bare_run(tmp_path)
     full.build()
     [(argv, env)] = runner.calls
-    assert argv == ["/usr/bin/bun", "--no-env-file", "run", "vite", "build", f"--config={run.SCREENSHOT_VITE_CONFIG}"]
+    assert argv == ["/usr/bin/bun", "--no-env-file", "run", "vp", "build", f"--config={run.SCREENSHOT_VITE_CONFIG}"]
     assert run.SCREENSHOT_VITE_CONFIG.is_file()
     assert env is not None
     env_dir = Path(env[run.VITE_ENV_DIR_VAR])
     assert env_dir.is_relative_to(full.run_dir) and env_dir.is_dir() and not list(env_dir.iterdir())
     assert {name: value for name, value in env.items() if name != run.VITE_ENV_DIR_VAR} == full.env
+
+
+def test_the_build_runs_the_builder_the_repo_build_script_runs(tmp_path: Path) -> None:
+    full, runner = bare_run(tmp_path)
+    full.build()
+    [(argv, _)] = runner.calls
+    # Bun resolves the binary from node_modules/.bin, where a dependency swap can remove the old one.
+    build_script = json.loads(ROOT_PACKAGE.read_text())["scripts"]["build"]
+    assert argv[3:5] in [step.split()[:2] for step in build_script.split("&&")]
 
 
 def test_the_encoder_runs_without_dotenv(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -866,20 +1004,23 @@ def test_bun_children_never_see_a_dotenv_file(tmp_path: Path) -> None:
     assert SENTINEL not in child_output(run.bun_argv(BUN, "run", "show"), folder)
 
 
-VITE_ENTRY = run.REPO_ROOT / "node_modules" / "vite" / "dist" / "node" / "index.js"
+NODE_MODULES_INSTALLED = (run.REPO_ROOT / "node_modules").is_dir()
 RESOLVE_ENV = """
-const { resolveConfig } = await import(process.argv[1]);
+import { createRequire } from "node:module";
+import { pathToFileURL } from "node:url";
+const entry = createRequire(process.argv[1]).resolve("vite");
+const { resolveConfig } = await import(pathToFileURL(entry).href);
 const config = await resolveConfig({ configFile: process.argv[2], logLevel: "silent" }, "build", "production");
 console.log(JSON.stringify({ envDir: config.envDir, env: config.env }));
 """
 
 
 def resolved_vite_env(config: Path, cwd: Path, **extra: str) -> dict[str, Any]:
-    out = child_output([str(NODE), "--input-type=module", "-e", RESOLVE_ENV, str(VITE_ENTRY), str(config)], cwd, **extra)
+    out = child_output([str(NODE), "--input-type=module", "-e", RESOLVE_ENV, str(ROOT_PACKAGE), str(config)], cwd, **extra)
     return json.loads(out.strip().splitlines()[-1])
 
 
-@pytest.mark.skipif(NODE is None or not VITE_ENTRY.is_file(), reason="needs node and the root node_modules")
+@pytest.mark.skipif(NODE is None or not NODE_MODULES_INSTALLED, reason="needs node and the root node_modules")
 def test_the_screenshot_vite_config_reads_no_dotenv_file(tmp_path: Path) -> None:
     folder = dotenv_folder(tmp_path)
     empty = tmp_path / "vite-env"
@@ -892,7 +1033,7 @@ def test_the_screenshot_vite_config_reads_no_dotenv_file(tmp_path: Path) -> None
     assert SENTINEL not in json.dumps(wrapped["env"])
 
 
-@pytest.mark.skipif(NODE is None or not VITE_ENTRY.is_file(), reason="needs node and the root node_modules")
+@pytest.mark.skipif(NODE is None or not NODE_MODULES_INSTALLED, reason="needs node and the root node_modules")
 def test_the_screenshot_vite_config_refuses_to_load_without_its_env_dir(tmp_path: Path) -> None:
     with pytest.raises(subprocess.CalledProcessError) as failure:
         resolved_vite_env(run.SCREENSHOT_VITE_CONFIG, dotenv_folder(tmp_path))

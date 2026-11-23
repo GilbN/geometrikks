@@ -1,5 +1,5 @@
 import { defaultParseSearch, defaultStringifySearch } from "@tanstack/react-router"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 
 import { EMPTY_GEO_LOG_FILTERS } from "./geo-log-filters-context"
 import { decodeGeoLogsSearch, encodeGeoLogFilters, geoLogsSearchSchema } from "./geo-logs-search"
@@ -18,14 +18,24 @@ describe("geo-logs search codec", () => {
   })
 
   it("round-trips filters through the URL shape", () => {
-    const filters = { ...EMPTY_GEO_LOG_FILTERS, ips: ["203.0.113.7"], asns: [13335], asnsExclude: [24940] }
+    const filters = {
+      ...EMPTY_GEO_LOG_FILTERS,
+      ips: ["203.0.113.7"],
+      asns: [13335],
+      asnsExclude: [24940],
+    }
     expect(decodeGeoLogsSearch(encodeGeoLogFilters(filters))).toEqual(filters)
   })
 
   it("encodes empty lists as absent keys", () => {
     expect(encodeGeoLogFilters(EMPTY_GEO_LOG_FILTERS)).toEqual({
-      country: undefined, city: undefined, ip: undefined, ipx: undefined,
-      server: undefined, asn: undefined, asnx: undefined,
+      country: undefined,
+      city: undefined,
+      ip: undefined,
+      ipx: undefined,
+      server: undefined,
+      asn: undefined,
+      asnx: undefined,
     })
   })
 

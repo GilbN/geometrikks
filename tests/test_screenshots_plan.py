@@ -47,6 +47,7 @@ EXPECTED_SCENES = [
     ("banned-map", "Banned IPs map", "/map", ("desktop", "phone"), False),
     ("status", "Status", "/settings/status", ("desktop", "phone"), True),
     ("settings", "Appearance", "/settings/appearance", ("desktop", "phone"), False),
+    ("muted-ips", "Muted IPs", "/settings/muted-ips", ("desktop", "phone"), False),
     ("live", "Live map", "/map", ("desktop", "phone", "landscape"), True),
     ("live-tail", "Live tail", "/access-logs", ("desktop", "phone"), True),
 ]
@@ -80,7 +81,7 @@ def test_every_scene_has_alt_text_and_a_known_viewport() -> None:
 
 def test_build_shots_counts_and_order() -> None:
     shots = build_shots()
-    assert len(shots) == 82
+    assert len(shots) == 86
     assert sum(shot.scene.live for shot in shots) == 14
     assert [shot.name for shot in shots[:2]] == ["login-desktop-dark", "login-desktop-light"]
     first_live = next(index for index, shot in enumerate(shots) if shot.scene.live)

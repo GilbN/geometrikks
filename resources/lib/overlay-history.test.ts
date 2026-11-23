@@ -1,6 +1,11 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vite-plus/test"
 import { createBrowserHistory, createMemoryHistory } from "@tanstack/react-router"
-import { createOverlayHistory, overlayCloseAction, overlaysAbove, planOverlaySteps } from "./overlay-history"
+import {
+  createOverlayHistory,
+  overlayCloseAction,
+  overlaysAbove,
+  planOverlaySteps,
+} from "./overlay-history"
 
 describe("overlayCloseAction", () => {
   it("goes back when the overlay owns the current entry", () => {
@@ -22,7 +27,9 @@ describe("planOverlaySteps", () => {
   })
 
   it("reuses the entry when the top overlay hands over to another", () => {
-    expect(planOverlaySteps("feed", ["feed"], ["detail"])).toEqual([{ type: "replace", overlay: "detail" }])
+    expect(planOverlaySteps("feed", ["feed"], ["detail"])).toEqual([
+      { type: "replace", overlay: "detail" },
+    ])
   })
 
   it("pushes an entry per opened overlay", () => {
@@ -39,7 +46,10 @@ describe("planOverlaySteps", () => {
 
 describe("overlaysAbove", () => {
   it("lists the overlays opened after the entry's", () => {
-    expect(overlaysAbove(["layers", "detail", "inspector"], "layers")).toEqual(["detail", "inspector"])
+    expect(overlaysAbove(["layers", "detail", "inspector"], "layers")).toEqual([
+      "detail",
+      "inspector",
+    ])
   })
 
   it("lists every overlay for a plain or unknown entry", () => {
@@ -379,33 +389,36 @@ describe("createOverlayHistory on the browser history", () => {
   it.each([
     ["", false],
     [" with a blocker mounted", true],
-  ])("gives each overlay opened in one commit a browser entry of its own%s", async (_, withBlocker) => {
-    const win = fakeWindow("/map")
-    const history = createBrowserHistory({ window: win })
-    if (withBlocker) {
-      // TanStack asks blockers only where a document exists.
-      vi.stubGlobal("document", {})
-      history.block({ blockerFn: () => false })
-    }
-    const overlays = createOverlayHistory(history)
-    overlays.setActive(true)
-    const stop = overlays.start()
-    const closeLayers = vi.fn(() => overlays.closed("layers"))
-    const closeDetail = vi.fn(() => overlays.closed("detail"))
-    overlays.register("layers", false, closeLayers)
-    overlays.register("detail", false, closeDetail)
+  ])(
+    "gives each overlay opened in one commit a browser entry of its own%s",
+    async (_, withBlocker) => {
+      const win = fakeWindow("/map")
+      const history = createBrowserHistory({ window: win })
+      if (withBlocker) {
+        // TanStack asks blockers only where a document exists.
+        vi.stubGlobal("document", {})
+        history.block({ blockerFn: () => false })
+      }
+      const overlays = createOverlayHistory(history)
+      overlays.setActive(true)
+      const stop = overlays.start()
+      const closeLayers = vi.fn(() => overlays.closed("layers"))
+      const closeDetail = vi.fn(() => overlays.closed("detail"))
+      overlays.register("layers", false, closeLayers)
+      overlays.register("detail", false, closeDetail)
 
-    overlays.opened("layers")
-    overlays.opened("detail")
-    await settle()
-    expect(win.history.length).toBe(3)
+      overlays.opened("layers")
+      overlays.opened("detail")
+      await settle()
+      expect(win.history.length).toBe(3)
 
-    history.back()
-    await settle()
-    expect(closeDetail).toHaveBeenCalledOnce()
-    expect(closeLayers).not.toHaveBeenCalled()
-    expect(history.location.state.overlay).toBe("layers")
-    stop()
-    history.destroy()
-  })
+      history.back()
+      await settle()
+      expect(closeDetail).toHaveBeenCalledOnce()
+      expect(closeLayers).not.toHaveBeenCalled()
+      expect(history.location.state.overlay).toBe("layers")
+      stop()
+      history.destroy()
+    },
+  )
 })

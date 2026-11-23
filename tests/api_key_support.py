@@ -29,7 +29,7 @@ class MemoryApiKeyRepository:
 
     async def list_records(self) -> list[ApiKeyRecord]:
         # Reversed first so the stable sort keeps the newest insert ahead of a same-time older one.
-        return sorted(
+        return sorted(  # noqa: C414
             reversed(self.records_by_hash.values()),
             key=lambda api_key_record: api_key_record.created_at,
             reverse=True,

@@ -21,7 +21,12 @@ import {
   CornerUpRight,
 } from "lucide-react"
 
-import { StatCard, StatCardSkeleton, StatGrid, sparklineProps } from "@/components/dashboard/statcard"
+import {
+  StatCard,
+  StatCardSkeleton,
+  StatGrid,
+  sparklineProps,
+} from "@/components/dashboard/statcard"
 import { SectionHeader } from "@/components/section-header"
 import { formatNumber, formatBytes, type SummaryResponse } from "@/lib/api"
 import { formatDurationOrNa, timingCoverage, TIMING_HINT } from "@/lib/timing"
@@ -60,7 +65,9 @@ function Section({
       <SectionHeader>{title}</SectionHeader>
       <StatGrid className={gridClassName}>
         {children ??
-          Array.from({ length: skeletons }, (_, i) => <StatCardSkeleton key={i} sparkline={sparklines} />)}
+          Array.from({ length: skeletons }, (_, i) => (
+            <StatCardSkeleton key={i} sparkline={sparklines} />
+          ))}
       </StatGrid>
     </>
   )
@@ -69,7 +76,12 @@ function Section({
 const calcPercent = (part: number, total: number) =>
   total > 0 ? ((part / total) * 100).toFixed(1) : "0"
 
-export function TrafficOverviewSection({ summary, isLoading, rangeSubtitle, sparklines }: SectionProps) {
+export function TrafficOverviewSection({
+  summary,
+  isLoading,
+  rangeSubtitle,
+  sparklines,
+}: SectionProps) {
   const cur = summary?.currentPeriod
   const chg = summary?.percentChanges
   return (
@@ -183,9 +195,7 @@ export function HttpStatusSection({ summary, isLoading, compareLabel, sparklines
           <StatCard
             title="Unique IPs"
             value={formatNumber(cur.uniqueIps)}
-            subtitle={
-              chg?.uniqueIps != null ? compareLabel : "Active visitors"
-            }
+            subtitle={chg?.uniqueIps != null ? compareLabel : "Active visitors"}
             icon={Users}
             {...sparklineProps(sparklines, "uniqueIps")}
             iconClassName="text-primary/70"
@@ -225,7 +235,10 @@ export function PerformanceSection({ summary, isLoading, compareLabel, sparkline
           <StatCard
             title="Avg Request Time"
             value={formatDurationOrNa(cur.avgRequestTime)}
-            subtitle={timingSubtitle(coverage, chg?.avgRequestTime != null ? compareLabel : "Response time")}
+            subtitle={timingSubtitle(
+              coverage,
+              chg?.avgRequestTime != null ? compareLabel : "Response time",
+            )}
             icon={Clock}
             {...sparklineProps(sparklines, "avgRequestTime")}
             iconClassName="text-primary/70"
@@ -248,9 +261,7 @@ export function PerformanceSection({ summary, isLoading, compareLabel, sparkline
           <StatCard
             title="Total Bandwidth"
             value={formatBytes(cur.totalBytesSent)}
-            subtitle={
-              chg?.bytesSent != null ? compareLabel : "Data transferred"
-            }
+            subtitle={chg?.bytesSent != null ? compareLabel : "Data transferred"}
             icon={HardDrive}
             {...sparklineProps(sparklines, "bytesSent")}
             iconClassName="text-primary/70"

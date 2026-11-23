@@ -1,0 +1,565 @@
+import { describe, expect, it, vi } from "vite-plus/test"
+import { fakeChrome, type FakeChrome } from "../../tests/fake-chrome"
+import { getRecent, type StoredConnection } from "../lib/storage"
+import {
+  addressError,
+  apiKeysPageUrl,
+  AUTH_OFF_WITH_KEY_MESSAGE,
+  connect,
+  disconnect,
+  grantAccess,
+  loadDisplayed,
+  NOT_HTTPS_MESSAGE,
+  type FetchConnection,
+} from "./connect"
+
+const A = "https://a.example"
+const A_PATTERN = "https://a.example:443/*"
+const B = "https://b.example:8443"
+const B_PATTERN = "https://b.example:8443/*"
+
+const apiKeyAnswer = {
+  mode: "apiKey" as const,
+  appVersion: "0.26.0",
+  apiVersion: "1",
+  capabilities: ["crowdsec" as const, "crowdsecWrite" as const],
+  name: "Laptop Chrome",
+  scope: "read_write" as const,
+  expiresAt: null,
+}
+
+const disabledAnswer = {
+  mode: "disabled" as const,
+  appVersion: "0.26.0",
+  apiVersion: "1",
+  capabilities: ["crowdsec" as const],
+}
+
+const answers = (connection: typeof apiKeyAnswer | typeof disabledAnswer): FetchConnection =>
+  vi.fn(async () => ({ ok: true as const, connection }))
+
+const failing = (status: number, code: string, detail: string): FetchConnection =>
+  vi.fn(async () => ({ ok: false as const, failure: { status, code, detail } }))
+
+function storedFor(origin: string, pattern: string): StoredConnection {
+  return {
+    origin,
+    pattern,
+    key: "gmk_old",
+    keyless: false,
+    verifiedScope: "read",
+    connection: { ...apiKeyAnswer, scope: "read" },
+    savedAt: 1,
+    lifetime: "lifetime-old",
+  }
+}
+
+function connectedChrome(origin: string, pattern: string): FakeChrome {
+  const chromeApi = fakeChrome({
+    local: {
+      connection: storedFor(origin, pattern),
+      connectionRefresh: { origin, savedAt: 1, connection: apiKeyAnswer },
+      [`recent:${origin}:lifetime-old`]: [{ ip: "192.0.2.1" }],
+      [`abuse:${origin}:lifetime-old`]: { "192.0.2.1": { at: Date.now() } },
+      dropLists: { origin, savedAt: 1 },
+    },
+  })
+  chromeApi.granted.add(pattern)
+  return chromeApi
+}
+
+const callNames = (chromeApi: FakeChrome) => chromeApi.calls.map((call) => call.name)
+
+const storageFailure = () => {
+  throw new Error("QUOTA_BYTES quota exceeded")
+}
+
+describe("connect", () => {
+  it("refuses an http address before asking for any permission", async () => {
+    const chromeApi = fakeChrome()
+    const fetchConnection = answers(apiKeyAnswer)
+
+    const result = await connect(
+      { address: "http://geo.lan", key: "gmk_x" },
+      { chrome: chromeApi, fetchConnection },
+    )
+
+    expect(result).toEqual({ ok: false, field: "address", message: NOT_HTTPS_MESSAGE })
+    expect(NOT_HTTPS_MESSAGE).toBe("GeoMetrikks for Chrome needs an https:// address")
+    expect(chromeApi.calls).toEqual([])
+    expect(fetchConnection).not.toHaveBeenCalled()
+  })
+
+  it("checks and requests the permission before awaiting anything", async () => {
+    const chromeApi = fakeChrome()
+
+    const pending = connect(
+      { address: "https://a.example/app", key: "gmk_x" },
+      { chrome: chromeApi, fetchConnection: answers(apiKeyAnswer) },
+    )
+
+    expect(chromeApi.calls).toEqual([
+      { name: "permissions.contains", arg: { origins: [A_PATTERN] } },
+      { name: "permissions.request", arg: { origins: [A_PATTERN] } },
+    ])
+    await pending
+  })
+
+  it("removes a permission it granted when the first connection fails, and stores nothing", async () => {
+    const chromeApi = fakeChrome()
+
+    const result = await connect(
+      { address: A, key: "gmk_bad" },
+      { chrome: chromeApi, fetchConnection: failing(401, "api_key_invalid", "Invalid API key") },
+    )
+
+    expect(result).toEqual({ ok: false, field: "key", message: "Invalid API key" })
+    expect(chromeApi.granted.has(A_PATTERN)).toBe(false)
+    expect(chromeApi.storage.local.data).toEqual({})
+  })
+
+  it("keeps the connection, key and permission when a reconnect to the same server fails", async () => {
+    const chromeApi = connectedChrome(A, A_PATTERN)
+    const before = structuredClone(chromeApi.storage.local.data)
+
+    const result = await connect(
+      { address: A, key: "gmk_new" },
+      { chrome: chromeApi, fetchConnection: failing(401, "api_key_expired", "API key expired") },
+    )
+
+    expect(result.ok).toBe(false)
+    expect(chromeApi.granted.has(A_PATTERN)).toBe(true)
+    expect(callNames(chromeApi)).not.toContain("permissions.remove")
+    expect(chromeApi.storage.local.data).toEqual(before)
+  })
+
+  it("keeps the current server when connecting to another one fails", async () => {
+    const chromeApi = connectedChrome(A, A_PATTERN)
+    const before = structuredClone(chromeApi.storage.local.data)
+
+    await connect(
+      { address: B, key: "gmk_b" },
+      {
+        chrome: chromeApi,
+        fetchConnection: vi.fn(async () => ({
+          ok: false as const,
+          failure: { networkError: true },
+        })),
+      },
+    )
+
+    expect([...chromeApi.granted]).toEqual([A_PATTERN])
+    expect(chromeApi.storage.local.data).toEqual(before)
+  })
+
+  it("stops when a key was typed but the server has authentication off", async () => {
+    const chromeApi = fakeChrome()
+
+    const result = await connect(
+      { address: A, key: "gmk_x" },
+      { chrome: chromeApi, fetchConnection: answers(disabledAnswer) },
+    )
+
+    expect(result).toEqual({
+      ok: false,
+      field: "key",
+      message: AUTH_OFF_WITH_KEY_MESSAGE,
+      reason: "auth-off-with-key",
+    })
+    expect(AUTH_OFF_WITH_KEY_MESSAGE).toBe(
+      "Authentication is off on this server. Clear the key field to connect without one.",
+    )
+    expect(chromeApi.granted.has(A_PATTERN)).toBe(false)
+    expect(chromeApi.storage.local.data).toEqual({})
+  })
+
+  it("gives no reason for a key the server rejects", async () => {
+    const result = await connect(
+      { address: A, key: "gmk_bad" },
+      {
+        chrome: fakeChrome(),
+        fetchConnection: failing(401, "api_key_invalid", AUTH_OFF_WITH_KEY_MESSAGE),
+      },
+    )
+
+    expect(result.ok === false && result.message).toBe(AUTH_OFF_WITH_KEY_MESSAGE)
+    expect(result).not.toHaveProperty("reason")
+  })
+
+  it("stores a keyless connection when the key is blank and authentication is off", async () => {
+    const chromeApi = fakeChrome()
+    const fetchConnection = answers(disabledAnswer)
+
+    const result = await connect(
+      { address: A, key: "  " },
+      { chrome: chromeApi, fetchConnection, now: () => 42 },
+    )
+
+    expect(fetchConnection).toHaveBeenCalledWith({ origin: A, key: null })
+    const expected: StoredConnection = {
+      origin: A,
+      pattern: A_PATTERN,
+      key: null,
+      keyless: true,
+      verifiedScope: null,
+      connection: disabledAnswer,
+      savedAt: 42,
+      lifetime: expect.any(String),
+    }
+    expect(result).toEqual({ ok: true, stored: expected })
+    expect(chromeApi.storage.local.data.connection).toEqual(expected)
+  })
+
+  it("stores the verified scope from the apiKey answer", async () => {
+    const chromeApi = fakeChrome()
+
+    const result = await connect(
+      { address: A, key: " gmk_x " },
+      { chrome: chromeApi, fetchConnection: answers(apiKeyAnswer), now: () => 7 },
+    )
+
+    expect(result.ok && result.stored).toMatchObject({
+      key: "gmk_x",
+      keyless: false,
+      verifiedScope: "read_write",
+    })
+  })
+
+  it("replacing another server removes its permission and data and tells the worker", async () => {
+    const chromeApi = connectedChrome(A, A_PATTERN)
+
+    const result = await connect(
+      { address: B, key: "gmk_b" },
+      { chrome: chromeApi, fetchConnection: answers(apiKeyAnswer), now: () => 9 },
+    )
+
+    expect(result.ok).toBe(true)
+    expect([...chromeApi.granted]).toEqual([B_PATTERN])
+    expect(Object.keys(chromeApi.storage.local.data)).toEqual(["connection"])
+    expect(chromeApi.storage.local.data.connection).toMatchObject({ origin: B, savedAt: 9 })
+    expect(result.ok && result.stored.lifetime).not.toBe("lifetime-old")
+    expect(chromeApi.calls).toContainEqual({
+      name: "runtime.sendMessage",
+      arg: { type: "serverChanged" },
+    })
+  })
+
+  it("reconnecting to the same server keeps its permission and recent lookups and tells nobody", async () => {
+    const chromeApi = connectedChrome(A, A_PATTERN)
+
+    const result = await connect(
+      { address: A, key: "gmk_new" },
+      { chrome: chromeApi, fetchConnection: answers(apiKeyAnswer), now: () => 5 },
+    )
+
+    expect(result.ok).toBe(true)
+    expect(chromeApi.granted.has(A_PATTERN)).toBe(true)
+    expect(callNames(chromeApi)).not.toContain("permissions.remove")
+    expect(callNames(chromeApi)).not.toContain("runtime.sendMessage")
+    expect(chromeApi.storage.local.data.connection).toMatchObject({
+      savedAt: 5,
+      lifetime: "lifetime-old",
+    })
+    const ips = (await getRecent({ origin: A, savedAt: 5 }, chromeApi)).map((item) => item.ip)
+    expect(ips).toEqual(["192.0.2.1"])
+  })
+
+  it("gives a server connected again after a disconnect a new lifetime", async () => {
+    const chromeApi = connectedChrome(A, A_PATTERN)
+    await disconnect({ chrome: chromeApi })
+
+    const result = await connect(
+      { address: A, key: "gmk_new" },
+      { chrome: chromeApi, fetchConnection: answers(apiKeyAnswer) },
+    )
+    const again = await connect(
+      { address: B, key: "gmk_b" },
+      { chrome: chromeApi, fetchConnection: answers(apiKeyAnswer) },
+    )
+
+    const lifetimes = [result, again].map((each) => each.ok && each.stored.lifetime)
+    expect(new Set(["lifetime-old", ...lifetimes]).size).toBe(3)
+  })
+
+  it("gives two Options tabs connecting at once different lifetimes", async () => {
+    const chromeApi = fakeChrome()
+    const [first, second] = await Promise.all([
+      connect(
+        { address: A, key: "gmk_a" },
+        { chrome: chromeApi, fetchConnection: answers(apiKeyAnswer) },
+      ),
+      connect(
+        { address: B, key: "gmk_b" },
+        { chrome: chromeApi, fetchConnection: answers(apiKeyAnswer) },
+      ),
+    ])
+    expect(first.ok && second.ok).toBe(true)
+    expect(first.ok && first.stored.lifetime).not.toBe(second.ok && second.stored.lifetime)
+  })
+
+  it("removes a permission it granted when saving the connection fails", async () => {
+    const chromeApi = fakeChrome()
+    chromeApi.storage.local.set = async () => storageFailure()
+
+    await expect(
+      connect(
+        { address: A, key: "gmk_x" },
+        { chrome: chromeApi, fetchConnection: answers(apiKeyAnswer) },
+      ),
+    ).rejects.toThrow("quota")
+
+    expect(chromeApi.granted.has(A_PATTERN)).toBe(false)
+    expect(chromeApi.storage.local.data).toEqual({})
+  })
+
+  it("removes a permission it granted when reading the current connection fails", async () => {
+    const chromeApi = fakeChrome()
+    chromeApi.storage.local.get = async () => storageFailure()
+
+    await expect(
+      connect(
+        { address: A, key: "gmk_x" },
+        { chrome: chromeApi, fetchConnection: answers(apiKeyAnswer) },
+      ),
+    ).rejects.toThrow("quota")
+
+    expect(chromeApi.granted.has(A_PATTERN)).toBe(false)
+  })
+
+  it("keeps a permission it couldn't check when the connect fails", async () => {
+    const chromeApi = fakeChrome()
+    chromeApi.granted.add(A_PATTERN)
+    chromeApi.permissions.contains = async () => {
+      throw new Error("Extension context invalidated")
+    }
+
+    const result = await connect(
+      { address: A, key: "gmk_bad" },
+      { chrome: chromeApi, fetchConnection: failing(401, "api_key_invalid", "Invalid API key") },
+    )
+
+    expect(result.ok).toBe(false)
+    expect(chromeApi.granted.has(A_PATTERN)).toBe(true)
+    expect(callNames(chromeApi)).not.toContain("permissions.remove")
+  })
+
+  it("still connects when clearing the old server's data fails", async () => {
+    const chromeApi = connectedChrome(A, A_PATTERN)
+    chromeApi.storage.local.remove = async () => storageFailure()
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+
+    const result = await connect(
+      { address: B, key: "gmk_b" },
+      { chrome: chromeApi, fetchConnection: answers(apiKeyAnswer) },
+    )
+
+    expect(result.ok).toBe(true)
+    expect(chromeApi.storage.local.data.connection).toMatchObject({ origin: B })
+    expect([...chromeApi.granted]).toEqual([B_PATTERN])
+    expect(callNames(chromeApi)).toContain("runtime.sendMessage")
+    expect(warn).toHaveBeenCalled()
+    warn.mockRestore()
+  })
+
+  it("still connects when removing the old server's permission fails", async () => {
+    const chromeApi = connectedChrome(A, A_PATTERN)
+    chromeApi.permissions.remove = async () => {
+      throw new Error("Permission removal failed")
+    }
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+
+    const result = await connect(
+      { address: B, key: "gmk_b" },
+      { chrome: chromeApi, fetchConnection: answers(apiKeyAnswer) },
+    )
+
+    expect(result.ok).toBe(true)
+    expect(Object.keys(chromeApi.storage.local.data)).toEqual(["connection"])
+    expect(callNames(chromeApi)).toContain("runtime.sendMessage")
+    warn.mockRestore()
+  })
+
+  it("asks for a key when a keyless connect is refused", async () => {
+    const result = await connect(
+      { address: A, key: "" },
+      {
+        chrome: fakeChrome(),
+        fetchConnection: failing(401, "not_authenticated", "Authentication required"),
+      },
+    )
+
+    expect(result).toEqual({ ok: false, field: "key", message: "This server needs an API key." })
+  })
+
+  it("puts a refused key on the key field too", async () => {
+    const result = await connect(
+      { address: A, key: "gmk_x" },
+      {
+        chrome: fakeChrome(),
+        fetchConnection: failing(401, "not_authenticated", "Authentication required"),
+      },
+    )
+
+    expect(result.ok === false && result.field).toBe("key")
+    expect(result.ok === false && result.message).toContain("didn't receive the key")
+  })
+
+  it("names a login page as not GeoMetrikks JSON", async () => {
+    const result = await connect(
+      { address: A, key: "gmk_x" },
+      {
+        chrome: fakeChrome(),
+        fetchConnection: vi.fn(async () => ({
+          ok: false as const,
+          failure: { status: 200, notJson: true },
+        })),
+      },
+    )
+
+    expect(result.ok === false && result.message).toContain("didn't answer with GeoMetrikks JSON")
+  })
+
+  it("stops without touching anything when Chrome denies the permission", async () => {
+    const chromeApi = fakeChrome()
+    chromeApi.permissions.request = async () => false
+    const fetchConnection = answers(apiKeyAnswer)
+
+    const result = await connect(
+      { address: A, key: "gmk_x" },
+      { chrome: chromeApi, fetchConnection },
+    )
+
+    expect(result.ok).toBe(false)
+    expect(fetchConnection).not.toHaveBeenCalled()
+    expect(chromeApi.storage.local.data).toEqual({})
+  })
+})
+
+describe("disconnect", () => {
+  it("removes the permission, connection and key, clears server data and tells the worker", async () => {
+    const chromeApi = connectedChrome(A, A_PATTERN)
+    chromeApi.storage.local.data.settings = { showSiteStats: false }
+
+    await disconnect({ chrome: chromeApi })
+
+    expect(chromeApi.granted.size).toBe(0)
+    expect(chromeApi.storage.local.data).toEqual({ settings: { showSiteStats: false } })
+    expect(chromeApi.calls).toContainEqual({
+      name: "runtime.sendMessage",
+      arg: { type: "serverChanged" },
+    })
+  })
+
+  it("still finishes when no worker is listening", async () => {
+    const chromeApi = connectedChrome(A, A_PATTERN)
+    chromeApi.runtime.sendMessage = async () => {
+      throw new Error("Could not establish connection. Receiving end does not exist.")
+    }
+
+    await expect(disconnect({ chrome: chromeApi })).resolves.toBeUndefined()
+    expect(chromeApi.storage.local.data.connection).toBeUndefined()
+  })
+})
+
+describe("grantAccess", () => {
+  it("requests the stored pattern before awaiting anything", async () => {
+    const chromeApi = connectedChrome(A, A_PATTERN)
+    chromeApi.granted.clear()
+
+    const pending = grantAccess({ chrome: chromeApi, stored: storedFor(A, A_PATTERN) })
+
+    expect(chromeApi.calls).toEqual([
+      { name: "permissions.contains", arg: { origins: [A_PATTERN] } },
+      { name: "permissions.request", arg: { origins: [A_PATTERN] } },
+    ])
+    expect(await pending).toBe(true)
+  })
+
+  it("takes back a grant it added when reading the connection fails", async () => {
+    const chromeApi = connectedChrome(A, A_PATTERN)
+    chromeApi.granted.clear()
+    chromeApi.storage.local.get = async () => storageFailure()
+
+    await expect(
+      grantAccess({ chrome: chromeApi, stored: storedFor(A, A_PATTERN) }),
+    ).rejects.toThrow("quota")
+
+    expect(chromeApi.granted.has(A_PATTERN)).toBe(false)
+  })
+
+  it("keeps a grant that was already there when reading the connection fails", async () => {
+    const chromeApi = connectedChrome(A, A_PATTERN)
+    chromeApi.storage.local.get = async () => storageFailure()
+
+    await expect(
+      grantAccess({ chrome: chromeApi, stored: storedFor(A, A_PATTERN) }),
+    ).rejects.toThrow("quota")
+
+    expect(chromeApi.granted.has(A_PATTERN)).toBe(true)
+    expect(callNames(chromeApi)).not.toContain("permissions.remove")
+  })
+
+  it("takes the grant back when another tab replaced the connection meanwhile", async () => {
+    const chromeApi = connectedChrome(B, B_PATTERN)
+
+    const pending = grantAccess({ chrome: chromeApi, stored: storedFor(A, A_PATTERN) })
+
+    expect(chromeApi.calls[1]).toEqual({
+      name: "permissions.request",
+      arg: { origins: [A_PATTERN] },
+    })
+    expect(await pending).toBe(false)
+    expect([...chromeApi.granted]).toEqual([B_PATTERN])
+  })
+
+  it("takes the grant back when another tab disconnected meanwhile", async () => {
+    const chromeApi = fakeChrome()
+
+    expect(await grantAccess({ chrome: chromeApi, stored: storedFor(A, A_PATTERN) })).toBe(false)
+    expect(chromeApi.granted.size).toBe(0)
+  })
+})
+
+describe("loadDisplayed", () => {
+  it("keeps the saved key details and applies the refresh for the rest", async () => {
+    const chromeApi = connectedChrome(A, A_PATTERN)
+
+    const shown = await loadDisplayed(chromeApi)
+
+    expect(shown.hasAccess).toBe(true)
+    expect(shown.stored?.connection).toMatchObject({ scope: "read" })
+    expect(shown.effective?.connection).toMatchObject({ scope: "read_write" })
+  })
+
+  it("reports missing access", async () => {
+    const chromeApi = connectedChrome(A, A_PATTERN)
+    chromeApi.granted.clear()
+
+    expect((await loadDisplayed(chromeApi)).hasAccess).toBe(false)
+  })
+
+  it("assumes access when Chrome can't answer the check", async () => {
+    const chromeApi = connectedChrome(A, A_PATTERN)
+    chromeApi.permissions.contains = async () => {
+      throw new Error("Extension context invalidated")
+    }
+
+    expect((await loadDisplayed(chromeApi)).hasAccess).toBe(true)
+  })
+})
+
+describe("address helpers", () => {
+  it("explains each bad address", () => {
+    expect(addressError("")).toBe("Enter the address you open GeoMetrikks on.")
+    expect(addressError("geo.example.net")).toBe("Enter the full address, starting with https://.")
+    expect(addressError("http://geo.example.net")).toBe(NOT_HTTPS_MESSAGE)
+    expect(addressError("https://geo.example.net")).toBeNull()
+  })
+
+  it("links the API keys page on the typed server", () => {
+    expect(apiKeysPageUrl("https://geo.example.net/map")).toBe(
+      "https://geo.example.net/settings/api-keys",
+    )
+    expect(apiKeysPageUrl("http://geo.example.net")).toBeNull()
+  })
+})

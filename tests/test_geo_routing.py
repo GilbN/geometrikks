@@ -2,23 +2,23 @@
 country/city/IP filters ride the stitched ip_location CAGGs."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, cast
+
+import pytest
 
 from geometrikks.domain.geo.repositories import GeoLocationRepository, StatsGranularity
 from geometrikks.domain.geo.schemas import GeoEventFilters
 from geometrikks.domain.geo.services import GeoEventService
 from geometrikks.server import timescale
 
-import pytest
-
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
 pytestmark = pytest.mark.anyio
 
-NOW = datetime(2026, 7, 16, 12, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 7, 16, 12, 0, tzinfo=UTC)
 WEEK_START = NOW - timedelta(days=7)
 
 

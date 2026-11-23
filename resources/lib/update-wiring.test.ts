@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 import { IDLE_RELOAD_MS, createIdleReloader } from "./auto-reload"
 import { getReloadNoticeState, resetReloadNoticeForTests } from "./reload-notice"
 import type { BuildIdentity } from "./update-detector"
@@ -8,7 +8,10 @@ function build(version: string): BuildIdentity {
   return { version, changelogDigest: null }
 }
 
-function setup(serverBuilds: BuildIdentity[], { visibility = "visible" as DocumentVisibilityState } = {}) {
+function setup(
+  serverBuilds: BuildIdentity[],
+  { visibility = "visible" as DocumentVisibilityState } = {},
+) {
   const remainingBuilds = [...serverBuilds]
   const readServerBuild = vi.fn(async () => {
     const serverBuild = remainingBuilds.length > 1 ? remainingBuilds.shift() : remainingBuilds[0]
@@ -114,7 +117,9 @@ describe("the return window", () => {
   }
 
   it("reloads at once when the first poll after coming back finds the update", async () => {
-    const { wiring, events, state, reload } = setup([build("0.22.0"), build("0.23.0")], { visibility: "hidden" })
+    const { wiring, events, state, reload } = setup([build("0.22.0"), build("0.23.0")], {
+      visibility: "hidden",
+    })
     await wiring.start()
     await wiring.pollSucceeded("t1")
     comeBack(events, state)
@@ -123,7 +128,9 @@ describe("the return window", () => {
   })
 
   it("closes when a poll fails, so a later update waits for the idle timer", async () => {
-    const { wiring, events, state, reload } = setup([build("0.22.0"), build("0.23.0")], { visibility: "hidden" })
+    const { wiring, events, state, reload } = setup([build("0.22.0"), build("0.23.0")], {
+      visibility: "hidden",
+    })
     await wiring.start()
     await wiring.pollSucceeded("t1")
     comeBack(events, state)
@@ -144,14 +151,25 @@ describe("the return window", () => {
 
 describe("the reload guard", () => {
   it("is lifted once per observed restart, before the notice arms", async () => {
-    const reloadGuard = { allows: vi.fn(() => true), pageKeyKnown: vi.fn(), restartObserved: vi.fn() }
+    const reloadGuard = {
+      allows: vi.fn(() => true),
+      pageKeyKnown: vi.fn(),
+      restartObserved: vi.fn(),
+    }
     const markedPendingBeforeLift: boolean[] = []
-    reloadGuard.restartObserved.mockImplementation(() => void markedPendingBeforeLift.push(getReloadNoticeState().pending))
+    reloadGuard.restartObserved.mockImplementation(
+      () => void markedPendingBeforeLift.push(getReloadNoticeState().pending),
+    )
     const readServerBuild = vi
       .fn<() => Promise<BuildIdentity>>()
       .mockResolvedValueOnce(build("0.22.0"))
       .mockResolvedValue(build("0.23.0"))
-    const wiring = createUpdateWiring({ readServerBuild, now: () => Date.now(), reportError: vi.fn(), reloadGuard })
+    const wiring = createUpdateWiring({
+      readServerBuild,
+      now: () => Date.now(),
+      reportError: vi.fn(),
+      reloadGuard,
+    })
     await wiring.start()
     await wiring.pollSucceeded("t1")
     await wiring.pollSucceeded("t1")

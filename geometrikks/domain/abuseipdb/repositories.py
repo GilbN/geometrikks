@@ -25,15 +25,22 @@ class ReportedIp:
     status: ReportStatus
 
 
-def _ip_search_prefix(q: str) -> str:
-    """What a matching address starts with. A whole address searches as its canonical spelling."""
+def _ip_search(q: str) -> tuple[str, bool]:
+    """The text an IP must match, and whether it must match exactly rather than start with it.
+
+    An address is canonicalised so every spelling finds the same rows. One ending in ``::``
+    is how an IPv6 network is written, so it stays a prefix.
+    """
     try:
         address = ipaddress.ip_address(q)
     except ValueError:
-        return q.lower()
+        return q.lower(), False
     if isinstance(address, ipaddress.IPv6Address):
+        # Postgres's INET rejects a zone index, and no stored address has one.
+        if address.scope_id is not None:
+            return q.lower(), False
         address = address.ipv4_mapped or address
-    return str(address)
+    return str(address), not q.endswith("::")
 
 
 class AbuseIpdbReportRepository(SQLAlchemyAsyncRepository[AbuseIpdbReport]):
@@ -73,14 +80,20 @@ class AbuseIpdbReportRepository(SQLAlchemyAsyncRepository[AbuseIpdbReport]):
     ) -> tuple[list[AbuseIpdbReport], int]:
         """One page of the reports that match, newest first, and how many match in all.
 
-        ``q`` matches the start of the IP, or part of the comment or the sender's name.
+        ``q`` matches a whole IP exactly or the start of one, or part of the comment or the sender's name.
         A report needs any one of ``categories`` and any one of ``statuses``.
         """
         conditions = []
         if q:
+            ip_text, exact = _ip_search(q)
+            ip_match = (
+                AbuseIpdbReport.ip_address == cast(ip_text, postgresql.INET)
+                if exact
+                else func.host(AbuseIpdbReport.ip_address, type_=Text).startswith(ip_text, autoescape=True)
+            )
             conditions.append(
                 or_(
-                    func.host(AbuseIpdbReport.ip_address, type_=Text).startswith(_ip_search_prefix(q), autoescape=True),
+                    ip_match,
                     AbuseIpdbReport.comment.icontains(q, autoescape=True),
                     AbuseIpdbReport.reporter_name.icontains(q, autoescape=True),
                 )
@@ -121,9 +134,22 @@ class AbuseIpdbBlacklistRepository(SQLAlchemyAsyncRepository[AbuseIpdbBlacklistE
         statement = select(AbuseIpdbBlacklistStatus).where(AbuseIpdbBlacklistStatus.id == BLACKLIST_STATUS_ID)
         return (await self.session.execute(statement)).scalar_one_or_none()
 
+    async def list_version(self) -> tuple[datetime, datetime | None] | None:
+        """The stored list's ``(refreshed_at, generated_at)``. Selecting columns skips the session's cached status row."""
+        statement = select(AbuseIpdbBlacklistStatus.refreshed_at, AbuseIpdbBlacklistStatus.generated_at).where(
+            AbuseIpdbBlacklistStatus.id == BLACKLIST_STATUS_ID
+        )
+        row = (await self.session.execute(statement)).first()
+        return None if row is None or row.refreshed_at is None else (row.refreshed_at, row.generated_at)
+
     async def ips(self) -> list[str]:
-        statement = select(AbuseIpdbBlacklistEntry.ip_address).order_by(AbuseIpdbBlacklistEntry.ip_address)
-        return [str(ip_address) for ip_address in (await self.session.execute(statement)).scalars()]
+        # host() drops the /32 or /128 that a text cast adds.
+        # Postgres writes ::3.5.140.9 where Python writes ::305:8c09, so dotted IPv6 text goes through Python.
+        statement = select(func.host(AbuseIpdbBlacklistEntry.ip_address)).order_by(AbuseIpdbBlacklistEntry.ip_address)
+        return [
+            str(ipaddress.ip_address(ip_text)) if ":" in ip_text and "." in ip_text else ip_text
+            for ip_text in (await self.session.execute(statement)).scalars()
+        ]
 
     async def claim_attempt(self, now: datetime, *, last_allowed: datetime) -> bool:
         """Record an attempt at ``now`` unless one happened after ``last_allowed``; False means it did."""

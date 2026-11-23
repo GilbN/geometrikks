@@ -5,7 +5,11 @@ from typing import Any
 
 import msgspec
 
-from geometrikks.domain.logs.schemas import RawLineField, RawLineFieldGroup, RawLineFields
+from geometrikks.domain.logs.schemas import (
+    RawLineField,
+    RawLineFieldGroup,
+    RawLineFields,
+)
 from geometrikks.services.logparser.formats import IMPORT_FORMATS
 from geometrikks.services.logparser.json_fields import (
     HeaderKind,

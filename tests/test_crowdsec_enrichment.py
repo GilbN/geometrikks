@@ -3,9 +3,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, cast
 
-from geometrikks.domain.security.repositories import SecurityEnrichmentRepository
-
 import pytest
+
+from geometrikks.domain.security.repositories import SecurityEnrichmentRepository
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession

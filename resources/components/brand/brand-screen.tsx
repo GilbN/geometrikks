@@ -34,7 +34,13 @@ export function BrandScreen({
               "radial-gradient(640px 420px at 18% -8%, var(--primary-glow), transparent 70%), radial-gradient(720px 520px at 108% 108%, var(--primary-glow), transparent 70%)",
           }}
         />
-        {backdrop === "routes" ? <RoutesBackdrop /> : backdrop === "relief" ? <ReliefBackdrop /> : <MapBackdrop />}
+        {backdrop === "routes" ? (
+          <RoutesBackdrop />
+        ) : backdrop === "relief" ? (
+          <ReliefBackdrop />
+        ) : (
+          <MapBackdrop />
+        )}
       </div>
       <section
         aria-labelledby="brand-screen-title"

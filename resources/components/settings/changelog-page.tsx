@@ -44,7 +44,10 @@ function Entry({ entry }: { entry: ChangelogEntry }) {
 function Section({ section }: { section: ChangelogSection }) {
   return (
     <div className="space-y-2">
-      <Badge variant="outline" className={cn("font-semibold uppercase tracking-[0.06em]", KIND_CLASSES[section.kind])}>
+      <Badge
+        variant="outline"
+        className={cn("font-semibold uppercase tracking-[0.06em]", KIND_CLASSES[section.kind])}
+      >
         {section.kind}
       </Badge>
       <ul className="list-disc space-y-1.5 pl-5 marker:text-muted-foreground/60">
@@ -79,7 +82,9 @@ function ReleaseCard({
               {release.unreleased ? "Unreleased" : `v${release.version}`}
             </MonoChip>
             {release.date && (
-              <span className="text-sm text-muted-foreground">{dateFormat.format(new Date(release.date))}</span>
+              <span className="text-sm text-muted-foreground">
+                {dateFormat.format(new Date(release.date))}
+              </span>
             )}
             {thisBuild && <Badge>This build</Badge>}
             <span className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
@@ -88,12 +93,21 @@ function ReleaseCard({
             </span>
           </CollapsibleTrigger>
           {release.url && (
-            <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-muted-foreground" asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 shrink-0 text-muted-foreground"
+              asChild
+            >
               <a
                 href={release.url}
                 target="_blank"
                 rel="noreferrer"
-                aria-label={release.unreleased ? "Unreleased changes on GitHub" : `v${release.version} on GitHub`}
+                aria-label={
+                  release.unreleased
+                    ? "Unreleased changes on GitHub"
+                    : `v${release.version} on GitHub`
+                }
               >
                 <ExternalLink className="h-3.5 w-3.5" />
               </a>
@@ -178,7 +192,11 @@ export function ChangelogPage() {
           Collapse all
         </Button>
         <Button variant="outline" size="sm" asChild>
-          <a href={`${about.links.repository}/blob/${changelogBranch}/CHANGELOG.md`} target="_blank" rel="noreferrer">
+          <a
+            href={`${about.links.repository}/blob/${changelogBranch}/CHANGELOG.md`}
+            target="_blank"
+            rel="noreferrer"
+          >
             View on GitHub
             <ExternalLink className="h-3.5 w-3.5" />
           </a>

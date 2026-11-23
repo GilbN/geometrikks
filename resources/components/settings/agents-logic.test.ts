@@ -1,5 +1,10 @@
-import { describe, expect, it } from "vitest"
-import type { Advisory, HealthResponse, InstanceView, InstancesResponse } from "@/generated/api/types.gen"
+import { describe, expect, it } from "vite-plus/test"
+import type {
+  Advisory,
+  HealthResponse,
+  InstanceView,
+  InstancesResponse,
+} from "@/generated/api/types.gen"
 import {
   agentAdvisoryCards,
   agentIngestionState,
@@ -7,6 +12,7 @@ import {
   agentSummary,
   agentsNeedingAttention,
   canRemove,
+  databaseLinkState,
   deepLinkScrollDelta,
   deepLinkedInstance,
   errorHeadline,
@@ -26,7 +32,11 @@ import {
   versionTone,
 } from "./agents-logic"
 
-function makeProblem(id: string, severity: Advisory["severity"], summary = `${id} summary`): Advisory {
+function makeProblem(
+  id: string,
+  severity: Advisory["severity"],
+  summary = `${id} summary`,
+): Advisory {
   return { id, severity, summary }
 }
 
@@ -70,7 +80,11 @@ const OUTDATED = makeInstance({
   instanceName: "edge-traefik",
   status: "critical",
   problems: [
-    makeProblem("instance-schema-behind", "critical", "edge-traefik runs an older database migration than the head."),
+    makeProblem(
+      "instance-schema-behind",
+      "critical",
+      "edge-traefik runs an older database migration than the head.",
+    ),
     makeProblem("instance-name-not-set", "warning"),
     makeProblem("geoip-asn-stale", "warning"),
   ],
@@ -84,7 +98,9 @@ const HEALTHY = makeInstance({ instanceName: "pi" })
 
 describe("agentInstances", () => {
   it("returns every instance except the head itself", () => {
-    const names = agentInstances(makeResponse([HEAD, HEALTHY, OUTDATED])).map((instance) => instance.instanceName)
+    const names = agentInstances(makeResponse([HEAD, HEALTHY, OUTDATED])).map(
+      (instance) => instance.instanceName,
+    )
     expect(names).toEqual(["pi", "edge-traefik"])
   })
   it("is empty while loading", () => {
@@ -94,10 +110,14 @@ describe("agentInstances", () => {
 
 describe("agentsNeedingAttention", () => {
   it("excludes healthy agents and the head, even when the head has problems", () => {
-    const head = { ...HEAD, status: "warning" as const, problems: [makeProblem("geoip-stale", "warning")] }
-    const names = agentsNeedingAttention(makeResponse([head, HEALTHY, VERSION_DRIFT, NOT_CHECKING_IN])).map(
-      (instance) => instance.instanceName,
-    )
+    const head = {
+      ...HEAD,
+      status: "warning" as const,
+      problems: [makeProblem("geoip-stale", "warning")],
+    }
+    const names = agentsNeedingAttention(
+      makeResponse([head, HEALTHY, VERSION_DRIFT, NOT_CHECKING_IN]),
+    ).map((instance) => instance.instanceName)
     expect(names).toEqual(["vps", "nas"])
   })
 })
@@ -108,7 +128,9 @@ describe("agentSummary", () => {
     expect(agentSummary(undefined)).toBeNull()
   })
   it("says all healthy and is emerald when no agent has a problem", () => {
-    expect(agentSummary(makeResponse([HEAD, HEALTHY, makeInstance({ instanceName: "vps" })]))).toEqual({
+    expect(
+      agentSummary(makeResponse([HEAD, HEALTHY, makeInstance({ instanceName: "vps" })])),
+    ).toEqual({
       tone: "emerald",
       line: "2 agents, all healthy",
     })
@@ -117,8 +139,12 @@ describe("agentSummary", () => {
     expect(agentSummary(makeResponse([HEAD, HEALTHY]))?.line).toBe("1 agent, healthy")
   })
   it("counts agents per problem kind, with schema and version drift both out of date", () => {
-    const summary = agentSummary(makeResponse([HEAD, HEALTHY, OUTDATED, VERSION_DRIFT, NOT_CHECKING_IN]))
-    expect(summary?.line).toBe("4 agents, 1 not checking in, 2 out of date, 1 unnamed, 1 needs attention")
+    const summary = agentSummary(
+      makeResponse([HEAD, HEALTHY, OUTDATED, VERSION_DRIFT, NOT_CHECKING_IN]),
+    )
+    expect(summary?.line).toBe(
+      "4 agents, 1 not checking in, 2 out of date, 1 unnamed, 1 needs attention",
+    )
   })
   it("counts an agent whose writes fail", () => {
     const failing = makeInstance({
@@ -153,7 +179,9 @@ describe("agentSummary", () => {
       problems: [makeProblem("instance-schema-ahead", "critical")],
     })
     const summary = agentSummary(makeResponse([HEAD, OUTDATED, VERSION_DRIFT, newer]))
-    expect(summary?.line).toBe("3 agents, 2 out of date, 1 newer than the head, 1 unnamed, 1 needs attention")
+    expect(summary?.line).toBe(
+      "3 agents, 2 out of date, 1 newer than the head, 1 unnamed, 1 needs attention",
+    )
   })
   it("counts an agent once per kind even when it has two problems of that kind", () => {
     const twoForwarded = makeInstance({
@@ -161,15 +189,24 @@ describe("agentSummary", () => {
       status: "warning",
       problems: [makeProblem("geoip-stale", "warning"), makeProblem("geoip-asn-stale", "warning")],
     })
-    expect(agentSummary(makeResponse([HEAD, twoForwarded]))?.line).toBe("1 agent, 1 needs attention")
+    expect(agentSummary(makeResponse([HEAD, twoForwarded]))?.line).toBe(
+      "1 agent, 1 needs attention",
+    )
   })
   it("takes the worst tone across agents", () => {
     expect(agentSummary(makeResponse([HEAD, HEALTHY, VERSION_DRIFT]))?.tone).toBe("amber")
     expect(agentSummary(makeResponse([HEAD, VERSION_DRIFT, NOT_CHECKING_IN]))?.tone).toBe("red")
   })
   it("ignores the head's own problems", () => {
-    const head = { ...HEAD, status: "critical" as const, problems: [makeProblem("db-down", "critical")] }
-    expect(agentSummary(makeResponse([head, HEALTHY]))).toEqual({ tone: "emerald", line: "1 agent, healthy" })
+    const head = {
+      ...HEAD,
+      status: "critical" as const,
+      problems: [makeProblem("db-down", "critical")],
+    }
+    expect(agentSummary(makeResponse([head, HEALTHY]))).toEqual({
+      tone: "emerald",
+      line: "1 agent, healthy",
+    })
   })
 })
 
@@ -237,7 +274,9 @@ describe("instancesErrorState", () => {
 describe("versionTone", () => {
   const head = { instanceName: "head", appVersion: "0.20.0", schemaRevision: "7c1e9a" }
   it("is red when the migration differs", () => {
-    expect(versionTone(makeInstance({ appVersion: "0.19.2", schemaRevision: "4b02d1" }), head)).toBe("red")
+    expect(
+      versionTone(makeInstance({ appVersion: "0.19.2", schemaRevision: "4b02d1" }), head),
+    ).toBe("red")
   })
   it("is amber when only the version differs", () => {
     expect(versionTone(makeInstance({ appVersion: "0.20.1" }), head)).toBe("amber")
@@ -288,35 +327,75 @@ describe("schemaWaitState", () => {
   })
   it("labels each outcome", () => {
     expect(schemaWaitState("ready")).toEqual({ tone: "emerald", label: "ready" })
-    expect(schemaWaitState("waiting")).toEqual({ tone: "amber", label: "waiting for the head to migrate" })
-    expect(schemaWaitState("newer")).toEqual({ tone: "amber", label: "database is ahead of this build" })
+    expect(schemaWaitState("waiting")).toEqual({
+      tone: "amber",
+      label: "waiting for the head to migrate",
+    })
+    expect(schemaWaitState("newer")).toEqual({
+      tone: "amber",
+      label: "database is ahead of this build",
+    })
     expect(schemaWaitState("timeout")).toEqual({ tone: "red", label: "gave up waiting" })
   })
 })
 
 describe("agentIngestionState", () => {
-  function makeIngestion(overrides: Partial<HealthResponse["ingestion"]> = {}): HealthResponse["ingestion"] {
-    return { running: true, parsedLines: 10, pendingRecords: 0, missingFiles: [], lastRecordAt: null, ...overrides }
+  function makeIngestion(
+    overrides: Partial<HealthResponse["ingestion"]> = {},
+  ): HealthResponse["ingestion"] {
+    return {
+      running: true,
+      parsedLines: 10,
+      pendingRecords: 0,
+      missingFiles: [],
+      lastRecordAt: null,
+      ...overrides,
+    }
   }
   it("is muted when the agent sent no health report", () => {
     expect(agentIngestionState(undefined, null)).toEqual({ tone: "muted", label: "unknown" })
   })
   it("is muted when ingestion is turned off", () => {
-    expect(agentIngestionState(makeIngestion({ status: "disabled", running: false }), 0).label).toBe("turned off")
+    expect(
+      agentIngestionState(makeIngestion({ status: "disabled", running: false }), 0).label,
+    ).toBe("turned off")
+  })
+  it("is muted while the agent is still starting", () => {
+    expect(agentIngestionState(makeIngestion({ status: "starting", running: false }), 0)).toEqual({
+      tone: "muted",
+      label: "starting",
+    })
   })
   it("is amber when not running", () => {
-    expect(agentIngestionState(makeIngestion({ running: false }), 0)).toEqual({ tone: "amber", label: "not running" })
+    expect(agentIngestionState(makeIngestion({ running: false }), 0)).toEqual({
+      tone: "amber",
+      label: "not running",
+    })
   })
   it("is red when writes failed in the last 5 minutes", () => {
-    expect(agentIngestionState(makeIngestion(), 4)).toEqual({ tone: "red", label: "running, writes failing" })
+    expect(agentIngestionState(makeIngestion(), 4)).toEqual({
+      tone: "red",
+      label: "running, writes failing",
+    })
   })
   it("is amber when a source is unavailable", () => {
-    const ingestion = makeIngestion({ unavailableSources: [{ kind: "file", label: "/logs/a.log", reason: "missing" }] })
-    expect(agentIngestionState(ingestion, 0)).toEqual({ tone: "amber", label: "running, a source is unavailable" })
+    const ingestion = makeIngestion({
+      unavailableSources: [{ kind: "file", label: "/logs/a.log", reason: "missing" }],
+    })
+    expect(agentIngestionState(ingestion, 0)).toEqual({
+      tone: "amber",
+      label: "running, a source is unavailable",
+    })
   })
   it("ignores failures older than 5 minutes", () => {
-    expect(agentIngestionState(makeIngestion({ failedBatches: 3 }), 0)).toEqual({ tone: "emerald", label: "running" })
-    expect(agentIngestionState(makeIngestion(), null)).toEqual({ tone: "emerald", label: "running" })
+    expect(agentIngestionState(makeIngestion({ failedBatches: 3 }), 0)).toEqual({
+      tone: "emerald",
+      label: "running",
+    })
+    expect(agentIngestionState(makeIngestion(), null)).toEqual({
+      tone: "emerald",
+      label: "running",
+    })
   })
 })
 
@@ -356,7 +435,13 @@ function makeHealth(overrides: Partial<HealthResponse> = {}): HealthResponse {
     crowdsec: { enabled: false, lapiReachable: null },
     database: { reachable: true },
     geoip: { available: true, dbBuildDate: "2026-10-14T00:00:00+00:00", asnAvailable: true },
-    ingestion: { running: true, parsedLines: 52310, pendingRecords: 0, missingFiles: [], lastRecordAt: null },
+    ingestion: {
+      running: true,
+      parsedLines: 52310,
+      pendingRecords: 0,
+      missingFiles: [],
+      lastRecordAt: null,
+    },
     ...overrides,
   } as HealthResponse
 }
@@ -371,36 +456,64 @@ function partsText(parts: { text: string }[]): string {
 
 describe("problemHeadline", () => {
   it("uses fixed words for the problems the head computes", () => {
-    expect(problemHeadline(makeProblem("instance-not-checking-in", "critical"), "nas")).toBe("Not checking in")
-    expect(problemHeadline(makeProblem("instance-version-mismatch", "warning"), "nas")).toBe("Out of date")
-    expect(problemHeadline(makeProblem("instance-schema-behind", "critical"), "nas")).toBe("Out of date")
+    expect(problemHeadline(makeProblem("instance-not-checking-in", "critical"), "nas")).toBe(
+      "Not checking in",
+    )
+    expect(problemHeadline(makeProblem("instance-version-mismatch", "warning"), "nas")).toBe(
+      "Out of date",
+    )
+    expect(problemHeadline(makeProblem("instance-schema-behind", "critical"), "nas")).toBe(
+      "Out of date",
+    )
   })
   it("names a shared name, a default name and an unreadable report", () => {
     expect(problemHeadline(makeProblem("instance-name-conflict", "critical"), "nas")).toBe(
       "Name used by more than one process",
     )
-    expect(problemHeadline(makeProblem("instance-name-not-set", "warning"), "nas")).toBe("Runs under the default name")
+    expect(problemHeadline(makeProblem("instance-name-not-set", "warning"), "nas")).toBe(
+      "Runs under the default name",
+    )
     expect(problemHeadline(makeProblem("instance-payload-unreadable", "warning"), "nas")).toBe(
       "Health report unreadable",
     )
   })
   it("drops the agent's name from its own sentence", () => {
-    const restarting = makeProblem("instance-restart-loop", "warning", "traefik started 4 times in the last hour.")
+    const restarting = makeProblem(
+      "instance-restart-loop",
+      "warning",
+      "traefik started 4 times in the last hour.",
+    )
     expect(problemHeadline(restarting, "traefik")).toBe("Started 4 times in the last hour")
   })
   it("shortens an unreadable source", () => {
-    const missing = makeProblem("instance-ingestion-degraded", "warning", "caddy cannot read /var/log/caddy.log.")
+    const missing = makeProblem(
+      "instance-ingestion-degraded",
+      "warning",
+      "caddy cannot read /var/log/caddy.log.",
+    )
     expect(problemHeadline(missing, "caddy")).toBe("Can't read /var/log/caddy.log")
-    const stopped = makeProblem("instance-ingestion-degraded", "warning", "Ingestion on caddy is not running.")
+    const stopped = makeProblem(
+      "instance-ingestion-degraded",
+      "warning",
+      "Ingestion on caddy is not running.",
+    )
     expect(problemHeadline(stopped, "caddy")).toBe("Ingestion not running")
   })
   it("says whether all or some writes fail", () => {
-    expect(problemHeadline(makeProblem("instance-writes-failing", "critical"), "nas")).toBe("Writes failing")
-    expect(problemHeadline(makeProblem("instance-writes-failing", "warning"), "nas")).toBe("Some writes failing")
+    expect(problemHeadline(makeProblem("instance-writes-failing", "critical"), "nas")).toBe(
+      "Writes failing",
+    )
+    expect(problemHeadline(makeProblem("instance-writes-failing", "warning"), "nas")).toBe(
+      "Some writes failing",
+    )
   })
   it("shortens the write failures an instance reports about itself", () => {
-    expect(problemHeadline(makeProblem("ingestion-write-failures", "critical"), "head")).toBe("Writes failing")
-    expect(problemHeadline(makeProblem("ingestion-write-failures", "warning"), "head")).toBe("Writes failed since startup")
+    expect(problemHeadline(makeProblem("ingestion-write-failures", "critical"), "head")).toBe(
+      "Writes failing",
+    )
+    expect(problemHeadline(makeProblem("ingestion-write-failures", "warning"), "head")).toBe(
+      "Writes failed since startup",
+    )
   })
   it("keeps a forwarded summary", () => {
     const forwarded = makeProblem("geoip-asn-stale", "warning", "The ASN database is old.")
@@ -416,7 +529,13 @@ describe("instanceRowLine", () => {
   it("says writes are failing instead of Healthy", () => {
     const failing = makeInstance({
       status: "warning",
-      problems: [makeProblem("instance-writes-failing", "warning", "edge could not write 14 of 304 records in the last 5 minutes.")],
+      problems: [
+        makeProblem(
+          "instance-writes-failing",
+          "warning",
+          "edge could not write 14 of 304 records in the last 5 minutes.",
+        ),
+      ],
       payload: { lines5M: 290, failed5M: 14, written5M: 290, sources: [{ label: "/logs/a.log" }] },
     })
     expect(partsText(instanceRowLine(failing))).toBe("Some writes failing")
@@ -429,21 +548,29 @@ describe("instanceRowLine", () => {
   })
   it("says the count needs 5 minutes of heartbeats", () => {
     const fresh = makeInstance({ payload: { lines5M: null, sources: [{ label: "/logs/a.log" }] } })
-    expect(partsText(instanceRowLine(fresh))).toBe("Healthy · line count needs 5 minutes of heartbeats")
-  })
-  it("describes a head without log sources", () => {
-    expect(partsText(instanceRowLine(makeInstance({ isSelf: true, payload: { sources: [] } })))).toBe(
-      "Healthy · serves the UI, no log sources",
+    expect(partsText(instanceRowLine(fresh))).toBe(
+      "Healthy · line count needs 5 minutes of heartbeats",
     )
   })
+  it("describes a head without log sources", () => {
+    expect(
+      partsText(instanceRowLine(makeInstance({ isSelf: true, payload: { sources: [] } }))),
+    ).toBe("Healthy · serves the UI, no log sources")
+  })
   it("adds failed writes in red", () => {
-    const failing = makeInstance({ payload: { lines5M: 87, failed5M: 14, sources: [{ label: "/logs/a.log" }] } })
+    const failing = makeInstance({
+      payload: { lines5M: 87, failed5M: 14, sources: [{ label: "/logs/a.log" }] },
+    })
     expect(instanceRowLine(failing).at(-1)).toEqual({ text: "14 failed", tone: "red" })
   })
 })
 
 describe("instanceHeaderLine", () => {
-  const head = { instanceName: "head", appVersion: "0.23.0.dev5+g05b43030", schemaRevision: "7c1e9a" }
+  const head = {
+    instanceName: "head",
+    appVersion: "0.23.0.dev5+g05b43030",
+    schemaRevision: "7c1e9a",
+  }
   it("says when it was seen, how long it has run and the version against the head", () => {
     const drifted = makeInstance({
       appVersion: "0.22.1",
@@ -459,7 +586,11 @@ describe("instanceHeaderLine", () => {
     expect(groups[2][0].tone).toBe("amber")
   })
   it("uses the Status wording for an agent that stopped checking in", () => {
-    const stale = makeInstance({ appVersion: "0.23.0.dev5", checkingIn: false, lastSeen: "2026-10-14T10:00:30+00:00" })
+    const stale = makeInstance({
+      appVersion: "0.23.0.dev5",
+      checkingIn: false,
+      lastSeen: "2026-10-14T10:00:30+00:00",
+    })
     const groups = instanceHeaderLine(stale, head, CHECKED_AT)
     expect(groups.map((group) => group.map((part) => part.text).join(""))).toEqual([
       "Last seen 3d ago",
@@ -467,6 +598,35 @@ describe("instanceHeaderLine", () => {
       "details from its last heartbeat",
     ])
     expect(groups[0][0].tone).toBe("red")
+  })
+  it("ends with the database connection when the instance reports it", () => {
+    const verified = makeInstance({
+      appVersion: "0.23.0.dev5",
+      lastSeen: "2026-10-17T10:00:18+00:00",
+      payload: { databaseLink: { encrypted: true, serverVerified: true } },
+    })
+    const groups = instanceHeaderLine(verified, head, CHECKED_AT)
+    expect(
+      groups
+        .at(-1)
+        ?.map((part) => part.text)
+        .join(""),
+    ).toBe("database\u00a0connection\u00a0encrypted, server verified")
+  })
+  it("puts the database connection before the last-heartbeat note for a stale agent", () => {
+    const stale = makeInstance({
+      appVersion: "0.23.0.dev5",
+      checkingIn: false,
+      lastSeen: "2026-10-14T10:00:30+00:00",
+      payload: { databaseLink: { encrypted: false, serverVerified: false } },
+    })
+    const groups = instanceHeaderLine(stale, head, CHECKED_AT)
+    expect(groups.map((group) => group.map((part) => part.text).join(""))).toEqual([
+      "Last seen 3d ago",
+      "v0.23.0-dev.5",
+      "database\u00a0connection\u00a0not encrypted",
+      "details from its last heartbeat",
+    ])
   })
 })
 
@@ -502,10 +662,22 @@ describe("instanceDetailSections", () => {
       failed5M: 14,
       lastError: { message: "(IntegrityError) null value in column" },
       jobs: [
-        { id: "geoip-refresh", name: "Refresh GeoLite2", lastStatus: "error", lastStart: "2026-10-16T09:00:00+00:00" },
+        {
+          id: "geoip-refresh",
+          name: "Refresh GeoLite2",
+          lastStatus: "error",
+          lastStart: "2026-10-16T09:00:00+00:00",
+        },
         { id: "server-location-refresh", name: "Locate", lastStatus: "success" },
       ],
-      sources: [{ label: "/logs/json.log", available: true, parsedLines: 39020, logFormat: "geometrikks-json" }],
+      sources: [
+        {
+          label: "/logs/json.log",
+          available: true,
+          parsedLines: 39020,
+          logFormat: "geometrikks-json",
+        },
+      ],
     },
   })
   it("puts red and amber sections first and keeps the rest in order", () => {
@@ -520,18 +692,30 @@ describe("instanceDetailSections", () => {
     ])
   })
   it("summarizes failing writes, the last error and a failed job", () => {
-    expect(partsText(sectionById(failing, "ingestion")!.summary)).toBe("Running, writes failing · 14 failed in 5 min")
+    expect(partsText(sectionById(failing, "ingestion")!.summary)).toBe(
+      "Running, writes failing · 14 failed in 5 min",
+    )
     expect(partsText(sectionById(failing, "last-error")!.summary)).toBe("null value in column")
-    expect(partsText(sectionById(failing, "jobs")!.summary)).toBe("Refresh GeoLite2 failed 1d ago · 1 ok")
-    expect(partsText(sectionById(failing, "sources")!.summary)).toBe("/logs/json.log · 39,020 lines")
+    expect(partsText(sectionById(failing, "jobs")!.summary)).toBe(
+      "Refresh GeoLite2 failed 1d ago · 1 ok",
+    )
+    expect(partsText(sectionById(failing, "sources")!.summary)).toBe(
+      "/logs/json.log · 39,020 lines",
+    )
   })
   it("leaves out Last error when nothing failed", () => {
-    expect(sectionById(makeInstance({ health: makeHealth(), payload: {} }), "last-error")).toBeUndefined()
+    expect(
+      sectionById(makeInstance({ health: makeHealth(), payload: {} }), "last-error"),
+    ).toBeUndefined()
   })
   it("names the format instead of repeating the line count", () => {
     const healthy = makeInstance({
       health: makeHealth(),
-      payload: { sources: [{ label: "/logs/nginx.log", available: true, parsedLines: 52310, logFormat: "nginx" }] },
+      payload: {
+        sources: [
+          { label: "/logs/nginx.log", available: true, parsedLines: 52310, logFormat: "nginx" },
+        ],
+      },
     })
     expect(partsText(sectionById(healthy, "ingestion")!.summary)).toBe("Running · 52,310 lines")
     expect(partsText(sectionById(healthy, "sources")!.summary)).toBe("/logs/nginx.log · nginx")
@@ -547,7 +731,9 @@ describe("instanceDetailSections", () => {
     expect(partsText(ingestion.summary)).toBe("Running when last seen · 52,310 lines")
     expect(sectionById(stale, "sources")!.tone).toBe("muted")
     expect(sectionById(stale, "geoip")!.tone).toBe("muted")
-    expect(partsText(sectionById(stale, "geoip")!.summary)).toMatch(/^Loaded when last seen · City and ASN built .+, 3d ago$/)
+    expect(partsText(sectionById(stale, "geoip")!.summary)).toMatch(
+      /^Loaded when last seen · City and ASN built .+, 3d ago$/,
+    )
     expect(sectionById(stale, "instance")!.tone).toBe("muted")
   })
   it("greys out the last error and job results of a stopped agent", () => {
@@ -593,15 +779,31 @@ describe("deepLinkScrollDelta", () => {
     expect(deepLinkScrollDelta({ ...base, detailBottom: 1600 })).toBe(104)
   })
   it("scrolls up to the card's top for a row above the viewport", () => {
-    expect(deepLinkScrollDelta({ ...base, cardTop: -400, rowTop: -200, rowBottom: -160, detailBottom: 300 })).toBe(-456)
+    expect(
+      deepLinkScrollDelta({
+        ...base,
+        cardTop: -400,
+        rowTop: -200,
+        rowBottom: -160,
+        detailBottom: 300,
+      }),
+    ).toBe(-456)
   })
   it("scrolls up only to the row when the card's top is too far up", () => {
     expect(
-      deepLinkScrollDelta({ ...base, cardTop: -3000, rowTop: -200, rowBottom: -160, detailBottom: 300 }),
+      deepLinkScrollDelta({
+        ...base,
+        cardTop: -3000,
+        rowTop: -200,
+        rowBottom: -160,
+        detailBottom: 300,
+      }),
     ).toBe(-272)
   })
   it("scrolls past the card when the row would stay out of view", () => {
-    expect(deepLinkScrollDelta({ ...base, rowTop: 1300, rowBottom: 1340, detailBottom: 2200 })).toBe(1228)
+    expect(
+      deepLinkScrollDelta({ ...base, rowTop: 1300, rowBottom: 1340, detailBottom: 2200 }),
+    ).toBe(1228)
   })
 })
 
@@ -622,7 +824,46 @@ describe("removeFailureMessage", () => {
     expect(removeFailureMessage({ status_code: 404, detail: "Not found" }, "nas")).toBeNull()
   })
   it("asks to try again for any other failure", () => {
-    expect(removeFailureMessage({ status_code: 500 }, "nas")).toBe("Could not remove nas. Try again.")
-    expect(removeFailureMessage(new TypeError("Failed to fetch"), "nas")).toBe("Could not remove nas. Try again.")
+    expect(removeFailureMessage({ status_code: 500 }, "nas")).toBe(
+      "Could not remove nas. Try again.",
+    )
+    expect(removeFailureMessage(new TypeError("Failed to fetch"), "nas")).toBe(
+      "Could not remove nas. Try again.",
+    )
+  })
+})
+
+describe("databaseLinkState", () => {
+  it("is null without a report", () => {
+    expect(databaseLinkState(null)).toBeNull()
+    expect(databaseLinkState(undefined)).toBeNull()
+  })
+  it("reads a verified link", () => {
+    expect(databaseLinkState({ encrypted: true, serverVerified: true })).toEqual({
+      text: "encrypted, server verified",
+      hint: "Database connection encrypted, server verified",
+      lock: "verified",
+    })
+  })
+  it("reads an encrypted link the instance did not verify", () => {
+    expect(databaseLinkState({ encrypted: true, serverVerified: false })).toEqual({
+      text: "encrypted",
+      hint: "Database connection encrypted",
+      lock: "encrypted",
+    })
+  })
+  it("reads a plain link", () => {
+    expect(databaseLinkState({ encrypted: false, serverVerified: false })).toEqual({
+      text: "not encrypted",
+      hint: "Database connection not encrypted",
+      lock: "open",
+    })
+  })
+  it("counts a missing flag as false", () => {
+    expect(databaseLinkState({})?.lock).toBe("open")
+    expect(databaseLinkState({ encrypted: true })?.lock).toBe("encrypted")
+  })
+  it("never calls a plain link verified", () => {
+    expect(databaseLinkState({ encrypted: false, serverVerified: true })?.lock).toBe("open")
   })
 })

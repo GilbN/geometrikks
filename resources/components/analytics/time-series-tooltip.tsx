@@ -26,9 +26,10 @@ export function TimeSeriesTooltip({
   /** Builds the rows from the hovered data row instead of the Recharts payload. */
   rows?: (row: unknown) => TooltipRow[]
 }) {
-  const items = rows && payload?.length
-    ? (rows(payload[0].payload) as unknown as PayloadItems)
-    : withRawValues(payload)
+  const items =
+    rows && payload?.length
+      ? (rows(payload[0].payload) as unknown as PayloadItems)
+      : withRawValues(payload)
   return (
     <ChartTooltipContent
       labelFormatter={(value) => formatTs(value as string, granularity)}

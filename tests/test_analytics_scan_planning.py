@@ -6,7 +6,7 @@ planner settings in the scan's transaction, before the scan.
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from typing import Any
 
@@ -20,7 +20,7 @@ from geometrikks.domain.analytics.repositories import (
 
 pytestmark = pytest.mark.anyio
 
-NOW = datetime(2026, 8, 27, 12, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 27, 12, tzinfo=UTC)
 HOURS_AGO = NOW - timedelta(hours=6)
 DAYS_AGO = NOW - timedelta(days=3)
 EXCLUDE = AnalyticsFilters(ip_exclude=["10.0.0.1"])
@@ -37,7 +37,7 @@ class CaptureSession:
         return SimpleNamespace(
             one_or_none=lambda: None,
             one=lambda: SimpleNamespace(hits=0, total_bytes=0),
-            fetchall=lambda: [],
+            fetchall=list,
         )
 
 

@@ -1,5 +1,12 @@
-import { describe, expect, it } from "vitest"
-import { buildGeoLogSparklines, buildOverviewSparklines, fillGaps, geoLogSparklinesFromSeries, hasSparklines, sparklineGranularity } from "./sparklines"
+import { describe, expect, it } from "vite-plus/test"
+import {
+  buildGeoLogSparklines,
+  buildOverviewSparklines,
+  fillGaps,
+  geoLogSparklinesFromSeries,
+  hasSparklines,
+  sparklineGranularity,
+} from "./sparklines"
 import type { TimeSeriesResponse } from "./api"
 
 const HOUR = 3_600_000
@@ -91,7 +98,12 @@ describe("buildOverviewSparklines", () => {
       endDate: "2026-11-06T16:00:00Z",
       data: [row("2026-11-06T10:00:00Z", 4, 0.2), row("2026-11-06T13:00:00Z", 2, null)],
     } as TimeSeriesResponse
-    const lines = buildOverviewSparklines(series, undefined, at(series.startDate), at(series.endDate))
+    const lines = buildOverviewSparklines(
+      series,
+      undefined,
+      at(series.startDate),
+      at(series.endDate),
+    )
 
     expect(lines.requests).toEqual([4, 0, 0, 2, 0, 0])
     expect(lines.avgRequestTime).toEqual([0.2])
@@ -102,7 +114,15 @@ describe("buildOverviewSparklines", () => {
 })
 
 describe("buildOverviewSparklines at other granularities", () => {
-  const counted = (timestamp: string) => ({ timestamp, totalRequests: 5, status2xx: 5, status3xx: 0, status4xx: 0, status5xx: 0, totalBytesSent: 10 })
+  const counted = (timestamp: string) => ({
+    timestamp,
+    totalRequests: 5,
+    status2xx: 5,
+    status3xx: 0,
+    status4xx: 0,
+    status5xx: 0,
+    totalBytesSent: 10,
+  })
 
   it("fills gaps a day apart when the response is daily", () => {
     const series = {
@@ -111,7 +131,9 @@ describe("buildOverviewSparklines at other granularities", () => {
       endDate: "2026-11-08T00:00:00Z",
       data: [counted("2026-11-03T00:00:00Z")],
     } as TimeSeriesResponse
-    expect(buildOverviewSparklines(series, undefined, at(series.startDate), at(series.endDate)).requests).toEqual([0, 0, 5, 0, 0, 0, 0])
+    expect(
+      buildOverviewSparklines(series, undefined, at(series.startDate), at(series.endDate)).requests,
+    ).toEqual([0, 0, 5, 0, 0, 0, 0])
   })
 
   it("starts an hourly line at its first row past 30 days", () => {
@@ -121,7 +143,9 @@ describe("buildOverviewSparklines at other granularities", () => {
       endDate: "2026-11-08T00:00:00Z",
       data: [counted("2026-11-07T22:00:00Z")],
     } as TimeSeriesResponse
-    expect(buildOverviewSparklines(series, undefined, at(series.startDate), at(series.endDate)).requests).toEqual([5, 0])
+    expect(
+      buildOverviewSparklines(series, undefined, at(series.startDate), at(series.endDate)).requests,
+    ).toEqual([5, 0])
   })
 })
 
@@ -134,8 +158,20 @@ describe("buildGeoLogSparklines", () => {
       startDate: "2026-11-06T10:00:00Z",
       endDate: "2026-11-06T16:00:00Z",
       data: [
-        { timestamp: "2026-11-06T11:00:00Z", totalEvents: 9, uniqueIps: 4, uniqueCountries: 3, uniqueCities: 2 },
-        { timestamp: "2026-11-06T14:00:00Z", totalEvents: 5, uniqueIps: 2, uniqueCountries: 1, uniqueCities: 1 },
+        {
+          timestamp: "2026-11-06T11:00:00Z",
+          totalEvents: 9,
+          uniqueIps: 4,
+          uniqueCountries: 3,
+          uniqueCities: 2,
+        },
+        {
+          timestamp: "2026-11-06T14:00:00Z",
+          totalEvents: 5,
+          uniqueIps: 2,
+          uniqueCountries: 1,
+          uniqueCities: 1,
+        },
       ],
     }
     expect(buildGeoLogSparklines(series, start, end)).toEqual({
@@ -153,7 +189,15 @@ describe("buildGeoLogSparklines at a daily granularity", () => {
       granularity: "daily",
       startDate: "2026-11-01T00:00:00Z",
       endDate: "2026-11-08T00:00:00Z",
-      data: [{ timestamp: "2026-11-03T00:00:00Z", totalEvents: 7, uniqueIps: 3, uniqueCountries: 2, uniqueCities: 1 }],
+      data: [
+        {
+          timestamp: "2026-11-03T00:00:00Z",
+          totalEvents: 7,
+          uniqueIps: 3,
+          uniqueCountries: 2,
+          uniqueCities: 1,
+        },
+      ],
     }
     expect(geoLogSparklinesFromSeries(series).events).toEqual([0, 0, 7, 0, 0, 0, 0])
   })
@@ -186,7 +230,12 @@ describe("buildGeoLogSparklines on an hourly range over 30 days", () => {
   })
 
   it("draws nothing when every hourly row has expired", () => {
-    const series = { granularity: "hourly", startDate: "2026-08-01T00:00:00Z", endDate: "2026-11-08T00:00:00Z", data: [] }
+    const series = {
+      granularity: "hourly",
+      startDate: "2026-08-01T00:00:00Z",
+      endDate: "2026-11-08T00:00:00Z",
+      data: [],
+    }
     expect(geoLogSparklinesFromSeries(series).events).toEqual([])
   })
 
@@ -196,8 +245,20 @@ describe("buildGeoLogSparklines on an hourly range over 30 days", () => {
       startDate: "2026-08-01T00:00:00Z",
       endDate: "2026-11-08T00:00:00Z",
       data: [
-        { timestamp: "2026-11-07T21:00:00Z", totalEvents: 4, uniqueIps: 2, uniqueCountries: 1, uniqueCities: 1 },
-        { timestamp: "2026-11-07T23:00:00Z", totalEvents: 6, uniqueIps: 3, uniqueCountries: 1, uniqueCities: 1 },
+        {
+          timestamp: "2026-11-07T21:00:00Z",
+          totalEvents: 4,
+          uniqueIps: 2,
+          uniqueCountries: 1,
+          uniqueCities: 1,
+        },
+        {
+          timestamp: "2026-11-07T23:00:00Z",
+          totalEvents: 6,
+          uniqueIps: 3,
+          uniqueCountries: 1,
+          uniqueCities: 1,
+        },
       ],
     }
     expect(geoLogSparklinesFromSeries(series).events).toEqual([4, 0, 6])
@@ -210,7 +271,15 @@ describe("geoLogSparklinesFromSeries", () => {
       granularity: "hourly",
       startDate: "2026-11-06T10:00:00.000000+00:00",
       endDate: "2026-11-06T16:00:00.000000+00:00",
-      data: [{ timestamp: "2026-11-06T12:00:00Z", totalEvents: 7, uniqueIps: 3, uniqueCountries: 2, uniqueCities: 1 }],
+      data: [
+        {
+          timestamp: "2026-11-06T12:00:00Z",
+          totalEvents: 7,
+          uniqueIps: 3,
+          uniqueCountries: 2,
+          uniqueCities: 1,
+        },
+      ],
     }
     expect(geoLogSparklinesFromSeries(series).events).toEqual([0, 0, 7, 0, 0, 0])
   })

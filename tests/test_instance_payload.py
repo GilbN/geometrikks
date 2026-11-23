@@ -1,7 +1,7 @@
 """The heartbeat payload: schemas, lenient decoding, rolling counters and the builder."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
@@ -12,8 +12,13 @@ from litestar import Litestar
 
 from geometrikks.config.settings import AppSettings, Settings
 from geometrikks.domain.instances.payload import RollingCounter, build_payload
-from geometrikks.domain.instances.schemas import decode_payload, payload_advisories
-from geometrikks.services.ingestion import LogInput, LogIngestionService
+from geometrikks.domain.instances.schemas import (
+    DatabaseLinkReport,
+    HeartbeatPayload,
+    decode_payload,
+    payload_advisories,
+)
+from geometrikks.services.ingestion import LogIngestionService, LogInput
 from geometrikks.services.logparser.logparser import LogParser
 from geometrikks.services.logsources import FileSource, LokiSource
 
@@ -85,7 +90,7 @@ def test_decode_of_garbage_returns_none() -> None:
 def test_decode_parses_iso_datetimes() -> None:
     payload = decode_payload({"nameConflictAt": "2026-10-17T10:00:00+00:00"})
     assert payload is not None
-    assert payload.name_conflict_at == datetime(2026, 10, 17, 10, tzinfo=timezone.utc)
+    assert payload.name_conflict_at == datetime(2026, 10, 17, 10, tzinfo=UTC)
 
 
 def test_rolling_counter_reports_none_until_window_filled() -> None:
@@ -134,8 +139,8 @@ def test_source_without_server_name_still_decodes() -> None:
 
 def test_source_activity_survives_heartbeat_serialization() -> None:
     service = _service_with_two_sources()
-    read_at = datetime(2026, 11, 3, 12, tzinfo=timezone.utc)
-    parsed_at = datetime(2026, 11, 3, 11, tzinfo=timezone.utc)
+    read_at = datetime(2026, 11, 3, 12, tzinfo=UTC)
+    parsed_at = datetime(2026, 11, 3, 11, tzinfo=UTC)
     service.inputs[0].last_read_at = read_at
     service.inputs[0].last_parsed_at = parsed_at
     service.inputs[1].last_read_at = parsed_at
@@ -294,11 +299,27 @@ def test_build_payload_round_trips_through_decode() -> None:
         failed_5m=0,
         written_5m=5,
         failed_batches_5m=1,
-        recent_starts=[datetime(2026, 10, 17, tzinfo=timezone.utc)],
+        recent_starts=[datetime(2026, 10, 17, tzinfo=UTC)],
         name_conflict_at=None,
     )
     decoded = decode_payload(msgspec.to_builtins(payload))
     assert decoded == payload
+
+
+def test_build_payload_carries_the_database_link() -> None:
+    database_link = DatabaseLinkReport(encrypted=True, server_verified=False)
+    payload = build_payload(
+        Litestar(route_handlers=[]),
+        _settings(),
+        lines_5m=None,
+        failed_5m=None,
+        written_5m=None,
+        failed_batches_5m=None,
+        recent_starts=[],
+        name_conflict_at=None,
+        database_link=database_link,
+    )
+    assert payload.database_link == database_link
 
 
 def test_agent_schema_wait_reports_waiting_before_result() -> None:
@@ -313,3 +334,26 @@ def test_agent_schema_wait_reports_waiting_before_result() -> None:
         name_conflict_at=None,
     )
     assert payload.health["schemaWait"] == "waiting"
+
+
+def test_payload_without_a_database_link_decodes_to_none() -> None:
+    payload = decode_payload({})
+    assert payload is not None
+    assert payload.database_link is None
+
+
+def test_database_link_with_one_flag_defaults_the_other() -> None:
+    payload = decode_payload({"databaseLink": {"encrypted": True}})
+    assert payload is not None
+    assert payload.database_link == DatabaseLinkReport(encrypted=True, server_verified=False)
+
+
+def test_database_link_ignores_keys_from_a_newer_release() -> None:
+    payload = decode_payload({"databaseLink": {"encrypted": True, "serverVerified": True, "tlsVersion": "TLSv1.3"}})
+    assert payload is not None
+    assert payload.database_link == DatabaseLinkReport(encrypted=True, server_verified=True)
+
+
+def test_database_link_serializes_with_camel_case_keys() -> None:
+    payload = HeartbeatPayload(database_link=DatabaseLinkReport(encrypted=True, server_verified=True))
+    assert msgspec.to_builtins(payload)["databaseLink"] == {"encrypted": True, "serverVerified": True}

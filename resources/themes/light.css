@@ -1,4 +1,6 @@
-:root, .light, .dark {
+:root,
+.light,
+.dark {
   /* Declared on .dark too: derived tokens such as --glass-card must recompute
      on a scoped preview element, not inherit <html>'s computed value. */
 

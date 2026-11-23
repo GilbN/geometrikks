@@ -5,11 +5,11 @@ from types import SimpleNamespace
 from typing import TYPE_CHECKING, cast
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
 from geometrikks.services.crowdsec import CrowdSecService
 from tests.support import enter_lifespan
 from tests.test_lifecycle_geoip import _patch_startup_collaborators
-
-import pytest
 
 if TYPE_CHECKING:
     from litestar import Litestar

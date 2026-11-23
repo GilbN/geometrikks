@@ -1,5 +1,12 @@
-import { describe, expect, it } from "vitest"
-import { AREA_BARS_OPTIONS, barSpacer, formatLogCount, formatRate, LATENCY_OPTIONS, STATUS_OPTIONS } from "./chart-utils"
+import { describe, expect, it } from "vite-plus/test"
+import {
+  AREA_BARS_OPTIONS,
+  barSpacer,
+  formatLogCount,
+  formatRate,
+  LATENCY_OPTIONS,
+  STATUS_OPTIONS,
+} from "./chart-utils"
 
 describe("formatRate", () => {
   it("formats 0..1 fractions as percentages", () => {

@@ -38,7 +38,8 @@ const rowBadgeClasses = "h-[18px] px-1.5 text-[11px] font-normal"
 export function focusDrawerTitle(event: Event) {
   event.preventDefault()
   const content = event.currentTarget
-  if (content instanceof HTMLElement) content.querySelector<HTMLElement>("[data-slot='drawer-title']")?.focus()
+  if (content instanceof HTMLElement)
+    content.querySelector<HTMLElement>("[data-slot='drawer-title']")?.focus()
 }
 
 export function ApiKeyList({
@@ -163,7 +164,13 @@ function ApiKeyDetail({
         </div>
         {!revoking && (
           <DrawerClose asChild>
-            <Button type="button" variant="ghost" size="icon" aria-label="Close" className="-mt-1 -mr-2 shrink-0">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label="Close"
+              className="-mt-1 -mr-2 shrink-0"
+            >
               <X className="size-[18px]" />
             </Button>
           </DrawerClose>
@@ -227,7 +234,9 @@ function RevokeInDrawer({
           onRevoked()
           return
         }
-        setRevokeError(apiErrorMessage(error, `Could not ${verb.toLowerCase()} ${apiKey.name}. Try again.`))
+        setRevokeError(
+          apiErrorMessage(error, `Could not ${verb.toLowerCase()} ${apiKey.name}. Try again.`),
+        )
         requestAnimationFrame(() => keepRef.current?.focus())
       },
     })

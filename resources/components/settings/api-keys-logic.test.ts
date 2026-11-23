@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 import type { ApiKeyList, ApiKeyView } from "@/generated/api/types.gen"
 import {
   apiErrorMessage,
@@ -89,7 +89,9 @@ describe("usageTone", () => {
   })
 
   it("is idle for an old key that was used, however long ago", () => {
-    expect(usageTone(makeKey({ createdAt: isoAgo(400 * DAY), lastUsedAt: isoAgo(200 * DAY) }), NOW)).toBe("idle")
+    expect(
+      usageTone(makeKey({ createdAt: isoAgo(400 * DAY), lastUsedAt: isoAgo(200 * DAY) }), NOW),
+    ).toBe("idle")
   })
 
   it("is idle for a key never used and created exactly 30 days ago", () => {
@@ -111,7 +113,9 @@ describe("lastUsedLabel", () => {
   })
 
   it("adds the key's age when it is stale", () => {
-    expect(lastUsedLabel(makeKey({ createdAt: isoAgo(125 * DAY) }), NOW)).toBe("Never used, created 4 months ago")
+    expect(lastUsedLabel(makeKey({ createdAt: isoAgo(125 * DAY) }), NOW)).toBe(
+      "Never used, created 4 months ago",
+    )
   })
 })
 
@@ -133,7 +137,9 @@ describe("lastUsedDetail", () => {
   })
 
   it("explains a stale key, which has no IP", () => {
-    expect(lastUsedDetail(makeKey({ createdAt: isoAgo(125 * DAY) }), NOW)).toBe("Never used, created 4 months ago")
+    expect(lastUsedDetail(makeKey({ createdAt: isoAgo(125 * DAY) }), NOW)).toBe(
+      "Never used, created 4 months ago",
+    )
   })
 
   it("has nothing to add for a new key never used", () => {
@@ -260,8 +266,14 @@ describe("scopeLabel and createdKeyLine", () => {
   })
 
   it("sums up a created key with an expiry", () => {
-    const apiKey = makeKey({ name: "ban-script", scope: "read_write", expiresAt: "2027-02-01T12:00:00Z" })
-    expect(createdKeyLine(apiKey)).toBe(`ban-script · Read/write · expires ${formatKeyDate("2027-02-01T12:00:00Z")}`)
+    const apiKey = makeKey({
+      name: "ban-script",
+      scope: "read_write",
+      expiresAt: "2027-02-01T12:00:00Z",
+    })
+    expect(createdKeyLine(apiKey)).toBe(
+      `ban-script · Read/write · expires ${formatKeyDate("2027-02-01T12:00:00Z")}`,
+    )
   })
 })
 
@@ -278,21 +290,26 @@ describe("apiKeyNameError", () => {
 
 describe("apiErrorMessage", () => {
   it("uses the server's detail", () => {
-    expect(apiErrorMessage({ status_code: 409, detail: "A key named homepage already exists." }, "fallback")).toBe(
-      "A key named homepage already exists.",
-    )
+    expect(
+      apiErrorMessage(
+        { status_code: 409, detail: "A key named homepage already exists." },
+        "fallback",
+      ),
+    ).toBe("A key named homepage already exists.")
   })
 
   it("falls back when the error has no detail", () => {
-    expect(apiErrorMessage(new Error("Network Error"), "Could not create the key. Try again.")).toBe(
-      "Could not create the key. Try again.",
-    )
+    expect(
+      apiErrorMessage(new Error("Network Error"), "Could not create the key. Try again."),
+    ).toBe("Could not create the key. Try again.")
   })
 })
 
 describe("apiKeyRowLine", () => {
   it("joins last used and expiry", () => {
-    expect(apiKeyRowLine(makeKey({ lastUsedAt: isoAgo(2 * MINUTE) }), NOW)).toBe("Used 2 min ago · never expires")
+    expect(apiKeyRowLine(makeKey({ lastUsedAt: isoAgo(2 * MINUTE) }), NOW)).toBe(
+      "Used 2 min ago · never expires",
+    )
     const expiresAt = "2027-02-01T12:00:00Z"
     expect(apiKeyRowLine(makeKey({ lastUsedAt: isoAgo(3 * DAY), expiresAt }), NOW)).toBe(
       `Used 3 days ago · expires ${formatKeyDate(expiresAt)}`,
@@ -301,7 +318,9 @@ describe("apiKeyRowLine", () => {
   })
 
   it("says how old a stale key is", () => {
-    expect(apiKeyRowLine(makeKey({ createdAt: isoAgo(125 * DAY) }), NOW)).toBe("Never used · created 4 months ago")
+    expect(apiKeyRowLine(makeKey({ createdAt: isoAgo(125 * DAY) }), NOW)).toBe(
+      "Never used · created 4 months ago",
+    )
   })
 
   it("names the day an expired key stopped", () => {
@@ -313,7 +332,11 @@ describe("apiKeyRowLine", () => {
 
 describe("apiKeyRowTone", () => {
   it("greys out an expired key even when it was used in its last day", () => {
-    const expiredKey = makeKey({ expired: true, expiresAt: isoAgo(HOUR), lastUsedAt: isoAgo(2 * HOUR) })
+    const expiredKey = makeKey({
+      expired: true,
+      expiresAt: isoAgo(HOUR),
+      lastUsedAt: isoAgo(2 * HOUR),
+    })
     expect(apiKeyRowTone(expiredKey, NOW)).toBe("idle")
   })
 
@@ -325,9 +348,9 @@ describe("apiKeyRowTone", () => {
 
 describe("lastUsedValue", () => {
   it("adds the IP when there is one", () => {
-    expect(lastUsedValue(makeKey({ lastUsedAt: isoAgo(3 * DAY), lastUsedIp: "192.168.1.20" }), NOW)).toBe(
-      "3 days ago, from 192.168.1.20",
-    )
+    expect(
+      lastUsedValue(makeKey({ lastUsedAt: isoAgo(3 * DAY), lastUsedIp: "192.168.1.20" }), NOW),
+    ).toBe("3 days ago, from 192.168.1.20")
     expect(lastUsedValue(makeKey({ lastUsedAt: isoAgo(2 * MINUTE) }), NOW)).toBe("2 min ago")
   })
 
@@ -358,7 +381,9 @@ describe("isNotFoundError", () => {
   })
 
   it("is false for other errors", () => {
-    expect(isNotFoundError({ status_code: 503, detail: "The API key store is unavailable." })).toBe(false)
+    expect(isNotFoundError({ status_code: 503, detail: "The API key store is unavailable." })).toBe(
+      false,
+    )
     expect(isNotFoundError(new Error("network"))).toBe(false)
     expect(isNotFoundError(null)).toBe(false)
     expect(isNotFoundError("404")).toBe(false)
@@ -374,7 +399,9 @@ describe("revokeVerb", () => {
 
 describe("revokeConfirmText", () => {
   it("warns that a live key stops working", () => {
-    expect(revokeConfirmText(makeKey())).toBe("Anything using it gets 401 from now on. This can't be undone.")
+    expect(revokeConfirmText(makeKey())).toBe(
+      "Anything using it gets 401 from now on. This can't be undone.",
+    )
   })
 
   it("names the day an expired key stopped", () => {

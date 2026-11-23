@@ -6,12 +6,13 @@ from typing import Annotated, Any, cast
 
 from advanced_alchemy.filters import LimitOffset
 from advanced_alchemy.service import OffsetPagination
-from litestar import Controller, Request, get, post
+from litestar import Controller, MediaType, Request, Response, get, post
 from litestar.di import NamedDependency, Provide
 from litestar.openapi.datastructures import ResponseSpec
 from litestar.params import JSONBody, QueryParameter, SkipValidation
 from litestar.status_codes import (
     HTTP_200_OK,
+    HTTP_304_NOT_MODIFIED,
     HTTP_400_BAD_REQUEST,
     HTTP_401_UNAUTHORIZED,
     HTTP_403_FORBIDDEN,
@@ -21,15 +22,25 @@ from litestar.status_codes import (
 )
 
 from geometrikks.config.settings import Settings
-from geometrikks.domain.abuseipdb.blacklist import current_blacklist
+from geometrikks.domain.abuseipdb.blacklist import (
+    EMPTY_BLACKLIST_BODY,
+    current_blacklist,
+)
 from geometrikks.domain.abuseipdb.dependencies import (
     provide_abuseipdb_blacklist,
     provide_abuseipdb_client,
     provide_abuseipdb_reports,
 )
 from geometrikks.domain.abuseipdb.errors import AbuseIpdbDisabledError
-from geometrikks.domain.abuseipdb.models import AbuseIpdbReport, ReporterKind, ReportStatus
-from geometrikks.domain.abuseipdb.repositories import AbuseIpdbBlacklistRepository, AbuseIpdbReportRepository
+from geometrikks.domain.abuseipdb.models import (
+    AbuseIpdbReport,
+    ReporterKind,
+    ReportStatus,
+)
+from geometrikks.domain.abuseipdb.repositories import (
+    AbuseIpdbBlacklistRepository,
+    AbuseIpdbReportRepository,
+)
 from geometrikks.domain.abuseipdb.schemas import (
     AbuseIpdbBlacklistResponse,
     AbuseIpdbStatusResponse,
@@ -169,23 +180,45 @@ class AbuseIpdbController(Controller):
             "from the local database; nothing leaves the server. `ips` is empty and both times are null with "
             "ABUSEIPDB_BLACKLIST_ENABLED=false, before the first download, and when the list is more than 72 hours "
             "old. With a file, `refreshedAt` is when the file was last written. The list is for your own use, and "
-            "AbuseIPDB forbids republishing it."
+            "AbuseIPDB forbids republishing it. The answer carries `Cache-Control: private, max-age=300` and an "
+            "`ETag` that changes with the list. With the feature off, before the first download and once the list "
+            "expires, it carries `no-cache` and no `ETag` instead. A request whose `If-None-Match` names the current "
+            "`ETag` gets a 304 with no body."
         ),
-        responses={HTTP_401_UNAUTHORIZED: _error("The request has no valid session or API key.")},
+        responses={
+            HTTP_200_OK: ResponseSpec(
+                data_container=AbuseIpdbBlacklistResponse,
+                description="The list, or an empty one.",
+                generate_examples=False,
+            ),
+            HTTP_304_NOT_MODIFIED: ResponseSpec(
+                data_container=None, description="`If-None-Match` names the current list.", generate_examples=False
+            ),
+            HTTP_401_UNAUTHORIZED: _error("The request has no valid session or API key."),
+        },
     )
     async def get_blacklist(
         self,
         settings: NamedDependency[SkipValidation[Settings]],
         abuseipdb_blacklist: NamedDependency[SkipValidation[AbuseIpdbBlacklistRepository]],
-    ) -> AbuseIpdbBlacklistResponse:
-        blacklist_view = await current_blacklist(
-            abuseipdb_blacklist, enabled=settings.abuseipdb.blacklist_enabled, now=datetime.now(UTC)
+        request: Request[Any, Any, Any],
+    ) -> Response[bytes]:
+        blacklist = await current_blacklist(
+            abuseipdb_blacklist,
+            enabled=settings.abuseipdb.blacklist_enabled,
+            now=datetime.now(UTC),
+            if_none_match=request.headers.get("if-none-match"),
         )
-        return AbuseIpdbBlacklistResponse(
-            generated_at=blacklist_view.generated_at,
-            refreshed_at=blacklist_view.refreshed_at,
-            ips=blacklist_view.ips,
-        )
+        if blacklist is None:
+            # no-cache lets the first download show up on the next fetch.
+            return Response(EMPTY_BLACKLIST_BODY, media_type=MediaType.JSON, headers={"Cache-Control": "no-cache"})
+        headers = {"Cache-Control": "private, max-age=300", "ETag": blacklist.etag}
+        if blacklist.body is None:
+            # The compression middleware skips an empty body, so it adds no Vary here.
+            return Response(
+                b"", status_code=HTTP_304_NOT_MODIFIED, headers={**headers, "Vary": "Accept-Encoding"}
+            )
+        return Response(blacklist.body, media_type=MediaType.JSON, headers=headers)
 
     @get(
         "/reported-ips",
@@ -241,8 +274,8 @@ class AbuseIpdbController(Controller):
                 required=False,
                 max_length=200,
                 description=(
-                    "Search, up to 200 characters. Matches the start of the IP, or part of the comment or the "
-                    "sender's name, ignoring case."
+                    "Search, up to 200 characters. A whole IP matches only that address, and other text matches "
+                    "the start of the IP. Either also matches part of the comment or the sender's name, ignoring case."
                 ),
             ),
         ] = None,

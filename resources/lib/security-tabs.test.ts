@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 import { activeSecurityTab, availableSecurityTabs, securityNavStatus } from "./security-tabs"
 
 describe("availableSecurityTabs", () => {
@@ -11,13 +11,20 @@ describe("availableSecurityTabs", () => {
     ])
   })
   it("leaves out DROP until its lists have loaded", () => {
-    expect(availableSecurityTabs({ crowdsec: true, dropLoaded: false, reporting: false })).toEqual(["decisions", "alerts"])
+    expect(availableSecurityTabs({ crowdsec: true, dropLoaded: false, reporting: false })).toEqual([
+      "decisions",
+      "alerts",
+    ])
   })
   it("shows only Reports without CrowdSec, even with DROP lists loaded", () => {
-    expect(availableSecurityTabs({ crowdsec: false, dropLoaded: true, reporting: true })).toEqual(["reports"])
+    expect(availableSecurityTabs({ crowdsec: false, dropLoaded: true, reporting: true })).toEqual([
+      "reports",
+    ])
   })
   it("is empty with neither feature", () => {
-    expect(availableSecurityTabs({ crowdsec: false, dropLoaded: true, reporting: false })).toEqual([])
+    expect(availableSecurityTabs({ crowdsec: false, dropLoaded: true, reporting: false })).toEqual(
+      [],
+    )
   })
 })
 
@@ -51,23 +58,47 @@ describe("securityNavStatus", () => {
   const loading = undefined
 
   it("is enabled as soon as either feature answers on", () => {
-    expect(securityNavStatus(on, false, loading, false)).toEqual({ status: { enabled: true }, isError: false })
-    expect(securityNavStatus(loading, false, on, false)).toEqual({ status: { enabled: true }, isError: false })
+    expect(securityNavStatus(on, false, loading, false)).toEqual({
+      status: { enabled: true },
+      isError: false,
+    })
+    expect(securityNavStatus(loading, false, on, false)).toEqual({
+      status: { enabled: true },
+      isError: false,
+    })
   })
   it("is enabled for reporting when the CrowdSec status failed", () => {
-    expect(securityNavStatus(loading, true, on, false)).toEqual({ status: { enabled: true }, isError: false })
+    expect(securityNavStatus(loading, true, on, false)).toEqual({
+      status: { enabled: true },
+      isError: false,
+    })
   })
   it("waits while one answered off and the other is loading", () => {
-    expect(securityNavStatus(off, false, loading, false)).toEqual({ status: undefined, isError: false })
-    expect(securityNavStatus(loading, false, off, false)).toEqual({ status: undefined, isError: false })
+    expect(securityNavStatus(off, false, loading, false)).toEqual({
+      status: undefined,
+      isError: false,
+    })
+    expect(securityNavStatus(loading, false, off, false)).toEqual({
+      status: undefined,
+      isError: false,
+    })
   })
   it("is disabled when both answered off", () => {
-    expect(securityNavStatus(off, false, off, false)).toEqual({ status: { enabled: false }, isError: false })
+    expect(securityNavStatus(off, false, off, false)).toEqual({
+      status: { enabled: false },
+      isError: false,
+    })
   })
   it("is disabled when one answered off and the other failed", () => {
-    expect(securityNavStatus(off, false, loading, true)).toEqual({ status: { enabled: false }, isError: false })
+    expect(securityNavStatus(off, false, loading, true)).toEqual({
+      status: { enabled: false },
+      isError: false,
+    })
   })
   it("reports an error when both failed", () => {
-    expect(securityNavStatus(loading, true, loading, true)).toEqual({ status: undefined, isError: true })
+    expect(securityNavStatus(loading, true, loading, true)).toEqual({
+      status: undefined,
+      isError: true,
+    })
   })
 })

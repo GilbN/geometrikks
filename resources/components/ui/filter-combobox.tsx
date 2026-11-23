@@ -64,7 +64,15 @@ export function FilterComboboxBody<T extends string | number>({
   splitLabel = false,
 }: Pick<
   FilterComboboxProps<T>,
-  "options" | "selected" | "onChange" | "labelFor" | "iconFor" | "loading" | "emptyText" | "label" | "maxSelected"
+  | "options"
+  | "selected"
+  | "onChange"
+  | "labelFor"
+  | "iconFor"
+  | "loading"
+  | "emptyText"
+  | "label"
+  | "maxSelected"
 > & {
   labelFor: (value: T) => string
   /** Stretch the checklist to the height of the parent. */
@@ -96,7 +104,12 @@ export function FilterComboboxBody<T extends string | number>({
         // text-base (16px) keeps iOS Safari from zooming the page on focus.
         className="border-input focus-visible:border-ring focus-visible:ring-ring/50 h-9 w-full rounded-md border bg-transparent px-2.5 text-base shadow-xs outline-none focus-visible:ring-[3px]"
       />
-      <div className={cn("border-input overflow-y-auto overscroll-contain rounded-md border", fill ? "min-h-0 flex-1 divide-y divide-border/60" : "max-h-56")}>
+      <div
+        className={cn(
+          "border-input overflow-y-auto overscroll-contain rounded-md border",
+          fill ? "min-h-0 flex-1 divide-y divide-border/60" : "max-h-56",
+        )}
+      >
         {loading ? (
           <div className="text-muted-foreground px-2.5 py-2 text-xs">Loading…</div>
         ) : ordered.length === 0 ? (
@@ -132,7 +145,9 @@ export function FilterComboboxBody<T extends string | number>({
                   {splitLabel ? (
                     <>
                       {labelFor(o).split(" ")[0]}{" "}
-                      <span className="text-muted-foreground">{labelFor(o).split(" ").slice(1).join(" ")}</span>
+                      <span className="text-muted-foreground">
+                        {labelFor(o).split(" ").slice(1).join(" ")}
+                      </span>
                     </>
                   ) : (
                     labelFor(o)
@@ -149,7 +164,11 @@ export function FilterComboboxBody<T extends string | number>({
 }
 
 function MaxSelectedNote({ maxSelected }: { maxSelected: number }) {
-  return <div className="text-muted-foreground px-2.5 py-1.5 text-xs">At most {maxSelected} at a time</div>
+  return (
+    <div className="text-muted-foreground px-2.5 py-1.5 text-xs">
+      At most {maxSelected} at a time
+    </div>
+  )
 }
 
 export function FilterCombobox<T extends string | number>({
@@ -179,22 +198,43 @@ export function FilterCombobox<T extends string | number>({
 
   if (drawer.phone) {
     return (
-      <Drawer key={drawer.key} direction={drawer.direction} open={drawer.open} onOpenChange={changeOpen} onClosed={drawer.onClosed}>
+      <Drawer
+        key={drawer.key}
+        direction={drawer.direction}
+        open={drawer.open}
+        onOpenChange={changeOpen}
+        onClosed={drawer.onClosed}
+      >
         <DrawerTrigger asChild>
-          <Button variant="outline" size="sm" disabled={disabled} className={cn("h-8 pointer-coarse:h-10", count > 0 && "border-primary/60 text-primary", className)}>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={disabled}
+            className={cn(
+              "h-8 pointer-coarse:h-10",
+              count > 0 && "border-primary/60 text-primary",
+              className,
+            )}
+          >
             {triggerLabel}
             <ChevronsUpDown className="ml-1 h-3.5 w-3.5" />
           </Button>
         </DrawerTrigger>
         <DrawerContent className={drawer.contentClassName}>
-          <DrawerHeader className={drawer.side ? "flex-row items-center justify-between" : undefined}>
+          <DrawerHeader
+            className={drawer.side ? "flex-row items-center justify-between" : undefined}
+          >
             <DrawerTitle>{label}</DrawerTitle>
             <DrawerDescription className="sr-only">
               Search and select {label.toLowerCase()} values to filter by.
             </DrawerDescription>
             {drawer.side && <SideDrawerClose />}
           </DrawerHeader>
-          <div className={drawer.side ? "min-h-0 overflow-y-auto overscroll-contain px-4 pb-6" : "px-4 pb-6"}>
+          <div
+            className={
+              drawer.side ? "min-h-0 overflow-y-auto overscroll-contain px-4 pb-6" : "px-4 pb-6"
+            }
+          >
             <FilterComboboxBody
               options={options}
               selected={selected}
@@ -223,7 +263,17 @@ export function FilterCombobox<T extends string | number>({
       disabled={disabled}
     >
       <ComboboxPrimitive.Trigger
-        render={<Button variant="outline" size="sm" className={cn("h-8 pointer-coarse:h-10", count > 0 && "border-primary/60 text-primary", className)} />}
+        render={
+          <Button
+            variant="outline"
+            size="sm"
+            className={cn(
+              "h-8 pointer-coarse:h-10",
+              count > 0 && "border-primary/60 text-primary",
+              className,
+            )}
+          />
+        }
       >
         {triggerLabel}
         <ChevronsUpDown className="ml-1 h-3.5 w-3.5" />
@@ -236,7 +286,12 @@ export function FilterCombobox<T extends string | number>({
         />
         <ComboboxList>
           {(item: T) => (
-            <ComboboxItem key={item} value={item} disabled={atMax && !selected.includes(item)} className="text-xs">
+            <ComboboxItem
+              key={item}
+              value={item}
+              disabled={atMax && !selected.includes(item)}
+              className="text-xs"
+            >
               {iconFor?.(item)}
               {labelFor(item)}
             </ComboboxItem>

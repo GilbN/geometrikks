@@ -1,7 +1,7 @@
 """The proxy-scan SQL against a real TimescaleDB access_logs table."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -22,7 +22,7 @@ async def _insert(session_maker, ts, ip, *, server, log_format="traefik-json", a
 @pytest.mark.anyio
 async def test_scan_queries_count_and_group(pg_session_maker, clean_tables) -> None:
     # Read the clock here: the query compares against the database's now().
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     recent = now - timedelta(minutes=5)
     for _ in range(3):
         await _insert(pg_session_maker, recent, "104.16.1.1", server="traefik-01", asn=13335)
@@ -49,7 +49,7 @@ async def test_scan_queries_count_and_group(pg_session_maker, clean_tables) -> N
 
 @pytest.mark.anyio
 async def test_scan_queries_empty_exclusion_set(pg_session_maker, clean_tables) -> None:
-    await _insert(pg_session_maker, datetime.now(timezone.utc) - timedelta(minutes=5), "104.16.1.1",
+    await _insert(pg_session_maker, datetime.now(UTC) - timedelta(minutes=5), "104.16.1.1",
                   server="traefik-01", asn=13335)
     async with pg_session_maker() as session:
         groups, providers = await _query_scan_rows(session, set())

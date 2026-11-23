@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import text
@@ -14,7 +14,7 @@ from geometrikks.server.timescale import refresh_caggs_range, setup_timescaledb
 
 pytestmark = pytest.mark.anyio
 
-NOW = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+NOW = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
 
 
 async def _drop_caggs_with_retry(engine, *caggs: str, attempts: int = 4) -> None:

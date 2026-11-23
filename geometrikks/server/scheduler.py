@@ -11,8 +11,9 @@ CAGG Refresh Strategy:
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING, Callable
+from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
@@ -39,7 +40,7 @@ logger = get_logger(__name__)
 
 
 async def refresh_location_last_hits_job(
-    session_factory: "Callable[[], AsyncSession]",
+    session_factory: Callable[[], AsyncSession],
 ) -> None:
     """Update GeoLocation.last_hit from actual GeoEvent timestamps.
 
@@ -60,7 +61,7 @@ async def refresh_location_last_hits_job(
 
 
 async def _execute_call_outside_transaction(
-    session_factory: "Callable[[], AsyncSession]", sql: str, *args: object
+    session_factory: Callable[[], AsyncSession], sql: str, *args: object
 ) -> None:
     """Execute a CALL statement outside of any transaction.
 
@@ -85,7 +86,7 @@ async def _execute_call_outside_transaction(
 
 
 async def refresh_continuous_aggregate_job(
-    session_factory: "Callable[[], AsyncSession]",
+    session_factory: Callable[[], AsyncSession],
     cagg_name: str,
     start: datetime | None = None,
     end: datetime | None = None,
@@ -114,7 +115,7 @@ async def refresh_continuous_aggregate_job(
 
 
 async def refresh_all_caggs_job(
-    session_factory: "Callable[[], AsyncSession]",
+    session_factory: Callable[[], AsyncSession],
     now: datetime | None = None,
 ) -> None:
     """Refresh all continuous aggregates up to the bucket still filling.
@@ -128,7 +129,7 @@ async def refresh_all_caggs_job(
         session_factory: SQLAlchemy async session factory.
         now: The current time; defaults to the clock.
     """
-    now = now or datetime.now(timezone.utc)
+    now = now or datetime.now(UTC)
     failed: list[str] = []
     for cagg_name in ALL_CAGGS:
         try:
@@ -155,9 +156,9 @@ async def refresh_all_caggs_job(
 
 
 async def refresh_server_location_job(
-    session_factory: "Callable[[], AsyncSession]",
-    settings: "Settings",
-    app: "Litestar | None" = None,
+    session_factory: Callable[[], AsyncSession],
+    settings: Settings,
+    app: Litestar | None = None,
 ) -> None:
     """Re-detect this process's location and refresh its server_locations rows.
 
@@ -186,7 +187,7 @@ async def refresh_server_location_job(
 
 
 async def proxy_scan_job(
-    session_factory: "Callable[[], AsyncSession]", app: "Litestar | None"
+    session_factory: Callable[[], AsyncSession], app: Litestar | None
 ) -> None:
     """Scan access_logs for CDN peer sources the head does not tail.
 
@@ -205,15 +206,15 @@ async def proxy_scan_job(
     await run_proxy_scan(session_factory, exclude)
 
 
-async def release_check_job(release_checker: "ReleaseChecker") -> None:
+async def release_check_job(release_checker: ReleaseChecker) -> None:
     """Refresh the newest-release answer. run() logs its own failures."""
     await release_checker.run()
 
 
 async def drop_refresh_job(
-    session_factory: "Callable[[], AsyncSession]",
-    settings: "Settings",
-    first_run: "FirstRunFlag | None" = None,
+    session_factory: Callable[[], AsyncSession],
+    settings: Settings,
+    first_run: FirstRunFlag | None = None,
 ) -> None:
     """Refresh the DROP lists; raise when every feed that was attempted failed.
 
@@ -224,7 +225,7 @@ async def drop_refresh_job(
 
     feed_outcomes = await refresh_drop_lists(
         session_factory,
-        now=datetime.now(timezone.utc),
+        now=datetime.now(UTC),
         startup=first_run.consume() if first_run is not None else False,
         refresh_hours=settings.drop.refresh_hours,
     )
@@ -235,21 +236,24 @@ async def drop_refresh_job(
 
 
 async def abuseipdb_blacklist_refresh_job(
-    session_factory: "Callable[[], AsyncSession]",
-    settings: "Settings",
-    first_run: "FirstRunFlag | None" = None,
+    session_factory: Callable[[], AsyncSession],
+    settings: Settings,
+    first_run: FirstRunFlag | None = None,
 ) -> None:
     """Refresh the AbuseIPDB blacklist from the API or ABUSEIPDB_BLACKLIST_FILE; raise when that or the write failed.
 
     The first run after startup skips a list fetched within the refresh
     interval, so restart loops do not spend the daily calls.
     """
-    from geometrikks.domain.abuseipdb.blacklist import refresh_blacklist, refresh_blacklist_file
+    from geometrikks.domain.abuseipdb.blacklist import (
+        refresh_blacklist,
+        refresh_blacklist_file,
+    )
     from geometrikks.services.abuseipdb import get_abuseipdb_client
 
     if settings.abuseipdb.blacklist_file is not None:
         outcome = await refresh_blacklist_file(
-            session_factory, settings.abuseipdb.blacklist_file, now=datetime.now(timezone.utc)
+            session_factory, settings.abuseipdb.blacklist_file, now=datetime.now(UTC)
         )
     else:
         client = get_abuseipdb_client(settings.abuseipdb)
@@ -258,7 +262,7 @@ async def abuseipdb_blacklist_refresh_job(
         outcome = await refresh_blacklist(
             session_factory,
             client,
-            now=datetime.now(timezone.utc),
+            now=datetime.now(UTC),
             startup=first_run.consume() if first_run is not None else False,
             refresh_hours=settings.abuseipdb.blacklist_refresh_hours,
         )
@@ -267,7 +271,7 @@ async def abuseipdb_blacklist_refresh_job(
 
 
 async def agent_health_check_job(
-    session_factory: "async_sessionmaker[AsyncSession]", app: "Litestar"
+    session_factory: async_sessionmaker[AsyncSession], app: Litestar
 ) -> None:
     """Evaluate the agent heartbeats and log what changed since the last run."""
     from geometrikks.config.settings import get_settings
@@ -283,7 +287,7 @@ async def agent_health_check_job(
     runtime.get_instance_monitor(app).observe(evaluate_instances(heartbeat_rows, head, checked_at), head)
 
 
-async def refresh_geoip_job(settings: "Settings", app: "Litestar | None") -> None:
+async def refresh_geoip_job(settings: Settings, app: Litestar | None) -> None:
     """Refresh the GeoLite2 databases, then reload the ingestion readers when
     a file on disk no longer matches what the readers have open.
 
@@ -321,12 +325,12 @@ async def refresh_geoip_job(settings: "Settings", app: "Litestar | None") -> Non
 
 
 async def create_scheduler(
-    session_factory: "Callable[[], AsyncSession]",
-    settings: "Settings",
-    crowdsec_poller: "CrowdSecStreamPoller | None" = None,
+    session_factory: Callable[[], AsyncSession],
+    settings: Settings,
+    crowdsec_poller: CrowdSecStreamPoller | None = None,
     mode: str = "full",
     *,
-    app: "Litestar | None" = None,
+    app: Litestar | None = None,
 ) -> AsyncIOScheduler:
     """Create and configure the APScheduler instance.
 
@@ -362,7 +366,7 @@ async def create_scheduler(
     """
     from geometrikks.services.release_check import release_check_enabled
 
-    scheduler = AsyncIOScheduler(timezone=timezone.utc)
+    scheduler = AsyncIOScheduler(timezone=UTC)
 
     if not settings.scheduler.enabled:
         logger.info("Scheduler disabled via settings")
@@ -475,7 +479,7 @@ async def create_scheduler(
             id="release-check",
             name="Check GitHub for a newer release",
             args=[release_checker],
-            next_run_time=datetime.now(timezone.utc) + timedelta(minutes=1),
+            next_run_time=datetime.now(UTC) + timedelta(minutes=1),
             # the default 1 s grace would skip a first run delayed by a busy
             # loop until the next interval, 12 hours away
             misfire_grace_time=3600,
@@ -493,7 +497,7 @@ async def create_scheduler(
             id="drop-refresh",
             name="DROP lists refresh",
             args=[session_factory, settings, FirstRunFlag()],
-            next_run_time=datetime.now(timezone.utc) + timedelta(minutes=1),
+            next_run_time=datetime.now(UTC) + timedelta(minutes=1),
             misfire_grace_time=3600,
             max_instances=1,
             replace_existing=True,
@@ -516,16 +520,18 @@ async def create_scheduler(
             id="abuseipdb-blacklist-refresh",
             name="AbuseIPDB blacklist refresh",
             args=[session_factory, settings, FirstRunFlag()],
-            next_run_time=datetime.now(timezone.utc) + timedelta(minutes=1),
+            next_run_time=datetime.now(UTC) + timedelta(minutes=1),
             misfire_grace_time=3600,
             max_instances=1,
             replace_existing=True,
         )
         logger.info("Scheduled AbuseIPDB blacklist refresh every %s", blacklist_schedule)
 
-    # CrowdSec decision-stream poll: feeds live ban/unban updates to the
-    # /ws/crowdsec subscribers. Only registered when the integration is on;
-    # agents never receive a poller (crowdsec_lifespan no-ops for them).
+    # CrowdSec decision-stream poll: keeps the banned-IP set and feeds live
+    # ban/unban updates to the /ws/crowdsec subscribers. Only registered when
+    # the integration is on; agents never receive a poller (crowdsec_lifespan
+    # no-ops for them). It runs at startup too, because /banned-ips asks the
+    # LAPI for every decision until the first poll loads the set.
     if mode != "agent" and crowdsec_poller is not None:
         scheduler.add_job(
             crowdsec_poller.poll,
@@ -534,6 +540,7 @@ async def create_scheduler(
             name="Poll CrowdSec decision stream",
             max_instances=1,
             replace_existing=True,
+            next_run_time=datetime.now(UTC),
             misfire_grace_time=10,  # seconds
         )
         logger.info(

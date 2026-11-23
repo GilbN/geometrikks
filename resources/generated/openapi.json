@@ -95,8 +95,18 @@
         "type": "object"
       },
       "AboutResponse": {
-        "description": "Version, runtime and database details for the About page.\n\n`geoip` describes the GeoLite2 City database and `geoipAsn` the ASN database. `dropLists` is null\nwith DROP_ENABLED=false, or when the database cannot answer.",
+        "description": "Version, runtime and database details for the About page.\n\n`geoip` describes the GeoLite2 City database and `geoipAsn` the ASN database. `dropLists` is null\nwith DROP_ENABLED=false, and `abuseipdbBlacklist` with ABUSEIPDB_BLACKLIST_ENABLED=false.\nWhen the database cannot answer, `abuseipdbBlacklist` is null, and so is `dropLists` until this process has\nloaded it once.",
         "properties": {
+          "abuseipdbBlacklist": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AbuseIpdbBlacklistAboutView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "app": {
             "$ref": "#/components/schemas/AboutAppView"
           },
@@ -276,6 +286,90 @@
           "startAddress"
         ],
         "title": "AbuseContactResponse",
+        "type": "object"
+      },
+      "AbuseIpdbBlacklistAboutView": {
+        "description": "How current the stored AbuseIPDB blacklist is, for Settings > About.",
+        "properties": {
+          "expired": {
+            "description": "True when the list is more than 72 hours old, so GeoMetrikks no longer marks its IPs.",
+            "type": "boolean"
+          },
+          "filePath": {
+            "description": "ABUSEIPDB_BLACKLIST_FILE, or null when downloading.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "generatedAt": {
+            "description": "When AbuseIPDB generated the list, as ISO 8601 in UTC. For a plaintext file, when the file was last written. Null before the first list.",
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ipCount": {
+            "description": "How many IPs the stored list holds, also while `expired` hides them.",
+            "type": "integer"
+          },
+          "lastAttemptAt": {
+            "description": "When the last download started, as ISO 8601 in UTC. Always null for a file.",
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lastAttemptFailed": {
+            "description": "True when the last download stored no list. False for 2 minutes after it starts, while it may still run. Always false for a file.",
+            "type": "boolean"
+          },
+          "refreshedAt": {
+            "description": "When GeoMetrikks downloaded the list, or when the file was last written, as ISO 8601 in UTC. Null before the first list.",
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source": {
+            "description": "`file` when ABUSEIPDB_BLACKLIST_FILE is set, else `download`. The stored list can still come from an earlier source until this one delivers a list.",
+            "enum": [
+              "download",
+              "file"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "expired",
+          "filePath",
+          "generatedAt",
+          "ipCount",
+          "lastAttemptAt",
+          "lastAttemptFailed",
+          "refreshedAt",
+          "source"
+        ],
+        "title": "AbuseIpdbBlacklistAboutView",
         "type": "object"
       },
       "AbuseIpdbBlacklistResponse": {
@@ -1252,13 +1346,14 @@
             "type": "string"
           },
           "capabilities": {
-            "description": "Configured server features, independent of key scope and current service availability. crowdsecWrite also requires a read_write key or a browser session when auth is enabled.",
+            "description": "Configured server features and API features this server supports, independent of key scope and current service availability. crowdsecWrite also requires a read_write key or a browser session when auth is enabled.",
             "items": {
               "enum": [
                 "crowdsec",
                 "crowdsecWrite",
                 "asn",
-                "drop"
+                "drop",
+                "analyticsHostFilter"
               ],
               "type": "string"
             },
@@ -2198,6 +2293,31 @@
         "title": "CreateApiKeyPayload",
         "type": "object"
       },
+      "CreateMutedIpPayload": {
+        "description": "The IP or range to mute and an optional note.",
+        "properties": {
+          "network": {
+            "description": "An IPv4 or IPv6 address, or a range in CIDR form. IPv4-mapped IPv6 addresses count as their IPv4 form.",
+            "type": "string"
+          },
+          "note": {
+            "description": "Up to 100 characters once surrounding whitespace is trimmed. Blank means none.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "network"
+        ],
+        "title": "CreateMutedIpPayload",
+        "type": "object"
+      },
       "CreatedApiKey": {
         "description": "A new API key. This response is the only place the full key ever appears.",
         "properties": {
@@ -2460,6 +2580,24 @@
           "timescaledbVersion"
         ],
         "title": "DatabaseInfoResponse",
+        "type": "object"
+      },
+      "DatabaseLinkReport": {
+        "description": "The TLS state of the instance's database connection.",
+        "properties": {
+          "encrypted": {
+            "default": false,
+            "description": "The session that wrote this heartbeat uses TLS.",
+            "type": "boolean"
+          },
+          "serverVerified": {
+            "default": false,
+            "description": "The instance checked the server's certificate chain and its name.",
+            "type": "boolean"
+          }
+        },
+        "required": [],
+        "title": "DatabaseLinkReport",
         "type": "object"
       },
       "DatabaseVersionsView": {
@@ -2774,13 +2912,14 @@
             "type": "string"
           },
           "capabilities": {
-            "description": "Configured server features, independent of key scope and current service availability. crowdsecWrite also requires a read_write key or a browser session when auth is enabled.",
+            "description": "Configured server features and API features this server supports, independent of key scope and current service availability. crowdsecWrite also requires a read_write key or a browser session when auth is enabled.",
             "items": {
               "enum": [
                 "crowdsec",
                 "crowdsecWrite",
                 "asn",
-                "drop"
+                "drop",
+                "analyticsHostFilter"
               ],
               "type": "string"
             },
@@ -4182,6 +4321,17 @@
       "HeartbeatPayload": {
         "description": "The details an instance sends with each heartbeat.\n\nThe 5-minute counts are null until the instance has run for 5 minutes.",
         "properties": {
+          "databaseLink": {
+            "description": "The TLS state of the instance's database connection. Null from an older release or when the state could not be read.",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/DatabaseLinkReport"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "failed5M": {
             "description": "Records that failed to write in the last 5 minutes.",
             "oneOf": [
@@ -4420,9 +4570,10 @@
           },
           "status": {
             "default": "running",
-            "description": "`disabled` with LOGPARSER_ENABLED=false, `degraded` when ingestion should run but does not, else `running`.",
+            "description": "`disabled` with LOGPARSER_ENABLED=false, `starting` while startup has not reached ingestion yet, `degraded` when ingestion should run but does not, else `running`.",
             "enum": [
               "running",
+              "starting",
               "degraded",
               "disabled"
             ],
@@ -6018,6 +6169,42 @@
         "title": "MapSettingsView",
         "type": "object"
       },
+      "MutedIpView": {
+        "description": "One muted IP or range.",
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "network": {
+            "description": "The IP or range in CIDR form, with no host bits set. A single IP uses /32 or /128.",
+            "type": "string"
+          },
+          "note": {
+            "description": "Free text about why it is muted.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "createdAt",
+          "id",
+          "network",
+          "note"
+        ],
+        "title": "MutedIpView",
+        "type": "object"
+      },
       "OidcOption": {
         "description": "The OIDC single sign-on login.",
         "properties": {
@@ -7517,13 +7704,14 @@
             "type": "string"
           },
           "capabilities": {
-            "description": "Configured server features, independent of key scope and current service availability. crowdsecWrite also requires a read_write key or a browser session when auth is enabled.",
+            "description": "Configured server features and API features this server supports, independent of key scope and current service availability. crowdsecWrite also requires a read_write key or a browser session when auth is enabled.",
             "items": {
               "enum": [
                 "crowdsec",
                 "crowdsecWrite",
                 "asn",
-                "drop"
+                "drop",
+                "analyticsHostFilter"
               ],
               "type": "string"
             },
@@ -8442,6 +8630,10 @@
               }
             ]
           },
+          "errorHits": {
+            "description": "Hits with a status of 400 or higher.",
+            "type": "integer"
+          },
           "hits": {
             "type": "integer"
           },
@@ -8453,6 +8645,7 @@
         "required": [
           "countryCode",
           "countryName",
+          "errorHits",
           "hits",
           "uniqueIps"
         ],
@@ -8826,6 +9019,10 @@
       "TopIpsResponse": {
         "description": "Client IPs ordered by hits, most first.",
         "properties": {
+          "distinctIps": {
+            "description": "Distinct client IPs in the range after all filters, counting those beyond `limit`.",
+            "type": "integer"
+          },
           "endDate": {
             "description": "The request's `endDate`, echoed as ISO 8601.",
             "type": "string"
@@ -8842,6 +9039,7 @@
           }
         },
         "required": [
+          "distinctIps",
           "endDate",
           "items",
           "startDate"
@@ -8850,7 +9048,7 @@
         "type": "object"
       },
       "TopUrlDTO": {
-        "description": "One host and path with its hits.",
+        "description": "One URL with its hits, for one host or summed across the `hostIn` hosts.",
         "properties": {
           "avgRequestTime": {
             "description": "The mean request time in seconds over the `timedHits`. Null when it is 0.",
@@ -8871,7 +9069,7 @@
             "type": "integer"
           },
           "host": {
-            "description": "The Host header of the requests. Null when the log line carries none, as in nginx's combined format.",
+            "description": "The Host header of the requests. Null when the log line carries none, as in nginx's combined format. Null for every row when `hostIn` names more than one different host.",
             "oneOf": [
               {
                 "type": "string"
@@ -8906,7 +9104,7 @@
         "type": "object"
       },
       "TopUrlsResponse": {
-        "description": "Host and path pairs ordered by hits, most first.",
+        "description": "URLs ordered by hits, most first, per host and path or summed across two or more `hostIn` hosts.",
         "properties": {
           "endDate": {
             "description": "The request's `endDate`, echoed as ISO 8601.",
@@ -9083,7 +9281,7 @@
     "/api/v1/abuseipdb/blacklist": {
       "get": {
         "deprecated": false,
-        "description": "Returns GeoMetrikks' copy of AbuseIPDB's blacklist, which the scheduler downloads every ABUSEIPDB_BLACKLIST_REFRESH_HOURS hours, 24 by default, or reads from ABUSEIPDB_BLACKLIST_FILE. Read from the local database; nothing leaves the server. `ips` is empty and both times are null with ABUSEIPDB_BLACKLIST_ENABLED=false, before the first download, and when the list is more than 72 hours old. With a file, `refreshedAt` is when the file was last written. The list is for your own use, and AbuseIPDB forbids republishing it.",
+        "description": "Returns GeoMetrikks' copy of AbuseIPDB's blacklist, which the scheduler downloads every ABUSEIPDB_BLACKLIST_REFRESH_HOURS hours, 24 by default, or reads from ABUSEIPDB_BLACKLIST_FILE. Read from the local database; nothing leaves the server. `ips` is empty and both times are null with ABUSEIPDB_BLACKLIST_ENABLED=false, before the first download, and when the list is more than 72 hours old. With a file, `refreshedAt` is when the file was last written. The list is for your own use, and AbuseIPDB forbids republishing it. The answer carries `Cache-Control: private, max-age=300` and an `ETag` that changes with the list. With the feature off, before the first download and once the list expires, it carries `no-cache` and no `ETag` instead. A request whose `If-None-Match` names the current `ETag` gets a 304 with no body.",
         "operationId": "ApiV1AbuseipdbBlacklistGetBlacklist",
         "responses": {
           "200": {
@@ -9094,8 +9292,10 @@
                 }
               }
             },
-            "description": "Request fulfilled, document follows",
-            "headers": {}
+            "description": "The list, or an empty one."
+          },
+          "304": {
+            "description": "`If-None-Match` names the current list."
           },
           "401": {
             "content": {
@@ -9385,12 +9585,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Search, up to 200 characters. Matches the start of the IP, or part of the comment or the sender's name, ignoring case.",
+            "description": "Search, up to 200 characters. A whole IP matches only that address, and other text matches the start of the IP. Either also matches part of the comment or the sender's name, ignoring case.",
             "in": "query",
             "name": "q",
             "required": false,
             "schema": {
-              "description": "Search, up to 200 characters. Matches the start of the IP, or part of the comment or the sender's name, ignoring case.",
+              "description": "Search, up to 200 characters. A whole IP matches only that address, and other text matches the start of the IP. Either also matches part of the comment or the sender's name, ignoring case.",
               "maxLength": 200,
               "oneOf": [
                 {
@@ -9666,12 +9866,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400. Lines that did not parse into an access log line have no value and drop out.",
+            "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400. Lines that did not parse into an access log line have no value and drop out.",
             "in": "query",
             "name": "ipAddressIn",
             "required": false,
             "schema": {
-              "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400. Lines that did not parse into an access log line have no value and drop out.",
+              "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400. Lines that did not parse into an access log line have no value and drop out.",
               "oneOf": [
                 {
                   "items": {
@@ -10210,12 +10410,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressIn",
             "required": false,
             "schema": {
-              "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -10302,12 +10502,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressNotIn",
             "required": false,
             "schema": {
-              "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -10480,6 +10680,20 @@
                   "type": "null"
                 }
               ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+            "in": "query",
+            "name": "excludeMutedIps",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+              "type": "boolean"
             }
           }
         ],
@@ -11322,7 +11536,7 @@
     "/api/v1/analytics/time-series": {
       "get": {
         "deprecated": false,
-        "description": "Returns requests, bytes, status classes, error rate and latency for each bucket that has requests, oldest first. Without filters it reads the hourly or daily aggregates at any range length, and those reads count whole hours or UTC days, from the one that holds `startDate` through the last one that starts before `endDate`. With `granularity=daily` and a `tz` other than UTC on a range of 30 days or less, those reads count local days instead. They start at the local midnight of the day holding `startDate` and run through the last hour that starts before `endDate`. A country, city, IP or ASN filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default. On that filtered path `tz` sets local days at any range length. `totalGeoEvents` is always 0 here, and `/api/v1/analytics/geo-time-series` has the geo series.",
+        "description": "Returns requests, bytes, status classes, error rate and latency for each bucket that has requests, oldest first. Without filters it reads the hourly or daily aggregates at any range length, and those reads count whole hours or UTC days, from the one that holds `startDate` through the last one that starts before `endDate`. With `granularity=daily` and a `tz` other than UTC on a range of 30 days or less, those reads count local days instead. They start at the local midnight of the day holding `startDate` and run through the last hour that starts before `endDate`. A country, city, IP, ASN or host filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default. Excluding a host counts as a host filter. On that filtered path `tz` sets local days at any range length. `totalGeoEvents` is always 0 here, and `/api/v1/analytics/geo-time-series` has the geo series.",
         "operationId": "ApiV1AnalyticsTimeSeriesGetTimeSeries",
         "parameters": [
           {
@@ -11407,6 +11621,20 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
+            "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+            "in": "query",
+            "name": "excludeMutedIps",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+              "type": "boolean"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
             "description": "`hourly` or `daily` buckets. Leave it out to get hourly buckets for ranges up to 30 days and daily buckets for longer ones.",
             "in": "query",
             "name": "granularity",
@@ -11474,12 +11702,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddress",
             "required": false,
             "schema": {
-              "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -11497,12 +11725,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressNotIn",
             "required": false,
             "schema": {
-              "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -11553,6 +11781,52 @@
                 {
                   "items": {
                     "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one. Lines without a host are left out.",
+            "in": "query",
+            "name": "hostIn",
+            "required": false,
+            "schema": {
+              "description": "Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one. Lines without a host are left out.",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Leave out requests to these hosts, matched exactly against the logged Host value. Repeat the parameter to pass more than one. Lines without a host stay in.",
+            "in": "query",
+            "name": "hostNotIn",
+            "required": false,
+            "schema": {
+              "description": "Leave out requests to these hosts, matched exactly against the logged Host value. Repeat the parameter to pass more than one. Lines without a host stay in.",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
                   },
                   "type": "array"
                 },
@@ -11805,7 +12079,7 @@
     "/api/v1/analytics/top-asns": {
       "get": {
         "deprecated": false,
-        "description": "Returns autonomous systems ordered by hits, each with a category. `categories` adds up every ASN in the range, not only the top `limit`. `totalRequests` and `totalBytes` count every request, so requests without ASN data count in them but in no category. A country, city, IP or ASN filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.",
+        "description": "Returns autonomous systems ordered by hits, each with a category. `categories` adds up every ASN in the range, not only the top `limit`. `totalRequests` and `totalBytes` count every request, so requests without ASN data count in them but in no category. A country, city, IP, ASN or host filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default. Excluding a host counts as a host filter.",
         "operationId": "ApiV1AnalyticsTopAsnsGetTopAsns",
         "parameters": [
           {
@@ -11890,6 +12164,20 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
+            "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+            "in": "query",
+            "name": "excludeMutedIps",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+              "type": "boolean"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
             "description": "How many ASNs to return, from 1 to 100. Defaults to 25.",
             "in": "query",
             "name": "limit",
@@ -11952,12 +12240,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddress",
             "required": false,
             "schema": {
-              "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -11975,12 +12263,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressNotIn",
             "required": false,
             "schema": {
-              "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -12031,6 +12319,52 @@
                 {
                   "items": {
                     "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one. Lines without a host are left out.",
+            "in": "query",
+            "name": "hostIn",
+            "required": false,
+            "schema": {
+              "description": "Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one. Lines without a host are left out.",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Leave out requests to these hosts, matched exactly against the logged Host value. Repeat the parameter to pass more than one. Lines without a host stay in.",
+            "in": "query",
+            "name": "hostNotIn",
+            "required": false,
+            "schema": {
+              "description": "Leave out requests to these hosts, matched exactly against the logged Host value. Repeat the parameter to pass more than one. Lines without a host stay in.",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
                   },
                   "type": "array"
                 },
@@ -12107,7 +12441,7 @@
     "/api/v1/analytics/top-cities": {
       "get": {
         "deprecated": false,
-        "description": "Returns cities ordered by hits, with the number of distinct client IPs from each. Requests without a city are left out, and cities with the same name in different countries count as one. An ASN filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.",
+        "description": "Returns cities ordered by hits, with the number of distinct client IPs from each. Requests without a city are left out, and cities with the same name in different countries count as one. An ASN or host filter, include or exclude, makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.",
         "operationId": "ApiV1AnalyticsTopCitiesGetTopCities",
         "parameters": [
           {
@@ -12192,6 +12526,20 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
+            "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+            "in": "query",
+            "name": "excludeMutedIps",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+              "type": "boolean"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
             "description": "How many cities to return, from 1 to 100. Defaults to 25.",
             "in": "query",
             "name": "limit",
@@ -12254,12 +12602,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddress",
             "required": false,
             "schema": {
-              "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -12277,12 +12625,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressNotIn",
             "required": false,
             "schema": {
-              "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -12333,6 +12681,52 @@
                 {
                   "items": {
                     "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one. Lines without a host are left out.",
+            "in": "query",
+            "name": "hostIn",
+            "required": false,
+            "schema": {
+              "description": "Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one. Lines without a host are left out.",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Leave out requests to these hosts, matched exactly against the logged Host value. Repeat the parameter to pass more than one. Lines without a host stay in.",
+            "in": "query",
+            "name": "hostNotIn",
+            "required": false,
+            "schema": {
+              "description": "Leave out requests to these hosts, matched exactly against the logged Host value. Repeat the parameter to pass more than one. Lines without a host stay in.",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
                   },
                   "type": "array"
                 },
@@ -12409,7 +12803,7 @@
     "/api/v1/analytics/top-countries": {
       "get": {
         "deprecated": false,
-        "description": "Returns countries ordered by hits, with the number of distinct client IPs from each. Requests without a country are left out. An ASN filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.",
+        "description": "Returns countries ordered by hits, with error hits and the number of distinct client IPs from each. Requests without a country are left out. An ASN or host filter, include or exclude, makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.",
         "operationId": "ApiV1AnalyticsTopCountriesGetTopCountries",
         "parameters": [
           {
@@ -12494,6 +12888,20 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
+            "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+            "in": "query",
+            "name": "excludeMutedIps",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+              "type": "boolean"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
             "description": "How many countries to return, from 1 to 100. Defaults to 25.",
             "in": "query",
             "name": "limit",
@@ -12556,12 +12964,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddress",
             "required": false,
             "schema": {
-              "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -12579,12 +12987,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressNotIn",
             "required": false,
             "schema": {
-              "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -12635,6 +13043,52 @@
                 {
                   "items": {
                     "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one. Lines without a host are left out.",
+            "in": "query",
+            "name": "hostIn",
+            "required": false,
+            "schema": {
+              "description": "Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one. Lines without a host are left out.",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Leave out requests to these hosts, matched exactly against the logged Host value. Repeat the parameter to pass more than one. Lines without a host stay in.",
+            "in": "query",
+            "name": "hostNotIn",
+            "required": false,
+            "schema": {
+              "description": "Leave out requests to these hosts, matched exactly against the logged Host value. Repeat the parameter to pass more than one. Lines without a host stay in.",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
                   },
                   "type": "array"
                 },
@@ -12711,7 +13165,7 @@
     "/api/v1/analytics/top-ips": {
       "get": {
         "deprecated": false,
-        "description": "Returns client IPs ordered by hits, with error hits, bytes and the IP's country and city. A country, city or IP filter reads the per-IP aggregates, so unlike the URL and user agent lists it reaches past ANALYTICS_RAW_RETENTION_DAYS. An ASN filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.",
+        "description": "Returns client IPs ordered by hits, with error hits, bytes and the IP's country and city, plus the number of distinct IPs in the range. For ranges over 24 hours with neither an ASN nor a host filter, a country, city or IP filter reads the per-IP aggregates, so unlike the URL and user agent lists it reaches past ANALYTICS_RAW_RETENTION_DAYS. An ASN or host filter, include or exclude, makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.",
         "operationId": "ApiV1AnalyticsTopIpsGetTopIps",
         "parameters": [
           {
@@ -12796,6 +13250,20 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
+            "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+            "in": "query",
+            "name": "excludeMutedIps",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+              "type": "boolean"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
             "description": "How many IPs to return, from 1 to 100. Defaults to 25.",
             "in": "query",
             "name": "limit",
@@ -12858,12 +13326,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddress",
             "required": false,
             "schema": {
-              "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -12881,12 +13349,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressNotIn",
             "required": false,
             "schema": {
-              "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -12937,6 +13405,52 @@
                 {
                   "items": {
                     "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one. Lines without a host are left out.",
+            "in": "query",
+            "name": "hostIn",
+            "required": false,
+            "schema": {
+              "description": "Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one. Lines without a host are left out.",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Leave out requests to these hosts, matched exactly against the logged Host value. Repeat the parameter to pass more than one. Lines without a host stay in.",
+            "in": "query",
+            "name": "hostNotIn",
+            "required": false,
+            "schema": {
+              "description": "Leave out requests to these hosts, matched exactly against the logged Host value. Repeat the parameter to pass more than one. Lines without a host stay in.",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
                   },
                   "type": "array"
                 },
@@ -13013,7 +13527,7 @@
     "/api/v1/analytics/top-urls": {
       "get": {
         "deprecated": false,
-        "description": "Returns host and path pairs ordered by hits, with error hits, bytes and the average request time. Lines without a path are left out. A country, city, IP or ASN filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.",
+        "description": "Returns URLs ordered by hits, with error hits, bytes and the average request time. With one `hostIn` host or none, each row is a host and path pair. With two or more different hosts, each row is one URL (path plus query string) counted across those hosts, and `host` is null. Lines without a path are left out. Above 24 hours, a host filter on its own, include or exclude, reads the URL aggregates as an unfiltered request does, so it reaches past ANALYTICS_RAW_RETENTION_DAYS. A country, city, IP or ASN filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.",
         "operationId": "ApiV1AnalyticsTopUrlsGetTopUrls",
         "parameters": [
           {
@@ -13098,6 +13612,20 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
+            "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+            "in": "query",
+            "name": "excludeMutedIps",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+              "type": "boolean"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
             "description": "How many URLs to return, from 1 to 100. Defaults to 25.",
             "in": "query",
             "name": "limit",
@@ -13160,12 +13688,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddress",
             "required": false,
             "schema": {
-              "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -13183,12 +13711,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressNotIn",
             "required": false,
             "schema": {
-              "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -13239,6 +13767,52 @@
                 {
                   "items": {
                     "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one. Lines without a host are left out.",
+            "in": "query",
+            "name": "hostIn",
+            "required": false,
+            "schema": {
+              "description": "Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one. Lines without a host are left out.",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Leave out requests to these hosts, matched exactly against the logged Host value. Repeat the parameter to pass more than one. Lines without a host stay in.",
+            "in": "query",
+            "name": "hostNotIn",
+            "required": false,
+            "schema": {
+              "description": "Leave out requests to these hosts, matched exactly against the logged Host value. Repeat the parameter to pass more than one. Lines without a host stay in.",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
                   },
                   "type": "array"
                 },
@@ -13315,7 +13889,7 @@
     "/api/v1/analytics/top-user-agents": {
       "get": {
         "deprecated": false,
-        "description": "Returns user agent strings ordered by hits. Lines without a user agent are left out. A country, city, IP or ASN filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.",
+        "description": "Returns user agent strings ordered by hits. Lines without a user agent are left out. A country, city, IP, ASN or host filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default. Excluding a host counts as a host filter.",
         "operationId": "ApiV1AnalyticsTopUserAgentsGetTopUserAgents",
         "parameters": [
           {
@@ -13400,6 +13974,20 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
+            "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+            "in": "query",
+            "name": "excludeMutedIps",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+              "type": "boolean"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
             "description": "How many user agents to return, from 1 to 100. Defaults to 25.",
             "in": "query",
             "name": "limit",
@@ -13462,12 +14050,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddress",
             "required": false,
             "schema": {
-              "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -13485,12 +14073,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressNotIn",
             "required": false,
             "schema": {
-              "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -13541,6 +14129,52 @@
                 {
                   "items": {
                     "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one. Lines without a host are left out.",
+            "in": "query",
+            "name": "hostIn",
+            "required": false,
+            "schema": {
+              "description": "Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one. Lines without a host are left out.",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Leave out requests to these hosts, matched exactly against the logged Host value. Repeat the parameter to pass more than one. Lines without a host stay in.",
+            "in": "query",
+            "name": "hostNotIn",
+            "required": false,
+            "schema": {
+              "description": "Leave out requests to these hosts, matched exactly against the logged Host value. Repeat the parameter to pass more than one. Lines without a host stay in.",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
                   },
                   "type": "array"
                 },
@@ -14810,7 +15444,7 @@
     "/api/v1/crowdsec/banned-ips": {
       "get": {
         "deprecated": false,
-        "description": "Returns each IP that holds an `Ip` decision from any origin, once, with the strongest decision type on it. `ban` beats `captcha`, which beats the rest. `/banned-ranges` lists the Range decisions.",
+        "description": "Returns each IP that holds an `Ip` decision from any origin, once, with the strongest decision type on it. `ban` beats `captcha`, which beats the rest. `/banned-ranges` lists the Range decisions. The list comes from the decision stream the server polls, so a change can take up to `CROWDSEC_STREAM_POLL_INTERVAL` seconds to show.",
         "operationId": "ApiV1CrowdsecBannedIpsListBannedIps",
         "responses": {
           "200": {
@@ -15034,7 +15668,7 @@
     "/api/v1/crowdsec/banned-ranges": {
       "get": {
         "deprecated": false,
-        "description": "Returns each CIDR that holds a Range decision from any origin, once, with the strongest decision type on it and when that decision ends. GeoMetrikks bans a single-address DROP network with an `Ip` decision, so that network shows as its /32 or /128 while the decision lasts.",
+        "description": "Returns each CIDR that holds a Range decision from any origin, once, with the strongest decision type on it and when that decision ends. GeoMetrikks bans a single-address DROP network with an `Ip` decision, so that network shows as its /32 or /128 while the decision lasts. The ranges come from the decision stream the server polls, so a change can take up to `CROWDSEC_STREAM_POLL_INTERVAL` seconds to show.",
         "operationId": "ApiV1CrowdsecBannedRangesListBannedRanges",
         "responses": {
           "200": {
@@ -15061,7 +15695,7 @@
     "/api/v1/crowdsec/decisions": {
       "get": {
         "deprecated": false,
-        "description": "Returns the active decisions grouped by target, in the order the LAPI lists them, paged with `currentPage` and `pageSize`. `total` counts targets, not decisions. The country, city and 24-hour request count come from GeoMetrikks' own access logs of the last 30 days, and the GeoIP database fills in the place for an IP the logs do not locate.",
+        "description": "Returns the active decisions grouped by target, in the order the LAPI lists them, paged with `currentPage` and `pageSize`. `total` counts targets, not decisions. The country, city and 24-hour request count come from GeoMetrikks' own access logs of the last 30 days, and the GeoIP database fills in the place for an IP the logs do not locate. The decisions come from the decision stream the server polls, so a change can take up to `CROWDSEC_STREAM_POLL_INTERVAL` seconds to show.",
         "operationId": "ApiV1CrowdsecDecisionsListDecisions",
         "parameters": [
           {
@@ -15534,7 +16168,7 @@
     "/api/v1/crowdsec/stats": {
       "get": {
         "deprecated": false,
-        "description": "Returns how many decisions are active across every origin, blocklists included, with the count per origin and the ten scenarios with the most decisions.",
+        "description": "Returns how many decisions are active across every origin, blocklists included, with the count per origin and the ten scenarios with the most decisions. The counts come from the decision stream the server polls, so a change can take up to `CROWDSEC_STREAM_POLL_INTERVAL` seconds to show.",
         "operationId": "ApiV1CrowdsecStatsGetStats",
         "responses": {
           "200": {
@@ -15820,12 +16454,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressIn",
             "required": false,
             "schema": {
-              "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -15843,12 +16477,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressNotIn",
             "required": false,
             "schema": {
-              "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -16050,12 +16684,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressIn",
             "required": false,
             "schema": {
-              "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -16073,12 +16707,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressNotIn",
             "required": false,
             "schema": {
-              "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -16159,6 +16793,20 @@
                   "type": "null"
                 }
               ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+            "in": "query",
+            "name": "excludeMutedIps",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+              "type": "boolean"
             }
           },
           {
@@ -16409,12 +17057,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressIn",
             "required": false,
             "schema": {
-              "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -16432,12 +17080,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressNotIn",
             "required": false,
             "schema": {
-              "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -16518,6 +17166,20 @@
                   "type": "null"
                 }
               ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+            "in": "query",
+            "name": "excludeMutedIps",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+              "type": "boolean"
             }
           },
           {
@@ -16698,12 +17360,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressIn",
             "required": false,
             "schema": {
-              "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -16721,12 +17383,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressNotIn",
             "required": false,
             "schema": {
-              "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -16807,6 +17469,20 @@
                   "type": "null"
                 }
               ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+            "in": "query",
+            "name": "excludeMutedIps",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+              "type": "boolean"
             }
           },
           {
@@ -17022,12 +17698,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressIn",
             "required": false,
             "schema": {
-              "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -17045,12 +17721,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressNotIn",
             "required": false,
             "schema": {
-              "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -17131,6 +17807,20 @@
                   "type": "null"
                 }
               ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+            "in": "query",
+            "name": "excludeMutedIps",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+              "type": "boolean"
             }
           },
           {
@@ -17313,12 +18003,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressIn",
             "required": false,
             "schema": {
-              "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -17336,12 +18026,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressNotIn",
             "required": false,
             "schema": {
-              "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -17422,6 +18112,20 @@
                   "type": "null"
                 }
               ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+            "in": "query",
+            "name": "excludeMutedIps",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+              "type": "boolean"
             }
           },
           {
@@ -17604,12 +18308,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressIn",
             "required": false,
             "schema": {
-              "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -17627,12 +18331,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressNotIn",
             "required": false,
             "schema": {
-              "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -17713,6 +18417,20 @@
                   "type": "null"
                 }
               ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+            "in": "query",
+            "name": "excludeMutedIps",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+              "type": "boolean"
             }
           },
           {
@@ -17895,12 +18613,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressIn",
             "required": false,
             "schema": {
-              "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -17918,12 +18636,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressNotIn",
             "required": false,
             "schema": {
-              "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -18004,6 +18722,20 @@
                   "type": "null"
                 }
               ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+            "in": "query",
+            "name": "excludeMutedIps",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+              "type": "boolean"
             }
           },
           {
@@ -18262,6 +18994,20 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
+            "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+            "in": "query",
+            "name": "excludeMutedIps",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+              "type": "boolean"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
             "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "from_timestamp-example-1": {
@@ -18352,12 +19098,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressIn",
             "required": false,
             "schema": {
-              "description": "Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -18375,12 +19121,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+            "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
             "in": "query",
             "name": "ipAddressNotIn",
             "required": false,
             "schema": {
-              "description": "Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.",
+              "description": "Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.",
               "oneOf": [
                 {
                   "items": {
@@ -19553,6 +20299,214 @@
         ]
       }
     },
+    "/api/v1/muted-ips": {
+      "get": {
+        "deprecated": false,
+        "description": "Returns every muted IP and range, oldest first.",
+        "operationId": "ApiV1MutedIpsListMutedIps",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MutedIpView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "List muted IPs",
+        "tags": [
+          "Muted IPs"
+        ]
+      },
+      "post": {
+        "deprecated": false,
+        "description": "Adds an IP or CIDR range to the muted list. Stores the network in CIDR form and rejects CIDR ranges with host bits set. An invalid network or a note over the length limit gets a 400. An entry already on the list, or a full list, gets a 409. Send the body as `application/json`.",
+        "operationId": "ApiV1MutedIpsCreateMutedIp",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMutedIpPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MutedIpView"
+                }
+              }
+            },
+            "description": "Document created, URL follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "code": "validation_failed",
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code",
+                    "code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The network is already muted (`muted_ip_exists`) or the list is full (`muted_ip_list_full`)."
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The body is not sent as application/json."
+          }
+        },
+        "summary": "Mute an IP or range",
+        "tags": [
+          "Muted IPs"
+        ]
+      }
+    },
+    "/api/v1/muted-ips/{entry_id}": {
+      "delete": {
+        "deprecated": false,
+        "description": "Removes one entry from the muted list.",
+        "operationId": "ApiV1MutedIpsEntryIdDeleteMutedIp",
+        "parameters": [
+          {
+            "deprecated": false,
+            "description": "The `id` of the entry, from the list.",
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "description": "The `id` of the entry, from the list.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Request fulfilled, nothing follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "code": "validation_failed",
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code",
+                    "code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "No entry has this id."
+          }
+        },
+        "summary": "Unmute an IP or range",
+        "tags": [
+          "Muted IPs"
+        ]
+      }
+    },
     "/api/v1/reports/abuse": {
       "get": {
         "deprecated": false,
@@ -19854,7 +20808,7 @@
     "/api/v1/system/about": {
       "get": {
         "deprecated": false,
-        "description": "Returns the app version and image, the Python and library versions, the PostgreSQL, TimescaleDB and PostGIS versions, the schema migration, and the state of the GeoLite2 databases and DROP lists. When the database is unreachable, every database field is null except `migrationHead`, the newest migration this build ships.",
+        "description": "Returns the app version and image, the Python and library versions, the PostgreSQL, TimescaleDB and PostGIS versions, the schema migration, and the state of the GeoLite2 databases, the DROP lists and the AbuseIPDB blacklist. When the database is unreachable, every database field is null except `migrationHead`, the newest migration this build ships.",
         "operationId": "ApiV1SystemAboutGetAbout",
         "responses": {
           "200": {
@@ -20218,6 +21172,10 @@
     {
       "description": "Log in and out of the web app, see who is logged in, and list, create and revoke API keys. Login, the login options and the OIDC login routes need no credentials. Everything else here needs a browser session.",
       "name": "Auth"
+    },
+    {
+      "description": "The saved list of IPs and CIDR ranges that the hide switch on the log pages filters out. Read keys can list it. Adding and removing entries needs a read_write key or a session.",
+      "name": "Muted IPs"
     },
     {
       "description": "Request counts, time series and top lists for a time range, and the profile of one IP.",

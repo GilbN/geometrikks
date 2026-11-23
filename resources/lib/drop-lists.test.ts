@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 import type { DropFeedView } from "@/generated/api/types.gen"
 import { formatTs } from "./datetime"
 import {
@@ -38,7 +38,9 @@ function feedView(overrides: Partial<DropFeedView> & Pick<DropFeedView, "feed">)
 describe("dropCreditText", () => {
   it("credits the project with the local update time", () => {
     const updatedAt = "2026-11-01T06:14:00Z"
-    expect(dropCreditText(updatedAt)).toBe(`DROP data: The Spamhaus Project, updated ${formatTs(updatedAt, "hourly")}`)
+    expect(dropCreditText(updatedAt)).toBe(
+      `DROP data: The Spamhaus Project, updated ${formatTs(updatedAt, "hourly")}`,
+    )
   })
 
   it("leaves out the time when nothing has downloaded", () => {
@@ -57,8 +59,12 @@ describe("dropTrafficSubtitle", () => {
     expect(dropTrafficSubtitle(1234, 3, 5000, 80.2)).toBe(
       "1,234 of 5,000 classified requests (80% of range), from 3 listed ASNs",
     )
-    expect(dropTrafficSubtitle(5, 1, 100, 99.4)).toBe("5 of 100 classified requests (99% of range), from 1 listed ASN")
-    expect(dropTrafficSubtitle(5, null, 100, 50)).toBe("5 of 100 classified requests (50% of range), from listed ASNs")
+    expect(dropTrafficSubtitle(5, 1, 100, 99.4)).toBe(
+      "5 of 100 classified requests (99% of range), from 1 listed ASN",
+    )
+    expect(dropTrafficSubtitle(5, null, 100, 50)).toBe(
+      "5 of 100 classified requests (50% of range), from listed ASNs",
+    )
   })
 })
 
@@ -70,7 +76,10 @@ describe("dropAsnFreshness", () => {
       feedView({ feed: "v4", fetchedAt: "2026-11-01T11:00:00Z" }),
       feedView({ feed: "asn", fetchedAt: "2026-10-30T06:00:00Z" }),
     ]
-    expect(dropAsnFreshness({ feeds }, now)).toEqual({ updatedAt: "2026-10-30T06:00:00Z", stale: false })
+    expect(dropAsnFreshness({ feeds }, now)).toEqual({
+      updatedAt: "2026-10-30T06:00:00Z",
+      stale: false,
+    })
   })
 
   it("is stale when only the ASN download is a week old", () => {
@@ -78,11 +87,19 @@ describe("dropAsnFreshness", () => {
       feedView({ feed: "v4", fetchedAt: "2026-11-01T11:00:00Z" }),
       feedView({ feed: "asn", fetchedAt: "2026-10-24T11:59:00Z" }),
     ]
-    expect(dropAsnFreshness({ feeds }, now)).toEqual({ updatedAt: "2026-10-24T11:59:00Z", stale: true })
+    expect(dropAsnFreshness({ feeds }, now)).toEqual({
+      updatedAt: "2026-10-24T11:59:00Z",
+      stale: true,
+    })
   })
 
   it("has no date and is not stale before the ASN list downloads", () => {
-    expect(dropAsnFreshness({ feeds: [feedView({ feed: "v4", fetchedAt: "2026-11-01T11:00:00Z" })] }, now)).toEqual({
+    expect(
+      dropAsnFreshness(
+        { feeds: [feedView({ feed: "v4", fetchedAt: "2026-11-01T11:00:00Z" })] },
+        now,
+      ),
+    ).toEqual({
       updatedAt: null,
       stale: false,
     })
@@ -105,45 +122,77 @@ describe("dropFeedRecords", () => {
   })
 
   it("skips feeds that never downloaded", () => {
-    expect(dropFeedRecords([feedView({ feed: "v4" }), feedView({ feed: "asn", recordCount: 2 })])).toEqual([
-      { label: "ASNs", count: "2" },
-    ])
+    expect(
+      dropFeedRecords([feedView({ feed: "v4" }), feedView({ feed: "asn", recordCount: 2 })]),
+    ).toEqual([{ label: "ASNs", count: "2" }])
   })
 })
 
 describe("dropListsErrorLines", () => {
   it("names every failing feed and folds feeds that failed the same way", () => {
     const feeds = [
-      feedView({ feed: "v4", lastError: "ConnectError: [Errno -3] Temporary failure in name resolution" }),
+      feedView({
+        feed: "v4",
+        lastError: "ConnectError: [Errno -3] Temporary failure in name resolution",
+      }),
       feedView({ feed: "v6", fetchedAt: "2026-10-30T06:00:00Z", lastError: "HTTP 403" }),
-      feedView({ feed: "asn", lastError: "ConnectError: [Errno -3] Temporary failure in name resolution" }),
+      feedView({
+        feed: "asn",
+        lastError: "ConnectError: [Errno -3] Temporary failure in name resolution",
+      }),
     ]
     expect(dropListsErrorLines(feeds)).toEqual([
       "Last error (IPv4, ASN): ConnectError: [Errno -3] Temporary failure in name resolution",
       "Last error (IPv6): HTTP 403",
     ])
-    expect(dropListsErrorLines([feedView({ feed: "v4", fetchedAt: "2026-10-30T06:00:00Z" })])).toEqual([])
+    expect(
+      dropListsErrorLines([feedView({ feed: "v4", fetchedAt: "2026-10-30T06:00:00Z" })]),
+    ).toEqual([])
   })
 })
 
 describe("dropAsnsLoaded", () => {
   it("follows the ASN feed alone", () => {
-    expect(dropAsnsLoaded({ feeds: [feedView({ feed: "v4", fetchedAt: "2026-11-01T06:00:00Z" }), feedView({ feed: "asn" })] })).toBe(false)
-    expect(dropAsnsLoaded({ feeds: [feedView({ feed: "asn", fetchedAt: "2026-11-01T06:00:00Z" })] })).toBe(true)
+    expect(
+      dropAsnsLoaded({
+        feeds: [
+          feedView({ feed: "v4", fetchedAt: "2026-11-01T06:00:00Z" }),
+          feedView({ feed: "asn" }),
+        ],
+      }),
+    ).toBe(false)
+    expect(
+      dropAsnsLoaded({ feeds: [feedView({ feed: "asn", fetchedAt: "2026-11-01T06:00:00Z" })] }),
+    ).toBe(true)
     expect(dropAsnsLoaded(null)).toBe(false)
   })
 })
 
 describe("dropFeedFailing", () => {
   it("is true when the latest attempt failed, with or without an earlier download", () => {
-    expect(dropFeedFailing(feedView({ feed: "asn", checkedAt: "2026-11-01T06:00:00Z", lastError: "HTTP 403" }))).toBe(true)
     expect(
       dropFeedFailing(
-        feedView({ feed: "asn", fetchedAt: "2026-10-30T06:00:00Z", checkedAt: "2026-11-01T06:00:00Z", lastError: "HTTP 403" }),
+        feedView({ feed: "asn", checkedAt: "2026-11-01T06:00:00Z", lastError: "HTTP 403" }),
       ),
     ).toBe(true)
     expect(
-      dropFeedFailing(feedView({ feed: "asn", fetchedAt: "2026-11-01T06:00:00Z", checkedAt: "2026-11-01T06:00:00Z" })),
+      dropFeedFailing(
+        feedView({
+          feed: "asn",
+          fetchedAt: "2026-10-30T06:00:00Z",
+          checkedAt: "2026-11-01T06:00:00Z",
+          lastError: "HTTP 403",
+        }),
+      ),
+    ).toBe(true)
+    expect(
+      dropFeedFailing(
+        feedView({
+          feed: "asn",
+          fetchedAt: "2026-11-01T06:00:00Z",
+          checkedAt: "2026-11-01T06:00:00Z",
+        }),
+      ),
     ).toBe(false)
   })
 })
@@ -171,8 +220,14 @@ describe("matchDropNetwork", () => {
   ])
 
   it("matches the first and last address of an IPv4 network", () => {
-    expect(matchDropNetwork(dropIndex, "192.0.2.0")).toEqual({ cidr: "192.0.2.0/24", sblId: "SBL000001" })
-    expect(matchDropNetwork(dropIndex, "192.0.2.255")).toEqual({ cidr: "192.0.2.0/24", sblId: "SBL000001" })
+    expect(matchDropNetwork(dropIndex, "192.0.2.0")).toEqual({
+      cidr: "192.0.2.0/24",
+      sblId: "SBL000001",
+    })
+    expect(matchDropNetwork(dropIndex, "192.0.2.255")).toEqual({
+      cidr: "192.0.2.0/24",
+      sblId: "SBL000001",
+    })
   })
 
   it("misses the addresses either side of a network", () => {
@@ -188,8 +243,13 @@ describe("matchDropNetwork", () => {
   })
 
   it("matches an IPv6 address inside its /48", () => {
-    expect(matchDropNetwork(dropIndex, "2001:db8:254::1")).toEqual({ cidr: "2001:db8:254::/48", sblId: "SBL000003" })
-    expect(matchDropNetwork(dropIndex, "2001:db8:254:ffff:ffff:ffff:ffff:ffff")?.sblId).toBe("SBL000003")
+    expect(matchDropNetwork(dropIndex, "2001:db8:254::1")).toEqual({
+      cidr: "2001:db8:254::/48",
+      sblId: "SBL000003",
+    })
+    expect(matchDropNetwork(dropIndex, "2001:db8:254:ffff:ffff:ffff:ffff:ffff")?.sblId).toBe(
+      "SBL000003",
+    )
     expect(matchDropNetwork(dropIndex, "2001:db8:255::")).toBeNull()
   })
 
@@ -250,12 +310,18 @@ describe("matchDropNetwork", () => {
     expect(matchDropNetwork(dropIndex, "192.0.2.1%eth0")).toBeNull()
   })
 
-  it.each(["", "not an ip", "192.0.2", "192.0.2.256", "192.0.2.1.1", "2001:db8::1::1", "2001:db8:g::1", "1:2:3:4:5:6:7:8:9"])(
-    "returns null for %j",
-    (garbage) => {
-      expect(matchDropNetwork(dropIndex, garbage)).toBeNull()
-    },
-  )
+  it.each([
+    "",
+    "not an ip",
+    "192.0.2",
+    "192.0.2.256",
+    "192.0.2.1.1",
+    "2001:db8::1::1",
+    "2001:db8:g::1",
+    "1:2:3:4:5:6:7:8:9",
+  ])("returns null for %j", (garbage) => {
+    expect(matchDropNetwork(dropIndex, garbage)).toBeNull()
+  })
 
   it("skips CIDRs it cannot parse", () => {
     const withGarbage = buildDropIndex([
@@ -278,7 +344,9 @@ describe("matchDropNetwork", () => {
       })),
     ]
     const lookupIps = Array.from({ length: 10_000 }, (_, index) =>
-      index % 5 === 0 ? `2001:db8:${(index % 120).toString(16)}::${index.toString(16)}` : `10.${index % 9}.${index % 256}.${index % 251}`,
+      index % 5 === 0
+        ? `2001:db8:${(index % 120).toString(16)}::${index.toString(16)}`
+        : `10.${index % 9}.${index % 256}.${index % 251}`,
     )
     // Best of three fresh builds. One cold run in a loaded parallel suite times JIT warm-up more than the index.
     let elapsedMs = Number.POSITIVE_INFINITY
@@ -298,8 +366,20 @@ describe("matchDropNetwork", () => {
 describe("dropNetworksLoaded", () => {
   it("needs a network feed, not the ASN feed alone", () => {
     const fetchedAt = "2026-11-01T06:00:00Z"
-    expect(dropNetworksLoaded({ feeds: [feedView({ feed: "v4" }), feedView({ feed: "v6" }), feedView({ feed: "asn", fetchedAt })] })).toBe(false)
-    expect(dropNetworksLoaded({ feeds: [feedView({ feed: "v4" }), feedView({ feed: "v6", fetchedAt })] })).toBe(true)
+    expect(
+      dropNetworksLoaded({
+        feeds: [
+          feedView({ feed: "v4" }),
+          feedView({ feed: "v6" }),
+          feedView({ feed: "asn", fetchedAt }),
+        ],
+      }),
+    ).toBe(false)
+    expect(
+      dropNetworksLoaded({
+        feeds: [feedView({ feed: "v4" }), feedView({ feed: "v6", fetchedAt })],
+      }),
+    ).toBe(true)
     expect(dropNetworksLoaded({ feeds: [feedView({ feed: "v4", fetchedAt })] })).toBe(true)
     expect(dropNetworksLoaded(null)).toBe(false)
   })
@@ -331,8 +411,12 @@ describe("dropNetworkBanState", () => {
   const bannedRanges = new Map([["192.0.2.0/24", { value: "192.0.2.0/24" }]])
 
   it("reads the network's Range decision", () => {
-    expect(dropNetworkBanState("192.0.2.0/24", { data: bannedRanges, isError: false })).toBe("banned")
-    expect(dropNetworkBanState("198.51.100.0/24", { data: bannedRanges, isError: false })).toBe("unbanned")
+    expect(dropNetworkBanState("192.0.2.0/24", { data: bannedRanges, isError: false })).toBe(
+      "banned",
+    )
+    expect(dropNetworkBanState("198.51.100.0/24", { data: bannedRanges, isError: false })).toBe(
+      "unbanned",
+    )
   })
 
   it("is unknown when the read failed with nothing cached", () => {
@@ -340,7 +424,9 @@ describe("dropNetworkBanState", () => {
   })
 
   it("keeps the last answer when a refetch fails", () => {
-    expect(dropNetworkBanState("192.0.2.0/24", { data: bannedRanges, isError: true })).toBe("banned")
+    expect(dropNetworkBanState("192.0.2.0/24", { data: bannedRanges, isError: true })).toBe(
+      "banned",
+    )
   })
 
   it("is pending until the first read answers, paused or loading", () => {
@@ -352,7 +438,9 @@ describe("dropNetworkBanOffered", () => {
   const bannedRanges = new Map([["192.0.2.0/24", { value: "192.0.2.0/24" }]])
 
   it("offers nothing until the first read answers", () => {
-    expect(dropNetworkBanOffered("198.51.100.0/24", { data: undefined, isError: false })).toBe(false)
+    expect(dropNetworkBanOffered("198.51.100.0/24", { data: undefined, isError: false })).toBe(
+      false,
+    )
   })
 
   it("offers nothing while a first fetch is paused offline", () => {
@@ -362,8 +450,12 @@ describe("dropNetworkBanOffered", () => {
   })
 
   it("offers the ban only for an unbanned network", () => {
-    expect(dropNetworkBanOffered("198.51.100.0/24", { data: bannedRanges, isError: false })).toBe(true)
-    expect(dropNetworkBanOffered("192.0.2.0/24", { data: bannedRanges, isError: false })).toBe(false)
+    expect(dropNetworkBanOffered("198.51.100.0/24", { data: bannedRanges, isError: false })).toBe(
+      true,
+    )
+    expect(dropNetworkBanOffered("192.0.2.0/24", { data: bannedRanges, isError: false })).toBe(
+      false,
+    )
   })
 
   it("offers nothing when the ban state is unknown", () => {
@@ -408,8 +500,12 @@ describe("sblRecordUrl", () => {
 
 describe("DROP network ban toasts", () => {
   it("name the network and the duration", () => {
-    expect(dropNetworkBannedText("192.0.2.0/24", "4 hours")).toBe("Banned DROP network 192.0.2.0/24 for 4 hours")
-    expect(dropNetworkBannedText("2001:db8::/32", "Forever")).toBe("Banned DROP network 2001:db8::/32 for good")
+    expect(dropNetworkBannedText("192.0.2.0/24", "4 hours")).toBe(
+      "Banned DROP network 192.0.2.0/24 for 4 hours",
+    )
+    expect(dropNetworkBannedText("2001:db8::/32", "Forever")).toBe(
+      "Banned DROP network 2001:db8::/32 for good",
+    )
     expect(dropNetworkUnbannedText("192.0.2.0/24")).toBe("Unbanned DROP network 192.0.2.0/24")
   })
 })

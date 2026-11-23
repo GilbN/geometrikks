@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest"
+import { describe, expect, it, vi } from "vite-plus/test"
 import {
   LOGIN_ERROR_MESSAGES,
   databaseDownNotice,
@@ -27,7 +27,10 @@ describe("planLoginRoute", () => {
 
   it("sends an already-authenticated visitor home", () => {
     expect(
-      planLoginRoute({ ok: true, me: { mode: "session", username: "admin", provider: "password" } }),
+      planLoginRoute({
+        ok: true,
+        me: { mode: "session", username: "admin", provider: "password" },
+      }),
     ).toEqual({
       action: "redirect",
       to: "/",
@@ -63,7 +66,10 @@ describe("planLogoutRoute", () => {
 
   it("ends the session then lands on the login page", () => {
     expect(
-      planLogoutRoute({ ok: true, me: { mode: "session", username: "admin", provider: "password" } }),
+      planLogoutRoute({
+        ok: true,
+        me: { mode: "session", username: "admin", provider: "password" },
+      }),
     ).toEqual({
       action: "endSessionThenRedirect",
       to: "/login",
@@ -195,7 +201,9 @@ describe("loginErrorMessage", () => {
   })
 
   it("covers a network failure and a plain Error", () => {
-    expect(loginErrorMessage({ isAxiosError: true, response: undefined })).toBe("Sign-in failed. Try again.")
+    expect(loginErrorMessage({ isAxiosError: true, response: undefined })).toBe(
+      "Sign-in failed. Try again.",
+    )
     expect(loginErrorMessage(new Error("offline"))).toBe("Sign-in failed. Try again.")
   })
 })
@@ -216,16 +224,18 @@ describe("logoutThenNavigate", () => {
   it("rejects and never navigates when the logout fails", async () => {
     const go = vi.fn()
     const failure = new Error("503")
-    await expect(
-      logoutThenNavigate(() => Promise.reject(failure), go),
-    ).rejects.toBe(failure)
+    await expect(logoutThenNavigate(() => Promise.reject(failure), go)).rejects.toBe(failure)
     expect(go).not.toHaveBeenCalled()
   })
 })
 
 describe("databaseDownNotice", () => {
   const healthWith = (advisories?: Advisory[]) => ({ advisories }) as HealthResponse
-  const advisory = (id: string, summary: string): Advisory => ({ id, severity: "critical", summary })
+  const advisory = (id: string, summary: string): Advisory => ({
+    id,
+    severity: "critical",
+    summary,
+  })
 
   it("is null when /health could not be fetched", () => {
     expect(databaseDownNotice(null)).toBeNull()
@@ -241,7 +251,9 @@ describe("databaseDownNotice", () => {
       advisory("geoip-database-stale", "The GeoIP database is old."),
       advisory("database-unavailable", "The database is unreachable."),
     ])
-    expect(databaseDownNotice(health)).toBe("The database is unavailable, so signing in won't work until it's back.")
+    expect(databaseDownNotice(health)).toBe(
+      "The database is unavailable, so signing in won't work until it's back.",
+    )
   })
 
   it("ignores other advisories on their own", () => {
@@ -277,12 +289,20 @@ describe("loadLoginContext", () => {
   })
 
   it("returns null health when /health fails or times out", async () => {
-    const result = await loadLoginContext(async () => options, () => Promise.reject(new Error("timeout of 3000ms exceeded")))
+    const result = await loadLoginContext(
+      async () => options,
+      () => Promise.reject(new Error("timeout of 3000ms exceeded")),
+    )
     expect(result).toEqual({ options, health: null })
   })
 
   it("still fails when the options request fails", async () => {
     const failure = new Error("503")
-    await expect(loadLoginContext(() => Promise.reject(failure), async () => health)).rejects.toBe(failure)
+    await expect(
+      loadLoginContext(
+        () => Promise.reject(failure),
+        async () => health,
+      ),
+    ).rejects.toBe(failure)
   })
 })

@@ -6,12 +6,12 @@ project-specific time-window provider and IP validation.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from advanced_alchemy.filters import OnBeforeAfter
-from geometrikks.domain.exceptions import DomainValidationError
 
+from geometrikks.domain.exceptions import DomainValidationError
 from geometrikks.domain.logs.controllers.access_log_debug import (
     provide_debug_time_window,
     validated_ips,
@@ -23,8 +23,8 @@ class TestTimeWindow:
         assert provide_debug_time_window(None, None) == []
 
     def test_adds_inclusive_window_on_created_at(self) -> None:
-        start = datetime(2026, 7, 1, tzinfo=timezone.utc)
-        end = datetime(2026, 7, 2, tzinfo=timezone.utc)
+        start = datetime(2026, 7, 1, tzinfo=UTC)
+        end = datetime(2026, 7, 2, tzinfo=UTC)
         result = provide_debug_time_window(start, end)
         assert len(result) == 1
         window = result[0]
@@ -44,5 +44,5 @@ class TestValidatedIps:
 
     def test_invalid_ip_raises_validation_error(self) -> None:
         # ip_address is INET on the joined table; free text must 400.
-        with pytest.raises(DomainValidationError, match="Invalid IP address"):
+        with pytest.raises(DomainValidationError, match="Enter an IP address or CIDR network"):
             validated_ips(["not-an-ip"])

@@ -28,15 +28,22 @@ export const ABUSEIPDB_CATEGORIES: { id: number; name: string }[] = [
   "IoT Targeted",
 ].map((name, index) => ({ id: index + 1, name }))
 
-export const CATEGORY_NAMES = new Map(ABUSEIPDB_CATEGORIES.map((category) => [category.id, category.name]))
+export const CATEGORY_NAMES = new Map(
+  ABUSEIPDB_CATEGORIES.map((category) => [category.id, category.name]),
+)
 
 export function reportCategoryNames(ids: number[]): string[] {
   return ids.map((id) => CATEGORY_NAMES.get(id) ?? String(id))
 }
 
-export function reporterLabel(report: Pick<StoredReportDto, "reporterKind" | "reporterName">): string {
+export function reporterLabel(
+  report: Pick<StoredReportDto, "reporterKind" | "reporterName">,
+): string {
   if (report.reporterKind === "anonymous") return "auth disabled"
-  return report.reporterName ?? (report.reporterKind === "api_key" ? "a deleted API key" : "a deleted user")
+  return (
+    report.reporterName ??
+    (report.reporterKind === "api_key" ? "a deleted API key" : "a deleted user")
+  )
 }
 
 export const FEATURED_CATEGORY_IDS = [21, 19, 15, 16, 18, 14, 9, 10]
@@ -47,7 +54,11 @@ export const REPORT_INTERVAL_MS = 15 * 60_000
 /** The prefilled picks lead, so one outside the featured eight shows before All 23… is pressed. */
 export function categoryChipOrder(picked: readonly number[], showAll: boolean): number[] {
   const leading = [...picked, ...FEATURED_CATEGORY_IDS]
-  return [...new Set(showAll ? [...leading, ...ABUSEIPDB_CATEGORIES.map((category) => category.id)] : leading)]
+  return [
+    ...new Set(
+      showAll ? [...leading, ...ABUSEIPDB_CATEGORIES.map((category) => category.id)] : leading,
+    ),
+  ]
 }
 
 const MINUTE_MS = 60_000
@@ -100,7 +111,7 @@ function parseIp(ip: string): ParsedIp | null {
 function formatIpv6(groups: readonly number[]): string {
   let bestStart = -1
   let bestLength = 1
-  for (let start = 0; start < groups.length; ) {
+  for (let start = 0; start < groups.length;) {
     if (groups[start] !== 0) {
       start++
       continue
@@ -144,20 +155,50 @@ function ipv6Range(cidr: string): [bigint, bigint] {
 // Python's private networks and their exceptions, plus CGNAT, which is_global
 // also refuses. Multicast is refused here, though the backend's is_global takes it.
 const NON_PUBLIC_V4 = [
-  "0.0.0.0/8", "10.0.0.0/8", "100.64.0.0/10", "127.0.0.0/8", "169.254.0.0/16", "172.16.0.0/12", "192.0.0.0/24",
-  "192.0.0.170/31", "192.0.2.0/24", "192.168.0.0/16", "198.18.0.0/15", "198.51.100.0/24", "203.0.113.0/24",
-  "224.0.0.0/4", "240.0.0.0/4", "255.255.255.255/32",
+  "0.0.0.0/8",
+  "10.0.0.0/8",
+  "100.64.0.0/10",
+  "127.0.0.0/8",
+  "169.254.0.0/16",
+  "172.16.0.0/12",
+  "192.0.0.0/24",
+  "192.0.0.170/31",
+  "192.0.2.0/24",
+  "192.168.0.0/16",
+  "198.18.0.0/15",
+  "198.51.100.0/24",
+  "203.0.113.0/24",
+  "224.0.0.0/4",
+  "240.0.0.0/4",
+  "255.255.255.255/32",
 ].map(ipv4Range)
 const PUBLIC_V4_EXCEPTIONS = ["192.0.0.9/32", "192.0.0.10/32"].map(ipv4Range)
 const NON_PUBLIC_V6 = [
-  "::1/128", "::/128", "64:ff9b:1::/48", "100::/64", "2001::/23", "2001:db8::/32", "2002::/16", "3fff::/20", "fc00::/7",
-  "fe80::/10", "ff00::/8",
+  "::1/128",
+  "::/128",
+  "64:ff9b:1::/48",
+  "100::/64",
+  "2001::/23",
+  "2001:db8::/32",
+  "2002::/16",
+  "3fff::/20",
+  "fc00::/7",
+  "fe80::/10",
+  "ff00::/8",
 ].map(ipv6Range)
 const PUBLIC_V6_EXCEPTIONS = [
-  "2001:1::1/128", "2001:1::2/128", "2001:3::/32", "2001:4:112::/48", "2001:20::/28", "2001:30::/28",
+  "2001:1::1/128",
+  "2001:1::2/128",
+  "2001:3::/32",
+  "2001:4:112::/48",
+  "2001:20::/28",
+  "2001:30::/28",
 ].map(ipv6Range)
 
-function inRanges<Address extends number | bigint>(ranges: [Address, Address][], value: Address): boolean {
+function inRanges<Address extends number | bigint>(
+  ranges: [Address, Address][],
+  value: Address,
+): boolean {
   return ranges.some(([start, end]) => start <= value && value <= end)
 }
 
@@ -192,25 +233,31 @@ export function abuseipdbCheckUrl(ip: string): string {
 }
 
 export function commentLength(text: string): number {
-  return [...text].length
+  return Array.from(text).length
 }
 
 export function localScenarios(ip: ReportIpDto): string[] {
   const scenarios = [
     ...ip.alerts.map((alert) => alert.scenario),
-    ...ip.decisions.filter((decision) => COUNTED_DECISION_ORIGINS.has(decision.origin)).map((decision) => decision.scenario),
+    ...ip.decisions
+      .filter((decision) => COUNTED_DECISION_ORIGINS.has(decision.origin))
+      .map((decision) => decision.scenario),
   ]
   return [...new Set(scenarios.filter((scenario) => scenario && scenario !== MANUAL_SCENARIO))]
 }
 
-export function categoriesForScenarios(scenarios: string[]): { ids: number[]; fromCrowdsec: boolean } {
+export function categoriesForScenarios(scenarios: string[]): {
+  ids: number[]
+  fromCrowdsec: boolean
+} {
   const matched = new Set<number>()
   for (const scenario of scenarios) {
     // A manual scenario is free text from a person, so its words say nothing about the attack.
     if (scenario.startsWith("manual")) continue
     const lowered = scenario.toLowerCase()
     for (const rule of SCENARIO_CATEGORY_RULES) {
-      if (rule.needles.some((needle) => lowered.includes(needle))) rule.ids.forEach((id) => matched.add(id))
+      if (rule.needles.some((needle) => lowered.includes(needle)))
+        rule.ids.forEach((id) => matched.add(id))
     }
   }
   if (matched.size === 0) return { ids: [...FALLBACK_CATEGORY_IDS], fromCrowdsec: false }
@@ -221,7 +268,9 @@ export function defaultAttackTime(ip: ReportIpDto): string | null {
   if (ip.firstSeen) return ip.firstSeen
   const alertStarts = ip.alerts.flatMap((alert) => (alert.startAt ? [alert.startAt] : []))
   if (alertStarts.length === 0) return null
-  return alertStarts.reduce((earliest, start) => (Date.parse(start) < Date.parse(earliest) ? start : earliest))
+  return alertStarts.reduce((earliest, start) =>
+    Date.parse(start) < Date.parse(earliest) ? start : earliest,
+  )
 }
 
 function utcDateTime(iso: string): string {
@@ -255,7 +304,8 @@ export function buildReportComment(ip: ReportIpDto, scenarios: string[]): string
     ]
       .filter((part) => part !== null)
       .join(" ")
-  const fits = (kept: Parameters<typeof assemble>[0]) => commentLength(assemble(kept)) <= MAX_COMMENT_LENGTH
+  const fits = (kept: Parameters<typeof assemble>[0]) =>
+    commentLength(assemble(kept)) <= MAX_COMMENT_LENGTH
 
   const kept = { scenarios: [] as string[], paths: [] as string[], withUserAgent: false }
   for (const name of scenarioNames) {
@@ -289,11 +339,17 @@ export function shortAgoText(at: string, now: number, locale?: string): string {
   if (ageMs < DAY_MS) return `${Math.floor(ageMs / HOUR_MS)}h ago`
   if (ageMs < 7 * DAY_MS) return `${Math.floor(ageMs / DAY_MS)}d ago`
   const recent = ageMs < 180 * DAY_MS
-  return new Date(at).toLocaleDateString(locale, recent ? { month: "short", day: "numeric" } : { month: "short", year: "numeric" })
+  return new Date(at).toLocaleDateString(
+    locale,
+    recent ? { month: "short", day: "numeric" } : { month: "short", year: "numeric" },
+  )
 }
 
 /** How long until the item's countdown moves on, or null when nothing on it is counting down. */
-export function reportedItemRefreshIn(entry: ReportedIpDto | undefined, now: number): number | null {
+export function reportedItemRefreshIn(
+  entry: ReportedIpDto | undefined,
+  now: number,
+): number | null {
   if (!entry) return null
   const remainingMs = REPORT_INTERVAL_MS - Math.max(0, now - Date.parse(entry.reportedAt))
   if (remainingMs <= 0) return null

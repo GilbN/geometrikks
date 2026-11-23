@@ -8,6 +8,12 @@ docs/superpowers/
 /logs
 /nginx_logs
 /smoke-artifacts/
+extension/dist/
+extension/dist-e2e/
+extension/dist-store/
+extension/*.zip
+extension/.build/
+tests/extension/__screens__/
 *.local.md
 
 # Byte-compiled / optimized / DLL files
@@ -406,3 +412,4 @@ site/.wrangler/
 # Docs screenshot run: publish staging and the old folder during the swap
 data/.screenshots-staging/
 data/.screenshots-backup/
+.vitest/

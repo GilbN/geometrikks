@@ -5,7 +5,7 @@ import dataclasses
 import ipaddress
 import json
 import random
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import geohash2
@@ -18,7 +18,7 @@ from tests.seed.traffic import Batch, TrafficGenerator
 from tests.seed.visitors import MaxMindGeoSource, Resolved, Visitor, VisitorBuilder
 from tests.seed_support import FakeGeoSource
 
-END = datetime(2026, 11, 1, 12, tzinfo=timezone.utc)
+END = datetime(2026, 11, 1, 12, tzinfo=UTC)
 
 
 def _generate(config: SeedConfig) -> tuple[list[Visitor], list[Batch]]:

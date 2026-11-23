@@ -19,7 +19,15 @@ type ToastPlacement = {
 
 /** Where the toaster sits on a phone: above the tab bar, short of the map pill
  *  in portrait, or at the top while a surface covers the bottom edge. */
-export function phoneToastPlacement({ side, onMap, covered, barSide, leftInset, rightInset, topEdge }: ToastPlacementInput): ToastPlacement {
+export function phoneToastPlacement({
+  side,
+  onMap,
+  covered,
+  barSide,
+  leftInset,
+  rightInset,
+  topEdge,
+}: ToastPlacementInput): ToastPlacement {
   if (covered) {
     return {
       position: "top-center",
@@ -32,7 +40,11 @@ export function phoneToastPlacement({ side, onMap, covered, barSide, leftInset, 
     }
   }
   if (side) {
-    return { position: "bottom-center", offset: { bottom: "var(--tab-bar-clear)" }, className: "toaster-centred" }
+    return {
+      position: "bottom-center",
+      offset: { bottom: "var(--tab-bar-clear)" },
+      className: "toaster-centred",
+    }
   }
   const right = onMap ? PILL_WIDTH + Math.max(barSide, rightInset) + 8 : barSide
   return {

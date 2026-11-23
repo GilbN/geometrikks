@@ -1,8 +1,9 @@
 """Repository + CAGG-routing tests on real TimescaleDB."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
+import pytest
 from sqlalchemy import text
 
 from geometrikks.domain.analytics.repositories import (
@@ -14,14 +15,12 @@ from geometrikks.domain.geo.repositories import GeoLocationRepository
 from geometrikks.server.timescale import refresh_caggs_range
 from tests.seed_support import fake_place
 
-import pytest
-
 pytestmark = pytest.mark.anyio
 
 # Derived from the wall clock, not hard-coded, so a fixed date would not
 # eventually age out of the 180-day raw retention window. Hour-aligned so
 # seeds land deterministically in hourly CAGG buckets.
-NOW = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+NOW = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
 
 LOCATION_COLUMNS = (
     "geohash", "latitude", "longitude", "country_code", "country_name",

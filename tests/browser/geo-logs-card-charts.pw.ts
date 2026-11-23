@@ -13,15 +13,33 @@ interface SeriesRequest {
 async function login(page: Page) {
   const password = process.env.SMOKE_ADMIN_PASSWORD ?? process.env.APP_ADMIN_PASSWORD
   if (!password) throw new Error("Administrator credentials are required")
-  expect((await page.request.post("/api/v1/auth/login", { data: { username: "admin", password } })).ok()).toBe(true)
+  expect(
+    (await page.request.post("/api/v1/auth/login", { data: { username: "admin", password } })).ok(),
+  ).toBe(true)
 }
 
-async function openGeoLogs(page: Page, { range, pollInterval, chartsOn = true, granularity = "auto" }: { range: string; pollInterval: number; chartsOn?: boolean; granularity?: string }) {
+async function openGeoLogs(
+  page: Page,
+  {
+    range,
+    pollInterval,
+    chartsOn = true,
+    granularity = "auto",
+  }: { range: string; pollInterval: number; chartsOn?: boolean; granularity?: string },
+) {
   await login(page)
-  await page.addInitScript(({ range, pollInterval, chartsOn, granularity }) => {
-    localStorage.setItem("geometrikks-time-range", JSON.stringify({ range, pollInterval, granularity }))
-    localStorage.setItem("geometrikks-geo-logs-charts", String(chartsOn))
-  }, { range, pollInterval, chartsOn, granularity })
+  await page.addInitScript(
+    ({ range, pollInterval, chartsOn, granularity }) => {
+      localStorage.setItem(
+        "geometrikks-time-range",
+        JSON.stringify({ range, pollInterval, granularity }),
+      )
+      localStorage.setItem("geometrikks-geo-logs-charts", String(chartsOn))
+      // A returning browser with an empty muted list sends no flag.
+      localStorage.setItem("mutedIpsVersion", "empty")
+    },
+    { range, pollInterval, chartsOn, granularity },
+  )
   await page.goto("/geo-logs")
 }
 
@@ -29,25 +47,31 @@ async function openGeoLogs(page: Page, { range, pollInterval, chartsOn = true, g
 async function mockSeries(page: Page) {
   const requests: SeriesRequest[] = []
   const gate: { hold: Promise<void> | null } = { hold: null }
-  await page.route((url) => url.pathname.replace(/\/$/, "") === SERIES_PATH, async (route) => {
-    const url = new URL(route.request().url())
-    const granularity = url.searchParams.get("granularity")
-    requests.push({ at: Date.now(), granularity })
-    await gate.hold
-    const startDate = url.searchParams.get("fromTimestamp")!
-    const endDate = url.searchParams.get("toTimestamp")!
-    const step = granularity === "daily" ? 86_400_000 : 3_600_000
-    // A day that crosses local midnight comes back as two daily buckets.
-    const buckets = Math.max(Math.floor((Date.parse(endDate) - Date.parse(startDate)) / step), granularity === "daily" ? 2 : 0)
-    const data = Array.from({ length: buckets }, (_, index) => ({
-      timestamp: new Date(Date.parse(startDate) + index * step).toISOString(),
-      totalEvents: 100 + index + requests.length,
-      uniqueIps: 40 + index,
-      uniqueCountries: 5,
-      uniqueCities: 8,
-    }))
-    await route.fulfill({ json: { data, granularity, startDate, endDate } })
-  })
+  await page.route(
+    (url) => url.pathname.replace(/\/$/, "") === SERIES_PATH,
+    async (route) => {
+      const url = new URL(route.request().url())
+      const granularity = url.searchParams.get("granularity")
+      requests.push({ at: Date.now(), granularity })
+      await gate.hold
+      const startDate = url.searchParams.get("fromTimestamp")!
+      const endDate = url.searchParams.get("toTimestamp")!
+      const step = granularity === "daily" ? 86_400_000 : 3_600_000
+      // A day that crosses local midnight comes back as two daily buckets.
+      const buckets = Math.max(
+        Math.floor((Date.parse(endDate) - Date.parse(startDate)) / step),
+        granularity === "daily" ? 2 : 0,
+      )
+      const data = Array.from({ length: buckets }, (_, index) => ({
+        timestamp: new Date(Date.parse(startDate) + index * step).toISOString(),
+        totalEvents: 100 + index + requests.length,
+        uniqueIps: 40 + index,
+        uniqueCountries: 5,
+        uniqueCities: 8,
+      }))
+      await route.fulfill({ json: { data, granularity, startDate, endDate } })
+    },
+  )
   return { requests, gate }
 }
 
@@ -68,12 +92,16 @@ async function markChart(chart: Locator) {
   })
 }
 
-const isMarked = (chart: Locator) => chart.evaluate((element: HTMLElement) => element.dataset.marked === "true")
+const isMarked = (chart: Locator) =>
+  chart.evaluate((element: HTMLElement) => element.dataset.marked === "true")
 
 const areaPath = (chart: Locator) => chart.locator("path.recharts-area-area").getAttribute("d")
 
 function summaryArrives(page: Page) {
-  return page.waitForResponse((response) => new URL(response.url()).pathname.replace(/\/$/, "") === "/api/v1/geo-events/summary")
+  return page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname.replace(/\/$/, "") === "/api/v1/geo-events/summary",
+  )
 }
 
 /** Marks the chart once it stops being replaced, whether or not the cards remount. */
@@ -119,7 +147,9 @@ test.describe("geo logs card charts", () => {
 
     await page.getByRole("combobox").filter({ hasText: "Auto" }).click()
     await page.getByRole("option", { name: "Daily", exact: true }).click()
-    await expect.poll(() => requests.map((request) => request.granularity)).toEqual(["hourly", "daily"])
+    await expect
+      .poll(() => requests.map((request) => request.granularity))
+      .toEqual(["hourly", "daily"])
     await expect.poll(() => isMarked(chart)).toBe(false)
   })
 
@@ -159,7 +189,9 @@ test.describe("geo logs card charts", () => {
     await expect.poll(() => isMarked(chart)).toBe(false)
   })
 
-  test("come back from a range too short to draw with the last lines they drew", async ({ page }) => {
+  test("come back from a range too short to draw with the last lines they drew", async ({
+    page,
+  }) => {
     const { requests, gate } = await mockSeries(page)
     await openGeoLogs(page, { range: "24h", pollInterval: 0 })
     const chart = totalEventsChart(page)
@@ -189,7 +221,9 @@ test.describe("geo logs card charts", () => {
     await page.getByRole("switch", { name: "Charts" }).click()
     await expect(totalEventsChart(page).locator(".recharts-area")).toBeVisible()
     const seen = requests.length
-    await expect.poll(() => requests.length, { timeout: POLL_MS * 6 }).toBeGreaterThanOrEqual(seen + 3)
+    await expect
+      .poll(() => requests.length, { timeout: POLL_MS * 6 })
+      .toBeGreaterThanOrEqual(seen + 3)
 
     const polls = requests.slice(seen).map((request) => request.at)
     const gaps = polls.slice(1).map((at, index) => at - polls[index])

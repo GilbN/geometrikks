@@ -1,5 +1,5 @@
 /**
- * /settings on a portrait phone: the nine sections in three groups, each
+ * /settings on a portrait phone: the ten sections in three groups, each
  * with one live line, instead of a dropdown above whichever page opened
  * first. Elsewhere /settings redirects to Status, and the side nav or, on a
  * phone held sideways, the chip row lists the sections.
@@ -10,6 +10,7 @@ import {
   Activity,
   CalendarClock,
   ChevronRight,
+  EyeOff,
   CircleArrowUp,
   FileClock,
   Info,
@@ -22,8 +23,13 @@ import {
 import { GlowDot } from "@/components/reload-notice"
 import { useTheme } from "@/components/theme-provider"
 import { StatusLed, type LedTone } from "@/components/settings/status-led"
-import { agentAdvisoryCards, agentsNeedingAttention, agentSummary } from "@/components/settings/agents-logic"
+import {
+  agentAdvisoryCards,
+  agentsNeedingAttention,
+  agentSummary,
+} from "@/components/settings/agents-logic"
 import { apiKeysSummary } from "@/components/settings/api-keys-logic"
+import { mutedIpsHomeLine } from "@/lib/muted-ips"
 import { envSettingCount, isOverridden } from "@/components/settings/environment-fields"
 import {
   advisoryCards,
@@ -35,6 +41,7 @@ import {
 import {
   useAbout,
   useApiKeys,
+  useMutedIpsList,
   useChangelogUnseen,
   useHealth,
   useInstances,
@@ -63,6 +70,7 @@ export function SettingsHome() {
   const { data: settings } = useSystemSettings()
   const { data: about } = useAbout()
   const { data: apiKeyList } = useApiKeys()
+  const { data: mutedIps } = useMutedIpsList(30_000)
   const changelogUnseen = useChangelogUnseen()
   const unseenRelease = useUnseenRelease()
   const { resolvedTheme, colorTheme } = useTheme()
@@ -75,8 +83,15 @@ export function SettingsHome() {
     if (!portraitList) void navigate({ to: "/settings/status", replace: true })
   }, [portraitList, navigate])
 
-  const overall = overallState(health, healthError, instancesError ? 0 : agentsNeedingAttention(instances).length)
-  const problems = statusProblems(advisoryCards(health), instancesError ? [] : agentAdvisoryCards(instances))
+  const overall = overallState(
+    health,
+    healthError,
+    instancesError ? 0 : agentsNeedingAttention(instances).length,
+  )
+  const problems = statusProblems(
+    advisoryCards(health),
+    instancesError ? [] : agentAdvisoryCards(instances),
+  )
   const agents = instancesError ? null : agentSummary(instances)
   const scheduler = schedulerSummary(schedulerData?.jobs, jobsError, Date.now())
 
@@ -126,7 +141,18 @@ export function SettingsHome() {
             ? `${settings.sections.flatMap((section) => section.fields).filter(isOverridden).length} of ${envSettingCount(settings.sections)} settings overridden`
             : "Settings from the environment",
         },
-        { to: "/settings/api-keys", label: "API keys", icon: KeyRound, line: apiKeysSummary(apiKeyList) },
+        {
+          to: "/settings/api-keys",
+          label: "API keys",
+          icon: KeyRound,
+          line: apiKeysSummary(apiKeyList),
+        },
+        {
+          to: "/settings/muted-ips",
+          label: "Muted IPs",
+          icon: EyeOff,
+          line: mutedIpsHomeLine(mutedIps?.length),
+        },
         {
           to: "/settings/appearance",
           label: "Appearance",
@@ -166,7 +192,9 @@ export function SettingsHome() {
         >
           <CircleArrowUp aria-hidden className="size-5 shrink-0 text-primary" />
           <span className="min-w-0 flex-1">
-            <span className="block text-sm font-medium">{unseenRelease.displayVersion} is available</span>
+            <span className="block text-sm font-medium">
+              {unseenRelease.displayVersion} is available
+            </span>
             <span className="block text-xs text-muted-foreground">
               {runningVersion && <>You run {runningVersion}. </>}Release notes on GitHub.
             </span>
@@ -176,7 +204,10 @@ export function SettingsHome() {
       )}
       {groups.map((group, index) => (
         <section key={group.title} aria-labelledby={`${idPrefix}-${index}`} className="space-y-2">
-          <h2 id={`${idPrefix}-${index}`} className="px-1 text-xs font-medium text-muted-foreground">
+          <h2
+            id={`${idPrefix}-${index}`}
+            className="px-1 text-xs font-medium text-muted-foreground"
+          >
             {group.title}
           </h2>
           <ul className="overflow-hidden rounded-xl bg-glass-card ring-1 ring-border shadow-[var(--shadow-card)] backdrop-blur-[2px]">
@@ -192,12 +223,16 @@ export function SettingsHome() {
                       {link.unseen && (
                         <>
                           <GlowDot />
-                          {typeof link.unseen === "string" && <span className="sr-only">, {link.unseen}</span>}
+                          {typeof link.unseen === "string" && (
+                            <span className="sr-only">, {link.unseen}</span>
+                          )}
                         </>
                       )}
                     </span>
                     <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      {link.tone && link.tone !== "emerald" && link.tone !== "muted" && <StatusLed tone={link.tone} />}
+                      {link.tone && link.tone !== "emerald" && link.tone !== "muted" && (
+                        <StatusLed tone={link.tone} />
+                      )}
                       <span className="truncate">{link.line}</span>
                     </span>
                   </span>

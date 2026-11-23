@@ -2,15 +2,27 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Literal
 
+import msgspec
+
+from geometrikks.config.settings import get_installed_version
 from geometrikks.domain.abuseipdb import blacklist_file
 from geometrikks.domain.abuseipdb.blacklist_file import BlacklistFileError
 from geometrikks.domain.abuseipdb.repositories import AbuseIpdbBlacklistRepository
+from geometrikks.domain.abuseipdb.schemas import (
+    AbuseIpdbBlacklistAboutView,
+    AbuseIpdbBlacklistResponse,
+)
 from geometrikks.server.logging import get_logger
-from geometrikks.services.abuseipdb import AbuseIpdbError, AbuseIpdbRateLimitedError, AbuseIpdbRejectedError
+from geometrikks.services.abuseipdb import (
+    AbuseIpdbError,
+    AbuseIpdbRateLimitedError,
+    AbuseIpdbRejectedError,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -18,12 +30,14 @@ if TYPE_CHECKING:
 
     from sqlalchemy.ext.asyncio import AsyncSession
 
+    from geometrikks.domain.abuseipdb.models import AbuseIpdbBlacklistStatus
     from geometrikks.services.abuseipdb import AbuseIpdbClient
 
 logger = get_logger(__name__)
 
 MIN_ATTEMPT_INTERVAL = timedelta(hours=5)
 MAX_LIST_AGE = timedelta(hours=72)
+RUNNING_ATTEMPT_GRACE = timedelta(minutes=2)
 
 
 @dataclass(frozen=True)
@@ -34,10 +48,9 @@ class BlacklistOutcome:
 
 
 @dataclass(frozen=True)
-class BlacklistView:
-    generated_at: datetime | None
-    refreshed_at: datetime | None
-    ips: list[str]
+class CurrentBlacklist:
+    etag: str
+    body: bytes | None
 
 
 def _repository(session: AsyncSession) -> AbuseIpdbBlacklistRepository:
@@ -55,6 +68,10 @@ def _upstream_status(error: AbuseIpdbError) -> int | None:
 def _listed_at(refreshed_at: datetime, generated_at: datetime | None) -> datetime:
     """The time the list's age counts from. A file can hold a list generated long before it was written."""
     return min(refreshed_at, generated_at or refreshed_at)
+
+
+def _expired(refreshed_at: datetime, generated_at: datetime | None, *, now: datetime) -> bool:
+    return now - _listed_at(refreshed_at, generated_at) > MAX_LIST_AGE
 
 
 def _skipped(reason: str) -> BlacklistOutcome:
@@ -154,7 +171,25 @@ async def _refresh_from_file(
 
 
 _expiry_logged_for: datetime | None = None
-EMPTY_VIEW = BlacklistView(generated_at=None, refreshed_at=None, ips=[])
+EMPTY_BLACKLIST_BODY = msgspec.json.encode(AbuseIpdbBlacklistResponse(generated_at=None, refreshed_at=None, ips=[]))
+_APP_VERSION = get_installed_version()
+
+_body_key: tuple[datetime, datetime | None] | None = None
+_body = b""
+_body_lock = asyncio.Lock()
+
+
+def reset_blacklist_body() -> None:
+    global _body_key, _body, _body_lock
+    _body_key = None
+    _body = b""
+    _body_lock = asyncio.Lock()
+
+
+def _forget_body() -> None:
+    global _body_key, _body
+    _body_key = None
+    _body = b""
 
 
 def _log_expiry_once(refreshed_at: datetime, generated_at: datetime | None) -> None:
@@ -169,16 +204,97 @@ def _log_expiry_once(refreshed_at: datetime, generated_at: datetime | None) -> N
     )
 
 
+def _etag(refreshed_at: datetime, generated_at: datetime | None) -> str:
+    # The app version is in the tag, so a browser cannot revalidate an answer an older release encoded.
+    version_text = f"{_APP_VERSION}|{refreshed_at.isoformat()}|{generated_at.isoformat() if generated_at else ''}"
+    return f'W/"{hashlib.blake2b(version_text.encode(), digest_size=8).hexdigest()}"'
+
+
+def etag_matches(if_none_match: str | None, etag: str) -> bool:
+    """Weak comparison, as If-None-Match uses."""
+    if if_none_match is None:
+        return False
+    tags = {tag.strip().removeprefix("W/") for tag in if_none_match.split(",")}
+    return "*" in tags or etag.removeprefix("W/") in tags
+
+
+async def _encoded_body(
+    repository: AbuseIpdbBlacklistRepository, key: tuple[datetime, datetime | None]
+) -> tuple[tuple[datetime, datetime | None], bytes] | None:
+    """The encoded list and its version, or None if the status row is gone after the read."""
+    global _body_key, _body
+    async with _body_lock:
+        while _body_key != key:
+            ips = await repository.ips()
+            # A replacement can commit between the caller's status read and the row read.
+            # The rows count only when the version is unchanged after them.
+            stored_key = await repository.list_version()
+            if stored_key is None:
+                return None
+            if stored_key == key:
+                refreshed_at, generated_at = key
+                _body = msgspec.json.encode(
+                    AbuseIpdbBlacklistResponse(generated_at=generated_at, refreshed_at=refreshed_at, ips=ips)
+                )
+                _body_key = key
+            key = stored_key
+        return key, _body
+
+
 async def current_blacklist(
-    repository: AbuseIpdbBlacklistRepository, *, enabled: bool, now: datetime
-) -> BlacklistView:
-    """The list to show. AbuseIPDB requires an imported list to be kept updated or flushed, so a stale one reads empty."""
+    repository: AbuseIpdbBlacklistRepository, *, enabled: bool, now: datetime, if_none_match: str | None = None
+) -> CurrentBlacklist | None:
+    """The list to show, or None while it is empty.
+
+    AbuseIPDB requires an imported list to be kept updated or flushed, so a stale one reads empty. The process
+    keeps the encoded answer until the stored list changes. ``body`` is None when ``if_none_match`` names it.
+    """
     if not enabled:
-        return EMPTY_VIEW
+        _forget_body()
+        return None
     status = await repository.status()
     if status is None or status.refreshed_at is None:
-        return EMPTY_VIEW
-    if now - _listed_at(status.refreshed_at, status.generated_at) > MAX_LIST_AGE:
+        _forget_body()
+        return None
+    if _expired(status.refreshed_at, status.generated_at, now=now):
         _log_expiry_once(status.refreshed_at, status.generated_at)
-        return EMPTY_VIEW
-    return BlacklistView(generated_at=status.generated_at, refreshed_at=status.refreshed_at, ips=await repository.ips())
+        _forget_body()
+        return None
+    etag = _etag(status.refreshed_at, status.generated_at)
+    if etag_matches(if_none_match, etag):
+        return CurrentBlacklist(etag=etag, body=None)
+    encoded = await _encoded_body(repository, (status.refreshed_at, status.generated_at))
+    if encoded is None:
+        return None
+    (refreshed_at, generated_at), body = encoded
+    if _expired(refreshed_at, generated_at, now=now):
+        return None
+    return CurrentBlacklist(etag=_etag(refreshed_at, generated_at), body=body)
+
+
+def _last_attempt_failed(status: AbuseIpdbBlacklistStatus, *, from_file: bool, now: datetime) -> bool:
+    # A good download stores refreshed_at equal to the attempt's start, so a later attempt stored nothing.
+    # _refresh claims the attempt before the request, so a recent one may still be downloading.
+    if from_file or status.last_attempt_at is None or status.last_attempt_at > now - RUNNING_ATTEMPT_GRACE:
+        return False
+    return status.refreshed_at is None or status.last_attempt_at > status.refreshed_at
+
+
+async def blacklist_about(
+    repository: AbuseIpdbBlacklistRepository, *, file_path: Path | None, now: datetime
+) -> AbuseIpdbBlacklistAboutView:
+    """How current the stored list is, for Settings > About."""
+    status = await repository.status()
+    from_file = file_path is not None
+    refreshed_at = status.refreshed_at if status else None
+    generated_at = status.generated_at if status else None
+    return AbuseIpdbBlacklistAboutView(
+        source="file" if from_file else "download",
+        file_path=str(file_path) if file_path is not None else None,
+        ip_count=await repository.count(),
+        generated_at=generated_at,
+        refreshed_at=refreshed_at,
+        last_attempt_at=None if from_file or status is None else status.last_attempt_at,
+        last_attempt_failed=status is not None and _last_attempt_failed(status, from_file=from_file, now=now),
+        expired=refreshed_at is not None and _expired(refreshed_at, generated_at, now=now),
+    )

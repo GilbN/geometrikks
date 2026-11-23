@@ -65,13 +65,25 @@ export function ReloadNotice(): null {
 }
 
 function openChangelog(clickEvent: MouseEvent<HTMLAnchorElement>) {
-  if (clickEvent.button !== 0 || clickEvent.metaKey || clickEvent.ctrlKey || clickEvent.shiftKey || clickEvent.altKey) return
+  if (
+    clickEvent.button !== 0 ||
+    clickEvent.metaKey ||
+    clickEvent.ctrlKey ||
+    clickEvent.shiftKey ||
+    clickEvent.altKey
+  )
+    return
   clickEvent.preventDefault()
   loadNow(CHANGELOG_HREF)
 }
 
 export function GlowDot() {
-  return <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-primary shadow-[0_0_6px_var(--primary)]" />
+  return (
+    <span
+      aria-hidden="true"
+      className="size-2 shrink-0 rounded-full bg-primary shadow-[0_0_6px_var(--primary)]"
+    />
+  )
 }
 
 export function ReloadNoticeCard() {
@@ -104,7 +116,13 @@ export function ReloadNoticeCard() {
 }
 
 /** The pending reload in the phone's More menu. `stacked` puts the buttons under the text. */
-export function ReloadNoticeMenuCard({ stacked, onLater }: { stacked: boolean; onLater(): void }) {
+export function ReloadNoticeMenuCard({
+  stacked,
+  onLater,
+}: {
+  stacked: boolean
+  onLater: () => void
+}) {
   const notice = useReloadNotice()
   if (!notice.pending) return null
 
@@ -140,7 +158,13 @@ export function ReloadNoticeCollapsedButton() {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button variant="ghost" size="icon-sm" className="mx-auto" aria-label={tooltip} onClick={reloadNow}>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="mx-auto"
+          aria-label={tooltip}
+          onClick={reloadNow}
+        >
           <GlowDot />
         </Button>
       </TooltipTrigger>

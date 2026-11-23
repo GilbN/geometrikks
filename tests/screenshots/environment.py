@@ -194,6 +194,8 @@ class Facts:
     """Whether the run takes the satellite scene, the one that loads Esri imagery."""
     esri_key_set: bool
     site_deps_installed: bool
+    browser_starts: bool
+    """Whether Playwright launched the Chromium the capture uses."""
     vite_dev_running: bool
     ledger_exists: bool
     database_exists: bool
@@ -231,6 +233,12 @@ def preflight_problems(facts: Facts) -> list[str]:
         )
     if not facts.site_deps_installed:
         problems.append("site/node_modules has no sharp: run bun install in site/.")
+    if not facts.browser_starts:
+        problems.append(
+            "Playwright's Chromium does not start, for the reason above. A missing browser needs "
+            "npx playwright install chromium, missing system libraries need npx playwright install-deps chromium, "
+            "and a missing @playwright/test needs bun install at the repo root."
+        )
     if facts.vite_dev_running:
         problems.append("A Vite dev server is running (public/hot exists): stop the dev server first.")
     if facts.ledger_exists:

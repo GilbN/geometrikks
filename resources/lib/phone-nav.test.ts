@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 import { activeTab, barItems, moreBadge, moreItems, slotFour } from "./phone-nav"
 
 const ids = (items: { id: string }[]) => items.map((item) => item.id)
@@ -62,7 +62,12 @@ describe("activeTab", () => {
 })
 
 describe("moreBadge", () => {
-  const quiet = { variant: "running" as const, changelogUnseen: false, releaseUnseen: false, reloadPending: false }
+  const quiet = {
+    variant: "running" as const,
+    changelogUnseen: false,
+    releaseUnseen: false,
+    reloadPending: false,
+  }
   it("prefers amber over accent", () => {
     expect(moreBadge({ ...quiet, variant: "degraded", changelogUnseen: true })).toBe("amber")
     expect(moreBadge({ ...quiet, variant: "offline" })).toBe("amber")

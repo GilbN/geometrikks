@@ -133,7 +133,9 @@ export function ResponsiveRadioMenu({
                           <RadioGroupItem value={option.value} />
                           <span className="flex flex-col py-2">
                             {option.label}
-                            {option.hint && <span className="text-xs text-muted-foreground">{option.hint}</span>}
+                            {option.hint && (
+                              <span className="text-xs text-muted-foreground">{option.hint}</span>
+                            )}
                           </span>
                         </label>
                       ))}
@@ -168,7 +170,11 @@ export function ResponsiveRadioMenu({
               {group.note ? (
                 <p className="px-2 py-1.5 text-xs text-muted-foreground">{group.note}</p>
               ) : (
-                <DropdownMenuRadioGroup aria-labelledby={labelId} value={group.value} onValueChange={group.onValueChange}>
+                <DropdownMenuRadioGroup
+                  aria-labelledby={labelId}
+                  value={group.value}
+                  onValueChange={group.onValueChange}
+                >
                   {group.options.map((option) => (
                     <DropdownMenuRadioItem
                       key={option.value}
@@ -176,7 +182,9 @@ export function ResponsiveRadioMenu({
                       className={cn(group.stacked && "flex-col items-start gap-0")}
                     >
                       {option.label}
-                      {option.hint && <span className="text-xs text-muted-foreground">{option.hint}</span>}
+                      {option.hint && (
+                        <span className="text-xs text-muted-foreground">{option.hint}</span>
+                      )}
                     </DropdownMenuRadioItem>
                   ))}
                 </DropdownMenuRadioGroup>

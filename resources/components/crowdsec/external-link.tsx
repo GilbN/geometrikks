@@ -21,7 +21,10 @@ export function ExternalLink({
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className={cn("inline-flex items-center gap-0.5 underline-offset-2 hover:underline", className)}
+      className={cn(
+        "inline-flex items-center gap-0.5 underline-offset-2 hover:underline",
+        className,
+      )}
     >
       {children}
       <ExternalLinkIcon aria-hidden className="size-3 shrink-0" />
@@ -29,9 +32,25 @@ export function ExternalLink({
   )
 }
 
-export function ExternalLinkButton({ href, label, className }: { href: string; label: string; className?: string }) {
+export function ExternalLinkButton({
+  href,
+  label,
+  className,
+}: {
+  href: string
+  label: string
+  className?: string
+}) {
   return (
-    <Button asChild variant="ghost" size="icon-xs" className={cn("align-middle text-muted-foreground pointer-coarse:min-h-8 pointer-coarse:min-w-8", className)}>
+    <Button
+      asChild
+      variant="ghost"
+      size="icon-xs"
+      className={cn(
+        "align-middle text-muted-foreground pointer-coarse:min-h-8 pointer-coarse:min-w-8",
+        className,
+      )}
+    >
       <a href={href} target="_blank" rel="noopener noreferrer" title={label} aria-label={label}>
         <ExternalLinkIcon />
       </a>

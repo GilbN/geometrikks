@@ -96,8 +96,18 @@ export const AboutLinksViewSchema = {
 
 export const AboutResponseSchema = {
   description:
-    "Version, runtime and database details for the About page.\n\n`geoip` describes the GeoLite2 City database and `geoipAsn` the ASN database. `dropLists` is null\nwith DROP_ENABLED=false, or when the database cannot answer.",
+    "Version, runtime and database details for the About page.\n\n`geoip` describes the GeoLite2 City database and `geoipAsn` the ASN database. `dropLists` is null\nwith DROP_ENABLED=false, and `abuseipdbBlacklist` with ABUSEIPDB_BLACKLIST_ENABLED=false.\nWhen the database cannot answer, `abuseipdbBlacklist` is null, and so is `dropLists` until this process has\nloaded it once.",
   properties: {
+    abuseipdbBlacklist: {
+      oneOf: [
+        {
+          $ref: "#/components/schemas/AbuseIpdbBlacklistAboutView",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
     app: {
       $ref: "#/components/schemas/AboutAppView",
     },
@@ -273,6 +283,96 @@ export const AbuseContactResponseSchema = {
     "startAddress",
   ],
   title: "AbuseContactResponse",
+  type: "object",
+} as const;
+
+export const AbuseIpdbBlacklistAboutViewSchema = {
+  description:
+    "How current the stored AbuseIPDB blacklist is, for Settings > About.",
+  properties: {
+    expired: {
+      description:
+        "True when the list is more than 72 hours old, so GeoMetrikks no longer marks its IPs.",
+      type: "boolean",
+    },
+    filePath: {
+      description: "ABUSEIPDB_BLACKLIST_FILE, or null when downloading.",
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    generatedAt: {
+      description:
+        "When AbuseIPDB generated the list, as ISO 8601 in UTC. For a plaintext file, when the file was last written. Null before the first list.",
+      oneOf: [
+        {
+          format: "date-time",
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    ipCount: {
+      description:
+        "How many IPs the stored list holds, also while `expired` hides them.",
+      type: "integer",
+    },
+    lastAttemptAt: {
+      description:
+        "When the last download started, as ISO 8601 in UTC. Always null for a file.",
+      oneOf: [
+        {
+          format: "date-time",
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    lastAttemptFailed: {
+      description:
+        "True when the last download stored no list. False for 2 minutes after it starts, while it may still run. Always false for a file.",
+      type: "boolean",
+    },
+    refreshedAt: {
+      description:
+        "When GeoMetrikks downloaded the list, or when the file was last written, as ISO 8601 in UTC. Null before the first list.",
+      oneOf: [
+        {
+          format: "date-time",
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    source: {
+      description:
+        "`file` when ABUSEIPDB_BLACKLIST_FILE is set, else `download`. The stored list can still come from an earlier source until this one delivers a list.",
+      enum: ["download", "file"],
+      type: "string",
+    },
+  },
+  required: [
+    "expired",
+    "filePath",
+    "generatedAt",
+    "ipCount",
+    "lastAttemptAt",
+    "lastAttemptFailed",
+    "refreshedAt",
+    "source",
+  ],
+  title: "AbuseIpdbBlacklistAboutView",
   type: "object",
 } as const;
 
@@ -1268,9 +1368,15 @@ export const ApiKeyConnectionSchema = {
     },
     capabilities: {
       description:
-        "Configured server features, independent of key scope and current service availability. crowdsecWrite also requires a read_write key or a browser session when auth is enabled.",
+        "Configured server features and API features this server supports, independent of key scope and current service availability. crowdsecWrite also requires a read_write key or a browser session when auth is enabled.",
       items: {
-        enum: ["crowdsec", "crowdsecWrite", "asn", "drop"],
+        enum: [
+          "crowdsec",
+          "crowdsecWrite",
+          "asn",
+          "drop",
+          "analyticsHostFilter",
+        ],
         type: "string",
       },
       type: "array",
@@ -2157,6 +2263,32 @@ export const CreateApiKeyPayloadSchema = {
   type: "object",
 } as const;
 
+export const CreateMutedIpPayloadSchema = {
+  description: "The IP or range to mute and an optional note.",
+  properties: {
+    network: {
+      description:
+        "An IPv4 or IPv6 address, or a range in CIDR form. IPv4-mapped IPv6 addresses count as their IPv4 form.",
+      type: "string",
+    },
+    note: {
+      description:
+        "Up to 100 characters once surrounding whitespace is trimmed. Blank means none.",
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+  },
+  required: ["network"],
+  title: "CreateMutedIpPayload",
+  type: "object",
+} as const;
+
 export const CreatedApiKeySchema = {
   description:
     "A new API key. This response is the only place the full key ever appears.",
@@ -2416,6 +2548,26 @@ export const DatabaseInfoResponseSchema = {
     "timescaledbVersion",
   ],
   title: "DatabaseInfoResponse",
+  type: "object",
+} as const;
+
+export const DatabaseLinkReportSchema = {
+  description: "The TLS state of the instance's database connection.",
+  properties: {
+    encrypted: {
+      default: false,
+      description: "The session that wrote this heartbeat uses TLS.",
+      type: "boolean",
+    },
+    serverVerified: {
+      default: false,
+      description:
+        "The instance checked the server's certificate chain and its name.",
+      type: "boolean",
+    },
+  },
+  required: [],
+  title: "DatabaseLinkReport",
   type: "object",
 } as const;
 
@@ -2748,9 +2900,15 @@ export const DisabledConnectionSchema = {
     },
     capabilities: {
       description:
-        "Configured server features, independent of key scope and current service availability. crowdsecWrite also requires a read_write key or a browser session when auth is enabled.",
+        "Configured server features and API features this server supports, independent of key scope and current service availability. crowdsecWrite also requires a read_write key or a browser session when auth is enabled.",
       items: {
-        enum: ["crowdsec", "crowdsecWrite", "asn", "drop"],
+        enum: [
+          "crowdsec",
+          "crowdsecWrite",
+          "asn",
+          "drop",
+          "analyticsHostFilter",
+        ],
         type: "string",
       },
       type: "array",
@@ -4131,6 +4289,18 @@ export const HeartbeatPayloadSchema = {
   description:
     "The details an instance sends with each heartbeat.\n\nThe 5-minute counts are null until the instance has run for 5 minutes.",
   properties: {
+    databaseLink: {
+      description:
+        "The TLS state of the instance's database connection. Null from an older release or when the state could not be read.",
+      oneOf: [
+        {
+          $ref: "#/components/schemas/DatabaseLinkReport",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
     failed5M: {
       description: "Records that failed to write in the last 5 minutes.",
       oneOf: [
@@ -4383,8 +4553,8 @@ export const IngestionHealthSchema = {
     status: {
       default: "running",
       description:
-        "`disabled` with LOGPARSER_ENABLED=false, `degraded` when ingestion should run but does not, else `running`.",
-      enum: ["running", "degraded", "disabled"],
+        "`disabled` with LOGPARSER_ENABLED=false, `starting` while startup has not reached ingestion yet, `degraded` when ingestion should run but does not, else `running`.",
+      enum: ["running", "starting", "degraded", "disabled"],
       type: "string",
     },
     unavailableSources: {
@@ -5965,6 +6135,39 @@ export const MapSettingsViewSchema = {
   type: "object",
 } as const;
 
+export const MutedIpViewSchema = {
+  description: "One muted IP or range.",
+  properties: {
+    createdAt: {
+      format: "date-time",
+      type: "string",
+    },
+    id: {
+      format: "uuid",
+      type: "string",
+    },
+    network: {
+      description:
+        "The IP or range in CIDR form, with no host bits set. A single IP uses /32 or /128.",
+      type: "string",
+    },
+    note: {
+      description: "Free text about why it is muted.",
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+  },
+  required: ["createdAt", "id", "network", "note"],
+  title: "MutedIpView",
+  type: "object",
+} as const;
+
 export const OidcOptionSchema = {
   description: "The OIDC single sign-on login.",
   properties: {
@@ -7423,9 +7626,15 @@ export const SessionConnectionSchema = {
     },
     capabilities: {
       description:
-        "Configured server features, independent of key scope and current service availability. crowdsecWrite also requires a read_write key or a browser session when auth is enabled.",
+        "Configured server features and API features this server supports, independent of key scope and current service availability. crowdsecWrite also requires a read_write key or a browser session when auth is enabled.",
       items: {
-        enum: ["crowdsec", "crowdsecWrite", "asn", "drop"],
+        enum: [
+          "crowdsec",
+          "crowdsecWrite",
+          "asn",
+          "drop",
+          "analyticsHostFilter",
+        ],
         type: "string",
       },
       type: "array",
@@ -8313,6 +8522,10 @@ export const TopCountryStatsDTOSchema = {
         },
       ],
     },
+    errorHits: {
+      description: "Hits with a status of 400 or higher.",
+      type: "integer",
+    },
     hits: {
       type: "integer",
     },
@@ -8321,7 +8534,7 @@ export const TopCountryStatsDTOSchema = {
       type: "integer",
     },
   },
-  required: ["countryCode", "countryName", "hits", "uniqueIps"],
+  required: ["countryCode", "countryName", "errorHits", "hits", "uniqueIps"],
   title: "TopCountryStatsDTO",
   type: "object",
 } as const;
@@ -8681,6 +8894,11 @@ export const TopIpDTOSchema = {
 export const TopIpsResponseSchema = {
   description: "Client IPs ordered by hits, most first.",
   properties: {
+    distinctIps: {
+      description:
+        "Distinct client IPs in the range after all filters, counting those beyond `limit`.",
+      type: "integer",
+    },
     endDate: {
       description: "The request's `endDate`, echoed as ISO 8601.",
       type: "string",
@@ -8696,13 +8914,14 @@ export const TopIpsResponseSchema = {
       type: "string",
     },
   },
-  required: ["endDate", "items", "startDate"],
+  required: ["distinctIps", "endDate", "items", "startDate"],
   title: "TopIpsResponse",
   type: "object",
 } as const;
 
 export const TopUrlDTOSchema = {
-  description: "One host and path with its hits.",
+  description:
+    "One URL with its hits, for one host or summed across the `hostIn` hosts.",
   properties: {
     avgRequestTime: {
       description:
@@ -8725,7 +8944,7 @@ export const TopUrlDTOSchema = {
     },
     host: {
       description:
-        "The Host header of the requests. Null when the log line carries none, as in nginx's combined format.",
+        "The Host header of the requests. Null when the log line carries none, as in nginx's combined format. Null for every row when `hostIn` names more than one different host.",
       oneOf: [
         {
           type: "string",
@@ -8762,7 +8981,8 @@ export const TopUrlDTOSchema = {
 } as const;
 
 export const TopUrlsResponseSchema = {
-  description: "Host and path pairs ordered by hits, most first.",
+  description:
+    "URLs ordered by hits, most first, per host and path or summed across two or more `hostIn` hosts.",
   properties: {
     endDate: {
       description: "The request's `endDate`, echoed as ISO 8601.",

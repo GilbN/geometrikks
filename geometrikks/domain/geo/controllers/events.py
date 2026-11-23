@@ -1,25 +1,26 @@
 """GeoEvent API endpoints (raw events + geo-logs page aggregates)."""
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime
+from ipaddress import IPv4Network, IPv6Network
 from typing import Annotated, Literal
 
-from litestar import Controller, get
-from litestar.di import NamedDependency, Provide
-from litestar.params import QueryParameter, SkipValidation
 from advanced_alchemy.extensions.litestar.providers import create_service_dependencies
 from advanced_alchemy.filters import (
     CollectionFilter,
     FilterTypes,
-    NotInCollectionFilter,
     OnBeforeAfter,
 )
 from advanced_alchemy.service import OffsetPagination
+from litestar import Controller, get
+from litestar.di import NamedDependency, Provide
+from litestar.params import QueryParameter, SkipValidation
 
 from geometrikks.domain.drop.dependencies import provide_drop_snapshot
 from geometrikks.domain.drop.snapshot import DropSnapshot
-from geometrikks.domain.geo.models import GeoEvent
 from geometrikks.domain.geo.dtos import GeoEventDTO
+from geometrikks.domain.geo.models import GeoEvent
 from geometrikks.domain.geo.repositories import StatsGranularity, get_stats_granularity
 from geometrikks.domain.geo.schemas import (
     GeoEventFacets,
@@ -34,23 +35,10 @@ from geometrikks.domain.geo.schemas import (
     TopGeoIpsResponse,
 )
 from geometrikks.domain.geo.services import GeoEventService
-from geometrikks.lib.parameters import (
-    range_end_examples,
-    range_start_examples,
-    CITY_FILTER_DESCRIPTION,
-    COUNTRY_FILTER_DESCRIPTION,
-    ChartGranularity,
-    ComparePrevious,
-    ToTimestamp,
-    AsnIn,
-    AsnNotIn,
-    ServerIn,
-    IpAddressIn,
-    IpAddressNotIn,
-    FromTimestamp,
-    GEO_WHOLE_BUCKETS_NOTE,
-    Timezone,
-    local_days_edge_note,
+from geometrikks.domain.muted_ips.dependencies import provide_muted_networks
+from geometrikks.lib.ip_filters import (
+    ip_match_filter,
+    validate_ip_filter,
 )
 from geometrikks.lib.pagination import (
     LIMIT_OFFSET_KEY,
@@ -59,8 +47,26 @@ from geometrikks.lib.pagination import (
     limit_offset_provider,
     order_by_provider,
 )
+from geometrikks.lib.parameters import (
+    CITY_FILTER_DESCRIPTION,
+    COUNTRY_FILTER_DESCRIPTION,
+    GEO_WHOLE_BUCKETS_NOTE,
+    AsnIn,
+    AsnNotIn,
+    ChartGranularity,
+    ComparePrevious,
+    FromTimestamp,
+    IpAddressIn,
+    IpAddressNotIn,
+    ServerIn,
+    Timezone,
+    ToTimestamp,
+    local_days_edge_note,
+    range_end_examples,
+    range_start_examples,
+)
 from geometrikks.lib.time import ensure_utc
-from geometrikks.lib.validation import validate_ip_addresses, validate_timezone
+from geometrikks.lib.validation import validate_timezone
 
 GEO_EVENT_SORT_FIELDS = (
     "timestamp",
@@ -129,11 +135,11 @@ def provide_geo_event_in_filters(
     """
     result: list[FilterTypes] = []
     if ip_address_in:
-        validate_ip_addresses(ip_address_in)
-        result.append(CollectionFilter(field_name="ip_address", values=ip_address_in))
+        validate_ip_filter(ip_address_in)
+        result.append(ip_match_filter(ip_address_in))
     if ip_address_not_in:
-        validate_ip_addresses(ip_address_not_in)
-        result.append(NotInCollectionFilter(field_name="ip_address", values=ip_address_not_in))
+        validate_ip_filter(ip_address_not_in)
+        result.append(ip_match_filter(ip_address_not_in, exclude=True))
     if server_in:
         result.append(CollectionFilter(field_name="server", values=server_in))
     return result
@@ -154,10 +160,8 @@ def provide_geo_event_filters(
     asn_not_in: AsnNotIn = None,
 ) -> GeoEventFilters:
     """Dimension filters consumed by the aggregate endpoints."""
-    if ip_address_in:
-        validate_ip_addresses(ip_address_in)
-    if ip_address_not_in:
-        validate_ip_addresses(ip_address_not_in)
+    validate_ip_filter(ip_address_in)
+    validate_ip_filter(ip_address_not_in)
     return GeoEventFilters(
         country_codes=country_code_in or None,
         cities=city_in or None,
@@ -167,6 +171,14 @@ def provide_geo_event_filters(
         asn_include=asn_in or None,
         asn_exclude=asn_not_in or None,
     )
+
+
+async def provide_geo_filters(
+    geo_base_filters: NamedDependency[SkipValidation[GeoEventFilters]],
+    muted_networks: NamedDependency[SkipValidation[list[IPv4Network | IPv6Network] | None]],
+) -> GeoEventFilters:
+    """Adds the muted list to the query filters."""
+    return replace(geo_base_filters, muted_networks=muted_networks)
 
 
 def _resolve_chart_granularity(
@@ -218,7 +230,9 @@ class GeoEventController(Controller):
         ORDER_BY_KEY: order_by_provider(fields=GEO_EVENT_SORT_FIELDS, default="timestamp"),
         "time_window": Provide(provide_geo_event_time_window, sync_to_thread=False),
         "in_filters": Provide(provide_geo_event_in_filters, sync_to_thread=False),
-        "geo_filters": Provide(provide_geo_event_filters, sync_to_thread=False),
+        "geo_base_filters": Provide(provide_geo_event_filters, sync_to_thread=False),
+        "geo_filters": Provide(provide_geo_filters),
+        "muted_networks": Provide(provide_muted_networks),
         "drop_snapshot": Provide(provide_drop_snapshot),
     }
 

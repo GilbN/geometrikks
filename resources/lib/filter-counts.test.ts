@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 
 import { countActiveAccessLogFilters, EMPTY_ACCESS_LOG_FILTERS } from "./access-log-filters-context"
 import { countActiveAnalyticsFilters, EMPTY_FILTERS } from "./analytics-filters-context"
@@ -39,6 +39,16 @@ describe("active filter group counts", () => {
         ...EMPTY_FILTERS,
         cities: ["Oslo", "Bergen"],
         ipsExclude: ["198.51.100.8"],
+      }),
+    ).toBe(2)
+  })
+
+  it("analytics hosts count once per list", () => {
+    expect(
+      countActiveAnalyticsFilters({
+        ...EMPTY_FILTERS,
+        hosts: ["a.example", "b.example"],
+        hostsExclude: ["c.example"],
       }),
     ).toBe(2)
   })

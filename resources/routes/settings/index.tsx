@@ -8,7 +8,8 @@ export const Route = createFileRoute("/settings/")({
   // The side nav or the chip row lists the sections, so /settings opens
   // Status. On a portrait phone it lists them itself.
   beforeLoad: () => {
-    if (!isPortraitList(isMobileViewport(), isPhoneSideViewport())) throw redirect({ to: "/settings/status" })
+    if (!isPortraitList(isMobileViewport(), isPhoneSideViewport()))
+      throw redirect({ to: "/settings/status" })
   },
   component: SettingsHome,
 })

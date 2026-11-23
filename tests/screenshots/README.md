@@ -11,6 +11,7 @@ Scene ids in `plan.py` are public. The docs place shots with `<Screenshot scene=
 - A CARTO basemap key. CARTO's terms want one key per deployment, so export your own as `MAP_CARTO_API_KEY` or pass `--carto-key`.
 - An Esri key for the `satellite` scene, the one shot of the map's Satellite view. Export it as `MAP_ESRI_API_KEY` or pass `--esri-key`. A run that leaves the scene out with `--only` needs none.
 - `bun install` at the repo root and in `site/`. The encoder needs `site/node_modules/sharp`.
+- Playwright's Chromium for the installed Playwright version, from `npx playwright install chromium`. The preflight starts it once and refuses when it does not start.
 - No Vite dev server for this checkout. The run refuses while `public/hot` exists, because the app would load its assets from the dev server.
 - At least 3 GiB of available memory and 10 GB of free disk. The preflight names both numbers when either is short.
 
@@ -29,7 +30,7 @@ uv run python -m tests.screenshots [--dry-run] [--cleanup] [--only scene,scene] 
 | `--only map,live` | Retakes these scenes. Their files and manifest entries are replaced, and every other scene's files and entries stay as they are. A retake needs a readable `data/screenshots/manifest.json`. Without one the run exits 2 before it starts anything, and you need a full run first. The captcha and range picks and each ban's scenario can change between runs, so retake `security`, `drop-networks`, `banned-map`, `ip-inspector`, `abuse-report` and `abuseipdb-report` together, or their decisions won't match. |
 | `--hold` | Waits after capture, whether it passed or failed, and prints the PNG folder, the instance's URLs and the login. Enter goes on to encode and publish. Ctrl-C tears down without publishing. |
 | `--own-db` | Starts a private `timescale/timescaledb-ha:pg18-ts2.30` container with `--memory 1g` instead of a database on the shared server. Use it when the shared server is down or already holds `geometrikks_screenshots`. |
-| `--no-build` | Uses the bundle already in `public/`. Without it the run builds the bundle with `vite build` through `tests/screenshots/vite.config.ts`, then fails if the build rewrote `resources/generated`. It refuses a bundle that `bun run build` made, because only the screenshot bundle counts documentation addresses as public. That bundle stays in `public/` after the run, so rebuild before you serve `public/` yourself. |
+| `--no-build` | Uses the bundle already in `public/`. Without it the run builds the bundle with `vp build` through `tests/screenshots/vite.config.ts`, then fails if the build rewrote `resources/generated`. It refuses a bundle that `bun run build` made, because only the screenshot bundle counts documentation addresses as public. That bundle stays in `public/` after the run, so rebuild before you serve `public/` yourself. |
 | `--pg-admin-url` | Admin URL of the TimescaleDB server. Defaults to `SHOTS_PG_ADMIN_URL`, then the dev server above. |
 | `--city-db`, `--asn-db` | The GeoLite2 files the seed and the live feeder place visitors with. |
 | `--carto-key` | Defaults to `MAP_CARTO_API_KEY` as exported in your shell. |
@@ -44,7 +45,7 @@ The frontend build and the encoder don't read your dotenv files either. Both run
 In order:
 
 1. The scratch database `geometrikks_screenshots`, migrated and set up for TimescaleDB. That name is reserved for this script: a run creates and drops it, and `--cleanup` drops it whenever it exists.
-2. The seed: 150,000 requests over 30 days with seed 42 for the servers `edge` and `homelab`, plus seven documentation-range scanners, twelve documentation-range home browsers (see below), the DROP fixture lists and four AbuseIPDB reports.
+2. The seed: 150,000 requests over 30 days with seed 42 for the servers `edge` and `homelab`, plus seven documentation-range scanners, twelve documentation-range home browsers (see below), the DROP fixture lists, four AbuseIPDB reports and three Muted IPs entries.
 3. `geometrikks-shots-crowdsec`, a CrowdSec LAPI with 512 MB of memory, on the internal network `geometrikks-shots-net`. Both carry the label `geometrikks.screenshots.run=<run id>`. The run loads it with alerts and decisions for the fixture IPs.
 4. The app under uvicorn on a free port, bound to `0.0.0.0`, tailing two empty log files in the run folder.
 5. Playwright with one worker, in two passes. The live scenes come last, while the live feeder appends requests from the seeded visitors to those log files.
@@ -154,3 +155,11 @@ What the home browsers look like:
 The seed scanners keep every other CrowdSec fixture: active and expired bans, detections, the captcha and the range ban. Their alerts name probing scenarios only (`crowdsecurity/http-probing`, `http-sensitive-files`, `http-wordpress-scan`, `http-admin-interface-probing`). The captcha and the range ban go through the app's own ban call with the reason "Repeated probing".
 
 The live feeder never emits these visitors. Ingestion skips `2001:db8::/32`, so only the written history holds them.
+
+### Muted IPs
+
+The fixture step writes three entries straight into `muted_ips` for the `muted-ips` scene (Settings > Muted IPs on desktop and phone): 192.0.2.10/32 "This laptop" (the address the capture browser sends in `X-Forwarded-For`), 198.51.100.32/28 "Uptime monitor" and 2001:db8:cafe::/48 "Home network", backdated 12 days 3 hours, 4 days 6 hours and 5 hours from the fixture step. When changing them in `muted.py`:
+
+- Keep every entry inside the documentation ranges, with no host bits set, a note of at most 100 characters and no more than 20 entries. `entry_problems` refuses anything else before writing.
+- Stay clear of every stored address in `access_logs` and `geo_events`, IPv4-mapped forms such as `::ffff:192.0.2.10` included. After writing the list, the run checks both tables and fails with `Muted IPs entries cover stored requests from: ...` if an entry matches, so other scenes keep the rows they had before the list existed.
+- Update `MUTED_NOTES` in `scenes.ts` if you change the notes or entry count. Because the Muted IPs switch starts on in every browser, `access-logs`, `filter-drawer`, `geo-logs` and `analytics` show it and wait for it ("Muted IPs hidden · 3" on the desktop filter bar, a count on the phone's Filters button and a "Muted IPs" row reading "3 hidden" in the phone filter drawer), and `muted-ips` waits for "3 of 20" and every note.

@@ -3,7 +3,7 @@
  * cards and the bottom drawer on narrow ones.
  */
 import { useEffect, useRef, useState } from "react"
-import { AlertTriangle, Check, Copy } from "lucide-react"
+import { AlertTriangle, Check, Copy, Lock, LockOpen } from "lucide-react"
 import { toast } from "sonner"
 import type { Advisory, HeadIdentityView, InstanceView } from "@/generated/api/types.gen"
 import { copyText } from "@/lib/clipboard"
@@ -14,7 +14,9 @@ import { type LedTone, MonoChip, StatusLed } from "@/components/settings/status-
 import { formatUptime, relativeTime } from "@/components/settings/status-logic"
 import {
   agentIngestionState,
+  databaseLinkState,
   jobReportState,
+  type LinkLock,
   liveTone,
   schemaWaitState,
   sourceReasonLabel,
@@ -34,7 +36,11 @@ export function formatDateTime(iso: string): string {
 }
 
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })
+  return new Date(iso).toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  })
 }
 
 const partToneClasses = { red: "text-red-500", amber: "text-amber-500" } as const
@@ -54,7 +60,9 @@ export function PartsLine({ parts }: { parts: readonly TextPart[] }) {
 }
 
 function Facts({ children }: { children: React.ReactNode }) {
-  return <dl className="grid grid-cols-[8.5rem_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs">{children}</dl>
+  return (
+    <dl className="grid grid-cols-[8.5rem_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs">{children}</dl>
+  )
 }
 
 function Fact({ label, children }: { label: string; children: React.ReactNode }) {
@@ -73,6 +81,17 @@ function LedValue({ tone, children }: { tone: LedTone; children: React.ReactNode
       <span className="min-w-0 break-words">{children}</span>
     </>
   )
+}
+
+const lockClasses: Record<LinkLock, string> = {
+  verified: "text-emerald-500",
+  encrypted: "text-foreground",
+  open: "text-muted-foreground",
+}
+
+export function ConnectionLock({ lock, className }: { lock: LinkLock; className?: string }) {
+  const Icon = lock === "open" ? LockOpen : Lock
+  return <Icon aria-hidden className={cn("shrink-0", lockClasses[lock], className)} />
 }
 
 function NoHealthReport() {
@@ -182,21 +201,29 @@ export function InstanceFacts({
   const drift = versionTone(instance, head)
   const driftText = versionDriftText(drift)
   const buildSuffixStart = instance.appVersion.indexOf("+")
-  const buildSuffix = buildSuffixStart === -1 ? null : instance.appVersion.slice(buildSuffixStart + 1)
+  const buildSuffix =
+    buildSuffixStart === -1 ? null : instance.appVersion.slice(buildSuffixStart + 1)
   const serverNames = instance.payload?.serverNames ?? []
   const whenLastSeen = instance.checkingIn ? "" : " when last seen"
+  const databaseLink = databaseLinkState(instance.payload?.databaseLink)
   return (
     <Facts>
       <Fact label="Mode">{instance.mode}</Fact>
       <Fact label="Version">
         <span className="min-w-0 break-words">
           <span
-            className={cn("whitespace-nowrap", drift === "red" && "text-red-500", drift === "amber" && "text-amber-500")}
+            className={cn(
+              "whitespace-nowrap",
+              drift === "red" && "text-red-500",
+              drift === "amber" && "text-amber-500",
+            )}
           >
             {shortVersion(instance.appVersion)}
           </span>
           {driftText && <span className="text-muted-foreground">, {driftText}</span>}
-          {buildSuffix && <span className="block break-all text-muted-foreground">build {buildSuffix}</span>}
+          {buildSuffix && (
+            <span className="block break-all text-muted-foreground">build {buildSuffix}</span>
+          )}
         </span>
       </Fact>
       <Fact label="Started">
@@ -209,7 +236,9 @@ export function InstanceFacts({
         <MonoChip>{instance.schemaRevision}</MonoChip>
       </Fact>
       {serverNames.length > 0 && <Fact label="Servers">{serverNames.join(", ")}</Fact>}
-      {nameSource === "fallback" && <Fact label="Name">default name, APP_INSTANCE_NAME not set</Fact>}
+      {nameSource === "fallback" && (
+        <Fact label="Name">default name, APP_INSTANCE_NAME not set</Fact>
+      )}
       {schemaWait && (
         <Fact label="Schema check">
           <LedValue tone={liveTone(schemaWait.tone, instance.checkingIn)}>
@@ -220,10 +249,21 @@ export function InstanceFacts({
       )}
       {health && (
         <Fact label="Database">
-          <LedValue tone={liveTone(health.database.reachable ? "emerald" : "red", instance.checkingIn)}>
+          <LedValue
+            tone={liveTone(health.database.reachable ? "emerald" : "red", instance.checkingIn)}
+          >
             {health.database.reachable ? "reachable" : "unreachable"}
             {whenLastSeen}
           </LedValue>
+        </Fact>
+      )}
+      {databaseLink && (
+        <Fact label="Connection">
+          <ConnectionLock lock={databaseLink.lock} className="mt-0.5 size-[13px]" />
+          <span className="min-w-0 break-words">
+            {databaseLink.text}
+            {whenLastSeen}
+          </span>
         </Fact>
       )}
     </Facts>
@@ -252,7 +292,9 @@ export function IngestionFacts({ instance, now }: { instance: InstanceView; now:
           <span>
             {linesLastFiveMinutes.toLocaleString()}
             {failedLastFiveMinutes > 0 && (
-              <span className="text-red-500">, {failedLastFiveMinutes.toLocaleString()} failed</span>
+              <span className="text-red-500">
+                , {failedLastFiveMinutes.toLocaleString()} failed
+              </span>
             )}
           </span>
         )}
@@ -286,7 +328,9 @@ export function GeoipFacts({ instance, now }: { instance: InstanceView; now: num
         </LedValue>
       </Fact>
       <Fact label="ASN">
-        <LedValue tone={liveTone(health.geoip.asnAvailable ? "emerald" : "muted", instance.checkingIn)}>
+        <LedValue
+          tone={liveTone(health.geoip.asnAvailable ? "emerald" : "muted", instance.checkingIn)}
+        >
           {health.geoip.asnAvailable
             ? health.geoip.asnDbBuildDate
               ? `built ${formatDate(health.geoip.asnDbBuildDate)}, ${relativeTime(health.geoip.asnDbBuildDate, now)}`
@@ -300,12 +344,15 @@ export function GeoipFacts({ instance, now }: { instance: InstanceView; now: num
 
 export function JobsList({ instance, now }: { instance: InstanceView; now: number }) {
   const jobs = instance.payload?.jobs ?? []
-  if (jobs.length === 0) return <p className="text-xs text-muted-foreground">No scheduled jobs reported.</p>
+  if (jobs.length === 0)
+    return <p className="text-xs text-muted-foreground">No scheduled jobs reported.</p>
   return (
     <ul className="space-y-2 text-xs">
       {jobs.map((job, jobIndex) => {
         const state = jobReportState(job)
-        const lastRun = job.lastStart ? `${state.label} ${relativeTime(job.lastStart, now)}` : state.label
+        const lastRun = job.lastStart
+          ? `${state.label} ${relativeTime(job.lastStart, now)}`
+          : state.label
         const nextRun = job.nextRunTime ? `, next ${relativeTime(job.nextRunTime, now)}` : ""
         return (
           <li key={job.id || jobIndex} className="flex items-start gap-2">
@@ -340,16 +387,26 @@ function SourceTime({ at, now }: { at: string | null | undefined; now: number })
 
 export function SourcesList({ instance, now }: { instance: InstanceView; now: number }) {
   const sources = instance.payload?.sources ?? []
-  if (sources.length === 0) return <p className="text-xs text-muted-foreground">No log sources reported.</p>
+  if (sources.length === 0)
+    return <p className="text-xs text-muted-foreground">No log sources reported.</p>
   return (
     <ul className="space-y-2 text-xs">
       {sources.map((source, sourceIndex) => {
-        const details = [source.logFormat || "format pending", source.serverName && `server ${source.serverName}`]
+        const details = [
+          source.logFormat || "format pending",
+          source.serverName && `server ${source.serverName}`,
+        ]
           .filter(Boolean)
           .join(" · ")
         return (
-          <li key={`${source.kind}:${source.label}:${sourceIndex}`} className="flex items-start gap-2">
-            <StatusLed tone={liveTone(source.available ? "emerald" : "red", instance.checkingIn)} className="mt-1" />
+          <li
+            key={`${source.kind}:${source.label}:${sourceIndex}`}
+            className="flex items-start gap-2"
+          >
+            <StatusLed
+              tone={liveTone(source.available ? "emerald" : "red", instance.checkingIn)}
+              className="mt-1"
+            />
             <div className="min-w-0 flex-1 space-y-0.5">
               <div className="flex flex-wrap items-center gap-1.5">
                 <MonoChip className="break-all">{source.label || "unnamed source"}</MonoChip>
@@ -357,13 +414,19 @@ export function SourcesList({ instance, now }: { instance: InstanceView; now: nu
               </div>
               <p className="text-muted-foreground tabular-nums">
                 {details} · {(source.parsedLines ?? 0).toLocaleString()} lines
-                {!source.available && <span className="text-red-500"> · {sourceReasonLabel(source.reason)}</span>}
+                {!source.available && (
+                  <span className="text-red-500"> · {sourceReasonLabel(source.reason)}</span>
+                )}
               </p>
               <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-3 gap-y-0.5 text-muted-foreground tabular-nums">
                 <dt>Last read</dt>
-                <dd><SourceTime at={source.lastReadAt} now={now} /></dd>
+                <dd>
+                  <SourceTime at={source.lastReadAt} now={now} />
+                </dd>
                 <dt>Last parsed</dt>
-                <dd><SourceTime at={source.lastParsedAt} now={now} /></dd>
+                <dd>
+                  <SourceTime at={source.lastParsedAt} now={now} />
+                </dd>
               </dl>
             </div>
           </li>
@@ -375,19 +438,25 @@ export function SourcesList({ instance, now }: { instance: InstanceView; now: nu
 
 export function ServerLocationsList({ instance, now }: { instance: InstanceView; now: number }) {
   if (instance.serverLocations.length === 0) {
-    return <p className="text-xs text-muted-foreground">No location recorded for its servers yet.</p>
+    return (
+      <p className="text-xs text-muted-foreground">No location recorded for its servers yet.</p>
+    )
   }
   return (
     <ul className="space-y-1">
       {instance.serverLocations.map((serverLocation) => (
-        <li key={serverLocation.server} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
+        <li
+          key={serverLocation.server}
+          className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs"
+        >
           <MonoChip>{serverLocation.server}</MonoChip>
           <span className="text-muted-foreground tabular-nums">
             {serverLocation.latitude.toFixed(2)}, {serverLocation.longitude.toFixed(2)}
           </span>
           <span className="ml-auto text-muted-foreground">
             {serverLocation.source}
-            {serverLocation.detectedAt && `, detected ${relativeTime(serverLocation.detectedAt, now)}`}
+            {serverLocation.detectedAt &&
+              `, detected ${relativeTime(serverLocation.detectedAt, now)}`}
           </span>
         </li>
       ))}
@@ -397,13 +466,16 @@ export function ServerLocationsList({ instance, now }: { instance: InstanceView;
 
 export function LastErrorBlock({ instance }: { instance: InstanceView }) {
   const lastError = instance.payload?.lastError
-  if (!lastError?.message) return <p className="text-xs text-muted-foreground">No failed writes since it started.</p>
+  if (!lastError?.message)
+    return <p className="text-xs text-muted-foreground">No failed writes since it started.</p>
   return (
     <div className="space-y-1">
       <pre className="whitespace-pre-wrap break-words rounded bg-red-500/10 px-2 py-1.5 font-mono text-[11px] text-red-600 dark:text-red-300">
         {lastError.message}
       </pre>
-      {lastError.at && <p className="text-xs text-muted-foreground">{formatDateTime(lastError.at)}</p>}
+      {lastError.at && (
+        <p className="text-xs text-muted-foreground">{formatDateTime(lastError.at)}</p>
+      )}
     </div>
   )
 }

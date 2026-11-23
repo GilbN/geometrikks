@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import re
-from types import SimpleNamespace
+from types import SimpleNamespace, TracebackType
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 
@@ -159,7 +159,12 @@ class _PolicyTransactionConn:
             async def __aenter__(self) -> None:
                 conn.savepoints += 1
 
-            async def __aexit__(self, exc_type: Any, exc: Any, tb: Any) -> bool:
+            async def __aexit__(
+                self,
+                exc_type: type[BaseException] | None,
+                exc: BaseException | None,
+                tb: TracebackType | None,
+            ) -> bool:
                 if exc_type is not None:
                     conn._existing = existing
                     del conn._pending_syncs[sync_count:]

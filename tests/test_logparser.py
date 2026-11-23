@@ -1,4 +1,5 @@
 import re
+from datetime import UTC
 from pathlib import Path
 from typing import Any, cast
 
@@ -370,7 +371,10 @@ class TestParseLine:
             assert not hasattr(parser, gone), gone
 
     def test_parse_line_valid(self, geoip_reader):
-        from geometrikks.services.logparser.logparser import LogParser, make_cached_city_lookup
+        from geometrikks.services.logparser.logparser import (
+            LogParser,
+            make_cached_city_lookup,
+        )
         parser = LogParser(source_label="/dev/null", send_logs=True)
         lookup = make_cached_city_lookup(geoip_reader)
         line = make_log_line("2.125.160.216")
@@ -382,7 +386,10 @@ class TestParseLine:
         assert parser.parsed_lines == 1
 
     def test_parse_line_garbage_is_malformed(self, geoip_reader):
-        from geometrikks.services.logparser.logparser import LogParser, make_cached_city_lookup
+        from geometrikks.services.logparser.logparser import (
+            LogParser,
+            make_cached_city_lookup,
+        )
         parser = LogParser(source_label="/dev/null", send_logs=True)
         lookup = make_cached_city_lookup(geoip_reader)
         record = parser.parse_line("total garbage\n", lookup)
@@ -392,7 +399,10 @@ class TestParseLine:
         assert parser.skipped_lines == 1
 
     def test_parse_line_ignored_exact_ip(self, geoip_reader):
-        from geometrikks.services.logparser.logparser import LogParser, make_cached_city_lookup
+        from geometrikks.services.logparser.logparser import (
+            LogParser,
+            make_cached_city_lookup,
+        )
         parser = LogParser(
             source_label="/dev/null", send_logs=True, ignore_ips=["2.125.160.216"]
         )
@@ -404,7 +414,10 @@ class TestParseLine:
         assert parser.parsed_lines == 0
 
     def test_parse_line_ignored_cidr(self, geoip_reader):
-        from geometrikks.services.logparser.logparser import LogParser, make_cached_city_lookup
+        from geometrikks.services.logparser.logparser import (
+            LogParser,
+            make_cached_city_lookup,
+        )
         parser = LogParser(
             source_label="/dev/null", send_logs=True, ignore_ips=["2.125.160.0/24"]
         )
@@ -414,7 +427,10 @@ class TestParseLine:
         assert parser.ignored_lines == 1
 
     def test_parse_line_ignored_ipv6_cidr(self, geoip_reader):
-        from geometrikks.services.logparser.logparser import LogParser, make_cached_city_lookup
+        from geometrikks.services.logparser.logparser import (
+            LogParser,
+            make_cached_city_lookup,
+        )
         parser = LogParser(
             source_label="/dev/null", send_logs=True, ignore_ips=["2001:db8::/32"]
         )
@@ -424,7 +440,10 @@ class TestParseLine:
         assert parser.ignored_lines == 1
 
     def test_parse_line_non_matching_ip_passes(self, geoip_reader):
-        from geometrikks.services.logparser.logparser import LogParser, make_cached_city_lookup
+        from geometrikks.services.logparser.logparser import (
+            LogParser,
+            make_cached_city_lookup,
+        )
         parser = LogParser(
             source_label="/dev/null", send_logs=True, ignore_ips=["203.0.113.0/24"]
         )
@@ -436,7 +455,10 @@ class TestParseLine:
         assert parser.parsed_lines == 1
 
     def test_parse_line_empty_ignore_list_noop(self, geoip_reader):
-        from geometrikks.services.logparser.logparser import LogParser, make_cached_city_lookup
+        from geometrikks.services.logparser.logparser import (
+            LogParser,
+            make_cached_city_lookup,
+        )
         parser = LogParser(source_label="/dev/null", send_logs=True)
         lookup = make_cached_city_lookup(geoip_reader)
         record = parser.parse_line(make_log_line("2.125.160.216"), lookup)
@@ -444,7 +466,10 @@ class TestParseLine:
         assert parser.ignored_lines == 0
 
     def test_parse_line_leaves_the_server_to_the_caller(self, geoip_reader):
-        from geometrikks.services.logparser.logparser import LogParser, make_cached_city_lookup
+        from geometrikks.services.logparser.logparser import (
+            LogParser,
+            make_cached_city_lookup,
+        )
         parser = LogParser(source_label="/dev/null", send_logs=True)
         lookup = make_cached_city_lookup(geoip_reader)
         matched = parser.parse_line(make_log_line("2.125.160.216"), lookup)
@@ -560,10 +585,10 @@ class TestAsnEnrichment:
             assert lookup("203.0.113.7") is None  # not in the test db, never raises
 
     def test_parsed_access_log_asn_fields_default_none(self):
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         parsed = ParsedAccessLog(
-            timestamp=datetime.now(timezone.utc), ip_address="1.2.3.4",
+            timestamp=datetime.now(UTC), ip_address="1.2.3.4",
             remote_user=None, method="GET", url="/", http_version="HTTP/1.1",
             status_code=200, bytes_sent=0, referrer=None, user_agent=None,
             request_time=0.0, upstream_response_time=None, host=None,
@@ -628,11 +653,11 @@ class TestAsnEnrichment:
         assert calls == ["1.128.0.0"]
 
     def test_parsed_geo_data_asn_fields_default_none(self):
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         geo = ParsedGeoData(
             latitude=1.0, longitude=2.0, geohash="s00", country_code="AU",
-            country_name="Australia", timestamp=datetime.now(timezone.utc),
+            country_name="Australia", timestamp=datetime.now(UTC),
         )
         assert geo.autonomous_system_number is None
         assert geo.autonomous_system_organization is None

@@ -1,7 +1,15 @@
 import { useEffect, useState } from "react"
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router"
 import { fetchAuthOptions, fetchHealthWithin, fetchMe, login } from "@/lib/api"
-import { databaseDownNotice, loadLoginContext, loginErrorMessage, planLoginForm, planLoginRoute, toMeResult, type MeResult } from "@/lib/auth-redirect"
+import {
+  databaseDownNotice,
+  loadLoginContext,
+  loginErrorMessage,
+  planLoginForm,
+  planLoginRoute,
+  toMeResult,
+  type MeResult,
+} from "@/lib/auth-redirect"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -65,7 +73,7 @@ function LoginPage() {
   // Read once, then dropped from the URL so a reload does not repeat it.
   const [plan] = useState(() => planLoginForm(options, errorCode ?? null))
   useEffect(() => {
-    if (errorCode) navigate({ to: "/login", search: {}, replace: true })
+    if (errorCode) void navigate({ to: "/login", search: {}, replace: true })
   }, [errorCode, navigate])
 
   const [username, setUsername] = useState("")
@@ -79,7 +87,7 @@ function LoginPage() {
     setSubmitting(true)
     try {
       await login(username, password)
-      navigate({ to: "/" })
+      void navigate({ to: "/" })
     } catch (failure) {
       setError(loginErrorMessage(failure))
     } finally {
@@ -129,7 +137,12 @@ function LoginPage() {
               />
             </div>
             {error && <p className="text-sm text-destructive">{error}</p>}
-            <Button type="submit" variant={plan.oidc ? "outline" : "default"} className="w-full" disabled={submitting}>
+            <Button
+              type="submit"
+              variant={plan.oidc ? "outline" : "default"}
+              className="w-full"
+              disabled={submitting}
+            >
               {submitting ? "Signing in..." : "Sign in"}
             </Button>
           </form>

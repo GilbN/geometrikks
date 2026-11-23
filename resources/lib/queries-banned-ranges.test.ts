@@ -1,4 +1,4 @@
-import { beforeEach, expect, it, vi } from "vitest"
+import { beforeEach, expect, it, vi } from "vite-plus/test"
 import type { BannedRangeView } from "@/generated/api/types.gen"
 type QueryOptions = {
   queryKey: readonly unknown[]
@@ -22,7 +22,8 @@ vi.mock("@tanstack/react-query", () => ({
 import { api } from "./api"
 import { useBannedRanges } from "./queries"
 
-const bannedRangesOptions = () => mocks.options.filter((options) => options.queryKey[1] === "banned-ranges").at(-1)!
+const bannedRangesOptions = () =>
+  mocks.options.filter((options) => options.queryKey[1] === "banned-ranges").at(-1)!
 
 beforeEach(() => {
   mocks.options = []
@@ -53,7 +54,11 @@ it("asks only while active with CrowdSec enabled", () => {
 
 it("looks ranges up by their exact CIDR", () => {
   useBannedRanges()
-  const bannedRange: BannedRangeView = { value: "192.0.2.0/24", type: "ban", expiresAt: "2026-11-01T10:00:00Z" }
+  const bannedRange: BannedRangeView = {
+    value: "192.0.2.0/24",
+    type: "ban",
+    expiresAt: "2026-11-01T10:00:00Z",
+  }
   const bannedRanges = bannedRangesOptions().select([bannedRange])
   expect(bannedRanges.get("192.0.2.0/24")).toEqual(bannedRange)
   expect(bannedRanges.has("192.0.2.0/25")).toBe(false)

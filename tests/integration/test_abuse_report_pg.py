@@ -1,7 +1,7 @@
 """AbuseReportRepository against real TimescaleDB."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from litestar.testing import AsyncTestClient
@@ -18,7 +18,7 @@ from tests.integration.test_drop_snapshot_pg import (  # noqa: F401  (autouse st
 pytestmark = pytest.mark.anyio
 
 # Wall-clock derived and hour-aligned; see test_repositories_pg.py.
-NOW = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+NOW = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
 SCANNER = "203.0.113.7"
 QUIET = "203.0.113.8"
 OTHER_AS = "198.51.100.9"

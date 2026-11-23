@@ -37,11 +37,19 @@ export function overallState(
   }
   if (!health) return { tone: "muted", label: "Loading" }
   if (health.status !== "healthy") {
-    return { tone: "amber", label: "Degraded", detail: "One or more components are not operational." }
+    return {
+      tone: "amber",
+      label: "Degraded",
+      detail: "One or more components are not operational.",
+    }
   }
   const advisoryCount = (health.advisories ?? []).length
   if (advisoryCount > 0 || agentAttentionCount > 0) {
-    return { tone: "amber", label: "Attention", detail: asSentences(attentionParts(advisoryCount, agentAttentionCount)) }
+    return {
+      tone: "amber",
+      label: "Attention",
+      detail: asSentences(attentionParts(advisoryCount, agentAttentionCount)),
+    }
   }
   return { tone: "emerald", label: "Healthy", detail: "All components operational." }
 }
@@ -202,7 +210,11 @@ export function recentErrorsFillsRow(cardsBefore: number): boolean {
 export function databaseState(health: HealthResponse | undefined): CardState {
   if (!health) return { tone: "muted", label: "Unknown" }
   if (!health.database.reachable) {
-    return { tone: "red", label: "Unreachable", detail: "Running in degraded mode without a database." }
+    return {
+      tone: "red",
+      label: "Unreachable",
+      detail: "Running in degraded mode without a database.",
+    }
   }
   if (health.database.servicesActive === false) {
     return {
@@ -284,7 +296,9 @@ export function serverLocationRows(
   nowMs: number = Date.now(),
 ): ServerLocationRow[] {
   return (data?.locations ?? []).map((serverLocation) => {
-    const lastMs = serverLocation.lastEventDay ? Date.parse(`${serverLocation.lastEventDay}T00:00:00Z`) : null
+    const lastMs = serverLocation.lastEventDay
+      ? Date.parse(`${serverLocation.lastEventDay}T00:00:00Z`)
+      : null
     const ageDays = lastMs === null ? Infinity : Math.floor((nowMs - lastMs) / 86_400_000)
     return {
       server: serverLocation.server,
@@ -300,7 +314,12 @@ function formatLastDay(lastMs: number, ageDays: number): string {
   if (ageDays <= 0) return "today"
   if (ageDays === 1) return "yesterday"
   if (ageDays < 30) return `${ageDays}d ago`
-  return new Date(lastMs).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })
+  return new Date(lastMs).toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  })
 }
 
 export function formatSize(bytes: number): string {
@@ -320,9 +339,7 @@ export function formatApproxRows(rows: number | null | undefined): string {
 
 /** Aggregate compression ratio across hypertables that have compressed
  *  chunks; null when the compression policies have not run yet. */
-export function compressionSummary(
-  hypertables: HypertableStatsView[] | undefined,
-): string | null {
+export function compressionSummary(hypertables: HypertableStatsView[] | undefined): string | null {
   let before = 0
   let after = 0
   for (const t of hypertables ?? []) {
@@ -402,10 +419,7 @@ export function schedulerJobState(job: SchedulerJobView): CardState {
 
 /** Newest-first error/critical records, capped at limit. Tail order is
  *  oldest to newest, so reverse before capping. */
-export function filterErrorRecords(
-  records: LogRecord[] | undefined,
-  limit: number,
-): LogRecord[] {
+export function filterErrorRecords(records: LogRecord[] | undefined, limit: number): LogRecord[] {
   return (records ?? [])
     .filter((r) => r.level === "error" || r.level === "critical")
     .reverse()

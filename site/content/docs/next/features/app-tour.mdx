@@ -31,7 +31,7 @@ Every stored request, newest first, in two tabs: History and Live tail.
 
 <Screenshot scene="access-logs" />
 
-History is the searchable table. Search matches the URL, referrer and user agent. Filters cover IP address, host, server, method, status, source format, country, city and ASN, and IP address, host, server and ASN each have an exclude field next to them: Exclude IP, Exclude host, Exclude server and Exclude ASN. Exclude your IP drops your own address from the view. On a phone the filters sit in a drawer, split into Show only and Exclude. Click a row for the full record. Bytes and Req time show by default, except on a phone. The column picker adds upstream response time, HTTP version, remote user, user agent, server, source format, ASN and AS organization.
+History is the searchable table. Search matches the URL, referrer and user agent. Filters cover IP address, host, server, method, status, source format, country, city and ASN, and IP address, host, server and ASN each have an exclude field next to them: Exclude IP, Exclude host, Exclude server and Exclude ASN. IP address and Exclude IP take CIDR ranges such as `198.51.100.0/24` or `2001:db8:1:2::/64` alongside single addresses, as do the IP filters on Geo Logs, Analytics and Debug Logs. A range must start on its network address. Exclude your IP drops your own address from the view, and [Muted IPs](./muted-ips.mdx) hides a saved list of addresses and ranges with one switch. On a phone the filters sit in a drawer, split into Show only and Exclude. Click a row for the full record. Bytes and Req time show by default, except on a phone. The column picker adds upstream response time, HTTP version, remote user, user agent, server, source format, ASN and AS organization.
 
 <Screenshot scene="filter-drawer" />
 
@@ -59,10 +59,10 @@ With `LOGPARSER_STORE_DEBUG_LINES=true` the parser stores every line here as wel
 
 ## Analytics
 
-Charts and top lists for the range, all following one filter set: IP address, Exclude IP, country, city, ASN and Exclude ASN.
+Charts and top lists for the range, all following one filter set: IP address, Exclude IP, host, Exclude host, country, city, ASN and Exclude ASN, plus the [Muted IPs](./muted-ips.mdx) switch when your list has entries. Host picks from the hosts the server has logged. On a wide screen, Exclude host takes typed text. In the phone Filters drawer it picks from the same list. Both match the logged Host value exactly. Excluding a host keeps requests that have no host.
 
 - **Traffic** has the Requests, Status classes, Bandwidth and Request latency charts.
-- **Top Lists** has Top IPs, Top Countries / Cities, Top URLs with one row per host and path, and Top user agents.
+- **Top Lists** has Top IPs, Top Countries / Cities, Top URLs with one row per host and path, and Top user agents. Top IPs shows how many unique IPs the filtered view covers in its header, counting IPs beyond the ones listed. Top Countries counts each country's errors, the requests with status 400 or higher. Each Top URLs row that has a host has a menu that filters by that host or excludes it. When you pick two or more hosts in the Host filter, Top URLs adds up each path across those hosts and drops its Host column. Excluding hosts never merges paths.
 - **Traffic Origin** has the hosting and DROP split and Top ASNs. Each Top ASNs row has an abuse report button.
 
 Request latency and the other response-time figures leave out status 101 and status 0. Under 101, nginx and Traefik log a WebSocket's whole connection time, and 0 means the connection ended before any response, so neither time is a response time. Those rows stay in Access Logs with the time the proxy logged.
@@ -99,7 +99,7 @@ Keys for scripts, monitors and dashboards. A key is Read or Read/write, and a Re
 
 ### Scheduler
 
-The background jobs, such as the GeoLite2 refresh, the server location refresh, the DROP lists refresh and the AbuseIPDB blacklist refresh, with their recent runs and next run. Run now starts a job straight away.
+The background jobs, such as the GeoLite2 refresh, the server location refresh, the DROP lists refresh and the AbuseIPDB blacklist refresh, with their recent runs and next run. Run now starts a job straight away. When a job fails, an advisory names it until a run of that job succeeds. A job that runs more often than every 10 minutes raises it only after 10 minutes of failed runs.
 
 ### Logs
 
@@ -117,4 +117,4 @@ What changed in each release, and which one this install runs. A dot on the Chan
 
 ### About
 
-About shows the running version and its uptime, then the runtime, the database, the GeoIP databases with the hosting network list, and the DROP lists. With `APP_UPDATE_CHECK=true`, the default, the app asks GitHub every 12 hours whether a newer release exists. When one does, About shows it next to the running version. Until you open About, a dot sits next to the version number at the foot of the sidebar and on the About entry in Settings. Set `APP_UPDATE_CHECK=false` for an install that should not contact GitHub; the app then never shows a newer release.
+About shows the running version and its uptime, then the runtime, the database, the GeoIP databases with the hosting network list, the DROP lists, and the AbuseIPDB blacklist when it is on. With `APP_UPDATE_CHECK=true`, the default, the app asks GitHub every 12 hours whether a newer release exists. When one does, About shows it next to the running version. Until you open About, a dot sits next to the version number at the foot of the sidebar and on the About entry in Settings. Set `APP_UPDATE_CHECK=false` for an install that should not contact GitHub; the app then never shows a newer release.

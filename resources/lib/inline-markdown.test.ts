@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 import { tokenizeInline } from "./inline-markdown"
 
 describe("tokenizeInline", () => {
@@ -24,7 +24,9 @@ describe("tokenizeInline", () => {
   })
 
   it("turns markdown links into links", () => {
-    expect(tokenizeInline("See [Keep a Changelog](https://keepachangelog.com/) for the format.")).toEqual([
+    expect(
+      tokenizeInline("See [Keep a Changelog](https://keepachangelog.com/) for the format."),
+    ).toEqual([
       { type: "text", value: "See " },
       { type: "link", value: "Keep a Changelog", href: "https://keepachangelog.com/" },
       { type: "text", value: " for the format." },

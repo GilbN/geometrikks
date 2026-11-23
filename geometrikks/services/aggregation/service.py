@@ -39,7 +39,7 @@ class AggregationService:
         await service.refresh_location_last_hits()
     """
 
-    def __init__(self, session: "AsyncSession") -> None:
+    def __init__(self, session: AsyncSession) -> None:
         """Initialize the aggregation service.
 
         Args:

@@ -36,7 +36,11 @@ from geometrikks.domain.realtime.stream import (
     subscription,
 )
 from geometrikks.server import runtime
-from geometrikks.server.logging import get_logger, log_broadcaster, register_success_level
+from geometrikks.server.logging import (
+    get_logger,
+    log_broadcaster,
+    register_success_level,
+)
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator

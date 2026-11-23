@@ -28,7 +28,11 @@ export function FilterRail({
       data-slot="filter-rail"
       role="region"
       aria-label={label}
-      className={cn(FRAME_SURFACE, "flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center", className)}
+      className={cn(
+        FRAME_SURFACE,
+        "flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center",
+        className,
+      )}
       {...props}
     >
       <div className="flex min-w-0 flex-1 flex-col gap-2.5">{children}</div>
@@ -58,7 +62,8 @@ export function FilterRow({ className, ...props }: React.ComponentProps<"div">) 
   )
 }
 
-const FIELD_LABEL = "text-[10px] font-medium uppercase leading-4 tracking-[0.06em] text-muted-foreground"
+const FIELD_LABEL =
+  "text-[10px] font-medium uppercase leading-4 tracking-[0.06em] text-muted-foreground"
 
 /**
  * A labeled control. The same component renders on the desktop rail and in

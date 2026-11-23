@@ -1,4 +1,4 @@
-import { beforeEach, expect, it, vi } from "vitest"
+import { beforeEach, expect, it, vi } from "vite-plus/test"
 type QueryOptions = {
   queryKey: readonly unknown[]
   refetchInterval: number
@@ -20,7 +20,9 @@ beforeEach(() => {
 
 it("polls the DROP traffic every five minutes and on window focus", () => {
   useDropNetworks({ days: 90, page: 1, pageSize: 25 })
-  const dropNetworksOptions = mocks.options.find((options) => options.queryKey[1] === "drop-networks")!
+  const dropNetworksOptions = mocks.options.find(
+    (options) => options.queryKey[1] === "drop-networks",
+  )!
   expect(DROP_NETWORKS_REFETCH_MS).toBe(5 * 60_000)
   expect(dropNetworksOptions.refetchInterval).toBe(DROP_NETWORKS_REFETCH_MS)
   expect(dropNetworksOptions.refetchOnWindowFocus).toBe(true)

@@ -1,5 +1,5 @@
 import { defaultParseSearch, defaultStringifySearch } from "@tanstack/react-router"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 import { decodeMapSearch, encodeMapSearch, flyToSearch, mapSearchSchema } from "@/lib/map-filters"
 
 describe("map filter codec", () => {

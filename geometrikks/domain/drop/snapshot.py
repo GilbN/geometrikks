@@ -167,7 +167,7 @@ def current_drop_snapshot() -> DropSnapshot:
 
 def reset_drop_snapshot() -> None:
     """Forget the loaded data so the next ensure_drop_snapshot call queries again."""
-    global _snapshot, _loaded_state, _last_state_check, _reload_lock  # noqa: PLW0603
+    global _snapshot, _loaded_state, _last_state_check, _reload_lock
     _snapshot = EMPTY_DROP_SNAPSHOT
     _loaded_state = None
     _last_state_check = None
@@ -187,7 +187,7 @@ async def ensure_drop_snapshot(session: AsyncSession, *, enabled: bool) -> DropS
     whatever the tables hold. Once a snapshot has loaded, a failed check keeps
     serving it until the next check is due.
     """
-    global _snapshot, _loaded_state, _last_state_check  # noqa: PLW0603
+    global _snapshot, _loaded_state, _last_state_check
     if not enabled:
         return EMPTY_DROP_SNAPSHOT
     if _state_check_is_fresh():

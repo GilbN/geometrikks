@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test"
 import { QueryClient, QueryObserver } from "@tanstack/react-query"
 import type { DropListsResponse } from "@/generated/api/types.gen"
 const mocks = vi.hoisted(() => ({ buildCalls: 0 }))
@@ -54,13 +54,17 @@ function observe(updatedAt: string | null, enabled: boolean) {
 it("builds the index once per response however many IPs read it", async () => {
   getDropLists.mockResolvedValue({ data: dropListsResponse() })
   const observers = Array.from({ length: 5 }, () => observe("2026-11-01T06:00:00Z", true))
-  await vi.waitFor(() => expect(observers.every((observer) => observer.getCurrentResult().data)).toBe(true))
+  await vi.waitFor(() =>
+    expect(observers.every((observer) => observer.getCurrentResult().data)).toBe(true),
+  )
   const dropIndexes = new Set(observers.map((observer) => observer.getCurrentResult().data))
   expect(dropIndexes.size).toBe(1)
   expect(getDropLists).toHaveBeenCalledTimes(1)
   expect(mocks.buildCalls).toBe(1)
 
-  getDropLists.mockResolvedValue({ data: dropListsResponse({ networks: [{ cidr: "198.51.100.0/24", sblId: "SBL000002" }] }) })
+  getDropLists.mockResolvedValue({
+    data: dropListsResponse({ networks: [{ cidr: "198.51.100.0/24", sblId: "SBL000002" }] }),
+  })
   await queryClient.refetchQueries({ queryKey: ["drop", "lists"] })
   await vi.waitFor(() => expect(mocks.buildCalls).toBe(2))
 })
@@ -100,7 +104,9 @@ it("keeps the old index while a new download time fetches", async () => {
   expect(observer.getCurrentResult().data).toBe(firstIndex)
   expect(observer.getCurrentResult().isPlaceholderData).toBe(true)
 
-  resolveRefresh({ data: dropListsResponse({ networks: [{ cidr: "198.51.100.0/24", sblId: "SBL000002" }] }) })
+  resolveRefresh({
+    data: dropListsResponse({ networks: [{ cidr: "198.51.100.0/24", sblId: "SBL000002" }] }),
+  })
   await vi.waitFor(() => expect(observer.getCurrentResult().isPlaceholderData).toBe(false))
   expect(observer.getCurrentResult().data).not.toBe(firstIndex)
 })

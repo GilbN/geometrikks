@@ -1,0 +1,100 @@
+---
+title: Endpoint notes
+description: What scripts reading the CrowdSec map data, the integration summary, source activity and relative ranges should know beyond the operation pages.
+---
+
+The [API reference](../api/index.mdx) lists every parameter and field. This page covers the behavior a script needs to read four of those responses correctly: what the numbers count, what null means and when a value can't be trusted yet.
+
+## Relative ranges
+
+Every `/api/v1/analytics` endpoint takes either `window`, such as `15m`, `24h` or `7d`, or both `startDate` and `endDate`. A window is a positive whole number of minutes, hours or days, up to 365 days, and ends now. Explicit ranges have no duration cap.
+
+Sending no range at all, both modes, only one bound, a bound without a timezone, or a start that isn't before the end answers 400 with `code: invalid_range`.
+
+`window` exists only on the analytics endpoints, `/api/v1/access-logs` and `/api/v1/integration/summary`. The geo, map and abuse report endpoints don't take it. `/api/v1/geo-events`, `/api/v1/geo-locations` and `/api/v1/crowdsec/banned-locations` take `fromTimestamp` and `toTimestamp`, and `/api/v1/reports/abuse` takes `startDate` and `endDate`, each with its own defaults. [Polling for recent records](./polling.mdx) covers `window` on the access logs.
+
+## CrowdSec map data
+
+`GET /api/v1/crowdsec/banned-locations` returns a GeoJSON FeatureCollection of the IPs under a current decision that sent traffic in the window. With the CrowdSec integration off it answers 404.
+
+`fromTimestamp` is inclusive and `toTimestamp` exclusive. Leave out the start and the window begins 30 days ago. Leave out the end and it stops now. A start at or after the end returns an empty collection, not an error. Repeat `countryCode`, `city` and `serverIn` to filter the way the map does.
+
+Membership matches `/api/v1/crowdsec/banned-ips`: every IP with an `Ip` scoped decision, of any origin and any type. Range, country and AS decisions don't put their addresses on the map. The response shows current decisions only. It says nothing about expired decisions or whether a request was blocked, and it sees only as far back as the stored traffic history: raw geo events for recent windows, the hourly and daily aggregates beyond.
+
+### Features
+
+Each feature is one point. IPs at exactly the same coordinates share it.
+
+- `id` and `properties.groupId` are the same string, the coordinates as `longitude,latitude`.
+- `geometry.coordinates` is in longitude, latitude order.
+- `properties.ipCount` is the length of `properties.bannedIps`. The list is complete, never cut short.
+- Each `bannedIps` entry has `ip`, `locationId`, `city`, `countryCode` and `eventCount`. `eventCount` counts the IP's geo events in the window that match the filters, at every location, not only this point.
+- `bannedIps` runs from the highest `eventCount` down. Equal counts sort by the address as text.
+- Features sort by longitude, then latitude.
+
+Each IP appears at one place. Windows of 24 hours or less, and any request with `serverIn`, use the place of the IP's newest event. Longer windows read hourly or daily aggregates for the whole buckets and raw geo events for the partial ones at either edge, then use the place from the newest of those, the busiest place on a tie. An IP seen in the current partial hour therefore gets its newest event's place. That makes it a place the IP was seen, not its exact last request. IPs whose stored coordinates are out of range are left out.
+
+### Stats
+
+`stats` adds up the IPs on the map:
+
+- `ips`: the mapped IPs.
+- `locations`: the points, which is the number of features.
+- `events`: the `eventCount` of every mapped IP, added up.
+- `countries` and `cities`: distinct non-empty values across the mapped IPs.
+
+The response carries no decision details. Ask `/api/v1/crowdsec/decisions/lookup?ip=...` for those.
+
+## Integration summary
+
+`GET /api/v1/integration/summary` gives scripts and dashboard widgets one compact overview. It takes only `window`, which defaults to `24h` and follows the analytics grammar and 365-day cap. The response echoes the resolved `startDate` and `endDate` and carries `Cache-Control: no-store`.
+
+### Sections
+
+`traffic`, `instances`, `ingestion` and `crowdsec` each carry `available`, `reason` and `data`. An unavailable section has a `reason` and null `data`. An available section has a null `reason`, and its counts can be zero: traffic with no requests, CrowdSec with no decisions. Treat null data as unknown, never as zero.
+
+- `traffic` uses the same totals as `/api/v1/analytics/summary`. Above 24 hours they come from whole aggregate buckets and unique counts are estimates. `latestEventAt` is the newest retained access log timestamp in the window. It is log time, not when a line was read or written, and it is null when no raw rows remain in the window even if the aggregate totals are above zero.
+- `instances` lists the head and every agent with the same `status` and `checkingIn` as `/api/v1/instances`. An available section can still hold unhealthy agents. Each item's `lastParsedAt` comes from that instance's heartbeat, and `lastSeen` is when the heartbeat arrived.
+- `ingestion` describes only the head process that answered. Its `lastRecordAt` is when that process last parsed a record. For an agent, read `instances.items[].lastParsedAt`.
+- `crowdsec` counts current decisions of every scope and origin, subscribed blocklists included. The count can differ from the Security page, which filters and groups decisions.
+
+None of these times proves that a record reached the database.
+
+### Deadlines
+
+The server reads the sections one after another, so the response is not one atomic snapshot. Each database section has three seconds. The CrowdSec count makes one LAPI request per call with a two-second deadline. A section that loses the database or runs past its deadline comes back unavailable, and the others still come back. Any other database error fails the whole request with a 500.
+
+With an API key the request needs the key store first. When the store is down the call answers 503 with `code: api_keys_unavailable` before any section runs.
+
+### Reason codes
+
+| Reason | Sections | Meaning |
+| --- | --- | --- |
+| `disabled` | `ingestion`, `crowdsec` | The feature is turned off in the configuration. |
+| `not_running` | `ingestion` | Log ingestion is configured but this process isn't running it. |
+| `not_started` | `crowdsec` | CrowdSec is configured but its client hasn't started. |
+| `services_inactive` | `traffic`, `instances` | The database-backed services haven't started or recovered. The database itself may be reachable. |
+| `database_unavailable` | `traffic`, `instances` | A query lost the database or ran past its deadline, or an earlier section found the database down. |
+| `crowdsec_unreachable` | `crowdsec` | The LAPI request failed. |
+| `crowdsec_timeout` | `crowdsec` | The full decision list didn't arrive within two seconds. |
+| `crowdsec_credentials_rejected` | `crowdsec` | The LAPI rejected the configured credentials. |
+| `invalid_response` | `crowdsec` | The LAPI answered with something the app couldn't read. |
+
+Show a reason your script doesn't know as unavailable instead of failing on it, so a reason added in a later version doesn't break the script.
+
+## Source activity
+
+`GET /api/v1/instances` reports each source of an instance under `instances[].payload.sources[]`. File and Loki sources carry two timestamps:
+
+- `lastReadAt` is when the instance last received a new line from the source. Format samples, empty polls and Loki overlap duplicates don't move it. Unmatched lines and ignored IPs do.
+- `lastParsedAt` is when the source last produced a record with a client IP, by the same rule as `parsedLines`. Unmatched lines and ignored IPs don't move it. A request with a client IP that the parser flags as malformed still does.
+
+Both use the instance's own UTC clock. They measure when the instance processed a line. They are not log timestamps, file modification times or database writes. Each source keeps its own values, so a busy source doesn't make an idle one on the same instance look active.
+
+Both start as null and go back to null when the process restarts. Older agents always report null. A GeoIP database reload keeps them.
+
+### When to trust them
+
+The values arrive with heartbeats, every 30 seconds. Check the instance's `lastSeen` and `checkingIn` first. `checkingIn` turns false after 3 minutes without a heartbeat, and from then on the source timestamps are as old as the last heartbeat.
+
+An idle source can stay `available: true`. Pick an inactivity threshold per source that fits the traffic you expect from it, since a quiet site at night and a broken tail look the same for a while. [Multiple sources](../../sources/multiple-sources.mdx) covers how agents report in.

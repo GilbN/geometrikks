@@ -5,7 +5,10 @@ from types import SimpleNamespace
 from typing import Any, cast
 
 from geometrikks.domain.system.proxy_detection import (
-    PROXY_SETUP_DOCS_URL, ProxyFinding, proxy_advisories, proxy_findings,
+    PROXY_SETUP_DOCS_URL,
+    ProxyFinding,
+    proxy_advisories,
+    proxy_findings,
 )
 from geometrikks.services.logparser.peer_window import PeerSummary
 
@@ -127,6 +130,7 @@ def test_two_kinds_two_cards_multiple_sources() -> None:
 
 def test_collect_advisories_includes_proxy_cards(monkeypatch) -> None:
     from types import SimpleNamespace
+
     from geometrikks.domain.system.controllers import health
     from geometrikks.server import runtime, timescale
 
@@ -139,7 +143,7 @@ def test_collect_advisories_includes_proxy_cards(monkeypatch) -> None:
     settings = SimpleNamespace(
         app=SimpleNamespace(proxy_advisory=True),
         geoip=SimpleNamespace(asn_enabled=False),
-        legacy_env_names_in_use=lambda: [],
+        legacy_env_names_in_use=list,
     )
     app = SimpleNamespace(state=SimpleNamespace())
     cards = health._collect_advisories(app=cast(Any, app), settings=cast(Any, settings))
@@ -148,6 +152,7 @@ def test_collect_advisories_includes_proxy_cards(monkeypatch) -> None:
 
 def test_collect_advisories_respects_off_switch(monkeypatch) -> None:
     from types import SimpleNamespace
+
     from geometrikks.domain.system.controllers import health
     from geometrikks.server import runtime, timescale
 
@@ -157,7 +162,7 @@ def test_collect_advisories_respects_off_switch(monkeypatch) -> None:
     settings = SimpleNamespace(
         app=SimpleNamespace(proxy_advisory=False),
         geoip=SimpleNamespace(asn_enabled=False),
-        legacy_env_names_in_use=lambda: [],
+        legacy_env_names_in_use=list,
     )
     app = SimpleNamespace(state=SimpleNamespace())
     assert health._collect_advisories(app=cast(Any, app), settings=cast(Any, settings)) == []
@@ -165,6 +170,7 @@ def test_collect_advisories_respects_off_switch(monkeypatch) -> None:
 
 def test_collect_advisories_survives_no_ingestion_service(monkeypatch) -> None:
     from types import SimpleNamespace
+
     from geometrikks.domain.system.controllers import health
     from geometrikks.server import runtime, timescale
 
@@ -174,7 +180,7 @@ def test_collect_advisories_survives_no_ingestion_service(monkeypatch) -> None:
     settings = SimpleNamespace(
         app=SimpleNamespace(proxy_advisory=True),
         geoip=SimpleNamespace(asn_enabled=False),
-        legacy_env_names_in_use=lambda: [],
+        legacy_env_names_in_use=list,
     )
     app = SimpleNamespace(state=SimpleNamespace())
     assert health._collect_advisories(app=cast(Any, app), settings=cast(Any, settings)) == []
@@ -203,7 +209,7 @@ def test_collect_advisories_merges_scan_findings(monkeypatch) -> None:
     settings = SimpleNamespace(
         app=SimpleNamespace(proxy_advisory=True),
         geoip=SimpleNamespace(asn_enabled=False),
-        legacy_env_names_in_use=lambda: [],
+        legacy_env_names_in_use=list,
     )
     app = SimpleNamespace(state=SimpleNamespace())
     [card] = health._collect_advisories(app=cast(Any, app), settings=cast(Any, settings))
@@ -228,7 +234,7 @@ def test_collect_advisories_dedupes_scan_findings_by_the_service_server(monkeypa
     settings = SimpleNamespace(
         app=SimpleNamespace(proxy_advisory=True),
         geoip=SimpleNamespace(asn_enabled=False),
-        legacy_env_names_in_use=lambda: [],
+        legacy_env_names_in_use=list,
     )
     app = SimpleNamespace(state=SimpleNamespace())
     [card] = health._collect_advisories(app=cast(Any, app), settings=cast(Any, settings))
@@ -253,7 +259,7 @@ def test_collect_advisories_scan_only_when_no_ingestion_service(monkeypatch) -> 
     settings = SimpleNamespace(
         app=SimpleNamespace(proxy_advisory=True),
         geoip=SimpleNamespace(asn_enabled=False),
-        legacy_env_names_in_use=lambda: [],
+        legacy_env_names_in_use=list,
     )
     app = SimpleNamespace(state=SimpleNamespace())
     cards = health._collect_advisories(app=cast(Any, app), settings=cast(Any, settings))

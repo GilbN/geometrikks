@@ -1,0 +1,167 @@
+---
+title: Real client IP behind a proxy
+description: Make your proxy log the visitor's address instead of a CDN edge, a tunnel or another proxy in front of it.
+---
+
+GeoMetrikks reads the address your reverse proxy puts in its access log. If that address belongs to a CDN edge, a tunnel process or another proxy in front of yours, the map and analytics key on the wrong address. CDN traffic pins to the CDN's datacenters. A private address, such as 10.x, 192.168.x or 127.x, gets no location at all. You have to tell every proxy in front of nginx, Traefik or Caddy to pass the visitor's address on, and your proxy to log it. This page covers the common setups.
+
+## How to tell
+
+Settings > Status raises one of two advisories when a tailed log's recent traffic looks wrong:
+
+- **CDN peer.** Most requests on a server come from a known CDN's ASN. The summary names the server, the provider and the share, for example "94% of the last 2,000 requests on server edge-01 came from Cloudflare addresses. The map shows Cloudflare's datacenters, not your visitors." The map still fills in, with the CDN's edge locations instead of your visitors'.
+- **Private peer.** Most requests come from a private address. The summary names the share. GeoMetrikks drops rows with a private peer before geolocation, so they never reach the map or Access Logs, even though Settings > Status shows the parser's line count climbing.
+
+Both advisories carry a remedy line that names the proxy directive to add, and a link to this guide. `APP_PROXY_ADVISORY=false` turns the checks off.
+
+## nginx
+
+nginx needs `ngx_http_realip_module`, which nearly every packaged nginx has built in. Put three directives in the `server` or `http` block that receives connections from the proxy in front of it:
+
+```nginx
+# One set_real_ip_from per proxy range in front of this nginx.
+# Cloudflare's ranges: https://www.cloudflare.com/ips/
+set_real_ip_from 173.245.48.0/20;
+set_real_ip_from 103.21.244.0/22;
+set_real_ip_from 103.22.200.0/22;
+# ... the rest of Cloudflare's published IPv4 and IPv6 ranges
+
+real_ip_header CF-Connecting-IP;
+real_ip_recursive on;
+```
+
+`real_ip_header` names the header nginx trusts once the peer matches a `set_real_ip_from` range. That is `CF-Connecting-IP` behind Cloudflare, or `X-Forwarded-For` behind anything else that sets it, such as a load balancer or a second internal proxy:
+
+```nginx
+set_real_ip_from 10.0.0.0/8;
+real_ip_header X-Forwarded-For;
+real_ip_recursive on;
+```
+
+`real_ip_recursive` defaults to off, and that default is the trap. With it off, nginx takes the last address in the header, even when that address is another proxy you trust. With two or more hops between the visitor and this nginx, each one appending to `X-Forwarded-For`, the last entry is the second-to-last proxy, not the visitor. With it on, nginx walks the chain from the right and stops at the first address outside every `set_real_ip_from` range, which is the visitor. Turn it on whenever more than one hop can occur, which is most setups with a CDN in front of a container network.
+
+## Cloudflare Tunnel
+
+A Tunnel changes which peer your proxy sees. `cloudflared` opens the connection to your proxy itself, from localhost or a Docker network address, not from one of Cloudflare's public ranges. Cloudflare's edge still puts the visitor in [`CF-Connecting-IP` and `X-Forwarded-For`](https://developers.cloudflare.com/fundamentals/reference/http-headers/#x-forwarded-for), and `cloudflared` passes those headers on. So your proxy should trust the address `cloudflared` connects from, not Cloudflare's ranges.
+
+For nginx, put that address in `set_real_ip_from` and keep reading `CF-Connecting-IP`, which holds the visitor's address alone:
+
+```nginx
+# cloudflared runs on the same host, outside Docker:
+set_real_ip_from 127.0.0.1;
+# cloudflared runs in its own container on the same Docker network:
+# set_real_ip_from 172.20.0.0/16;
+
+real_ip_header CF-Connecting-IP;
+real_ip_recursive on;
+```
+
+Listing Cloudflare's public ranges here does nothing. To nginx, `cloudflared` is a local process, and those ranges never appear as its peer address.
+
+For Traefik, list the `cloudflared` address under `forwardedHeaders.trustedIPs` in place of Cloudflare's ranges, as in [Traefik](#traefik). Traefik then logs the `X-Forwarded-For` value Cloudflare set. Its rightmost entry is the address that connected to Cloudflare, which is the visitor unless the visitor came through a proxy of their own. If Traefik also serves GeoMetrikks, see [GeoMetrikks behind Traefik](./traefik.mdx#geometrikks-behind-traefik) for the matching `APP_TRUSTED_PROXIES` entries.
+
+## SWAG
+
+[linuxserver SWAG](https://github.com/linuxserver/docker-swag) ships the realip setup as a mod rather than inline config. Add [`swag-cloudflare-real-ip`](https://github.com/linuxserver/docker-mods/tree/swag-cloudflare-real-ip) to the container:
+
+```dotenv
+DOCKER_MODS=linuxserver/mods:swag-cloudflare-real-ip
+```
+
+On container start, the mod rewrites `/config/nginx/cf_real-ip.conf` with a `set_real_ip_from` line for each of Cloudflare's current IPv4 and IPv6 ranges, plus one for every non-default route in the container's routing table. Those routes are the networks SWAG's interfaces sit on, such as its Docker networks, so every address on them is trusted too. Reference that file from SWAG's `http` block, usually in `/config/nginx/nginx.conf` or a custom include SWAG loads at startup:
+
+```nginx
+real_ip_header X-Forwarded-For;
+real_ip_recursive on;
+include /config/nginx/cf_real-ip.conf;
+```
+
+Behind a Cloudflare Tunnel, the peer is `cloudflared`, never one of Cloudflare's ranges. If `cloudflared` connects from one of the networks in that file, nothing more is needed. Otherwise add a `set_real_ip_from` line for the address it connects from next to those three lines, such as `set_real_ip_from 127.0.0.1;` when it connects over localhost.
+
+## Nginx Proxy Manager
+
+Put the realip directives in `/data/nginx/custom/http_top.conf`, a path inside the NPM container. NPM includes that file at the top of the `http` block, so the lines apply to every host. It is the same file that holds the `geometrikks_json` format from the [Nginx Proxy Manager page](./nginx-proxy-manager.mdx#set-up-the-json-log), so append to it rather than replacing it.
+
+```nginx
+set_real_ip_from 173.245.48.0/20;
+# ... the rest of your proxy's ranges
+real_ip_header X-Forwarded-For;
+real_ip_recursive on;
+```
+
+Then reload nginx inside the NPM container:
+
+```bash
+docker exec <npm-container> sh -c 'nginx -t && nginx -s reload'
+```
+
+## Traefik
+
+Traefik strips `X-Forwarded-For` from any peer it doesn't trust. The chain only shows up in the access log once the peer sending it is listed under the entry point:
+
+```yaml
+entryPoints:
+  websecure:
+    forwardedHeaders:
+      trustedIPs:
+        - "173.245.48.0/20"
+        - "103.21.244.0/22"
+        # ... the rest of Cloudflare's published IPv4 and IPv6 ranges
+```
+
+The two ranges are examples. Add the rest of Cloudflare's published IPv4 and IPv6 ranges from [cloudflare.com/ips](https://www.cloudflare.com/ips/). If a different proxy connects to Traefik, list that proxy's ranges instead. Behind a [Cloudflare Tunnel](#cloudflare-tunnel), that proxy is `cloudflared`, so list the address it connects from.
+
+Never set `forwardedHeaders.insecure`. It trusts the header from any peer, so any client can put whatever address it wants in `X-Forwarded-For` and land it on your map. Use `trustedIPs`.
+
+Once the peer is trusted, Traefik logs the chain exactly as it arrived, and GeoMetrikks takes the rightmost entry. With a single trusted hop in front of Traefik, that entry is the visitor. With more than one hop, it isn't. The rightmost entry is the hop just before Traefik, because Traefik has no equivalent of nginx's `real_ip_recursive` and never looks past the immediate peer. The fix belongs at that earlier hop. Resolve the real IP there, or have it collapse the chain to a single address before forwarding.
+
+When Traefik also serves GeoMetrikks itself, the app's own login log has a similar rule. See [GeoMetrikks behind Traefik](./traefik.mdx#geometrikks-behind-traefik).
+
+## Caddy
+
+Caddy resolves the visitor into the logged `client_ip` itself, so no realip module applies. Set `trusted_proxies` under `servers` in Caddy's global options. The global options block must be at the very top of the Caddyfile.
+
+For a site behind Cloudflare, add all of Cloudflare's published ranges to `trusted_proxies`. The two ranges below are examples. Add the rest of the IPv4 and IPv6 ranges to the same directive, and put your existing site blocks and `reverse_proxy` directives after the global options block.
+
+```text
+{
+    servers {
+        trusted_proxies static 173.245.48.0/20 103.21.244.0/22
+        # ... the rest of Cloudflare's published IPv4 and IPv6 ranges
+        trusted_proxies_strict
+        client_ip_headers CF-Connecting-IP X-Forwarded-For
+    }
+}
+```
+
+Trust only the networks that can connect to this Caddy instance. Don't trust every private range just because Caddy runs in Docker. If you allow direct traffic from the public internet, `trusted_proxies` doesn't block it, so add a firewall or an equivalent access rule as well.
+
+`CF-Connecting-IP` comes first so Caddy uses Cloudflare's single-value header for normal Cloudflare requests. Keep `X-Forwarded-For` only if another trusted proxy can be in the chain. Otherwise, leave it out of `client_ip_headers`.
+
+Once the ranges and headers match the real connection path, `client_ip` in the access log is the visitor's address. The nginx and Traefik advice above doesn't apply to Caddy.
+
+## Tailscale-only
+
+If the only thing that ever reaches your proxy is a Tailscale tailnet, every peer address is private by design, and the private-peer advisory isn't telling you anything is wrong. Set:
+
+```dotenv
+APP_PROXY_ADVISORY=false
+```
+
+## What this is not
+
+`APP_TRUSTED_PROXIES` is a separate setting for a separate problem. It controls how the app resolves the client address of its own inbound requests ([`geometrikks/lib/client_ip.py`](https://github.com/GilbN/geometrikks/blob/main/geometrikks/lib/client_ip.py)). The app records that address in the login log and on the OpenID Connect login lines. It is also the address an API key shows as last used from, and the IP on the `api_key_rejected`, `api_key_created` and `api_key_revoked` log lines. The Exclude your IP filter on the log pages looks your address up the same way.
+
+It has no effect on how the log parser reads your proxy's access log files. That depends only on what your proxy writes, which is what the rest of this page covers. The same trusted-hop rule applies to it, though. Behind a CDN that connects to your proxy directly, list the CDN's ranges in `APP_TRUSTED_PROXIES` as well, unless the proxy rewrites the peer with `real_ip`. Behind a Cloudflare Tunnel, list the `cloudflared` address instead. Cloudflare's ranges do nothing there, for the same reason they do nothing for `set_real_ip_from`. [GeoMetrikks behind Traefik](./traefik.mdx#geometrikks-behind-traefik) has the details.
+
+## Existing rows
+
+A fix applies from the next line your proxy writes. Rows already ingested keep whatever address was in the log line at the time, and no backfill changes them. Rows dropped as private peers were never stored, so there is nothing to recover for them either.
+
+## Limits
+
+- Both detectors need at least 500 lines before they can trigger, and fire only once the CDN or private share reaches 70 percent. The parser checks that against its rolling window of the last 2,000 lines, and clears the advisory once the share drops below 50 percent. The head's scan uses the same thresholds. A source with light or mixed traffic can sit below the floor for good without an advisory, even if some of its traffic is affected.
+- For sources an [agent](./multiple-sources.mdx) instance tails (`APP_MODE=agent`), the CDN advisory appears on the head's Settings > Status page within about 5 minutes. The head scans the last hour of access-log rows in the shared database every 5 minutes. The scan covers only sources that store access logs (`LOGPARSER_SEND_LOGS=true`).
+- The private-peer advisory for an agent's sources can't come from that scan, because those lines are never stored. The agent reports it in its own `/health` and logs, and its heartbeat carries it to that agent's row on the head's Settings > Agents page.
+- CDN detection needs the GeoLite2 ASN database. Without it, every peer counts as other or private, and CDN traffic never raises the advisory, even at a 100 percent share.
+- With `LOGPARSER_SEND_LOGS=false`, only private-peer detection works. CDN detection reads the ASN on the parsed access-log row, and geo-only mode doesn't create that row.

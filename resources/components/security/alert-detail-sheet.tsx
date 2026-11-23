@@ -21,7 +21,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Skeleton } from "@/components/ui/skeleton"
 import type { AlertDetailView, AlertEventView, AlertView } from "@/generated/api/types.gen"
 import { copyText } from "@/lib/clipboard"
-import { bgpAsUrl, crowdsecCtiUrl, crowdsecErrorMessage, crowdsecHubUrl } from "@/lib/crowdsec"
+import { bgpAsUrl, crowdsecCtiUrl, crowdsecHubUrl } from "@/lib/crowdsec"
+import { crowdsecErrorMessage } from "@/lib/crowdsec-errors"
 import {
   CHALLENGE_EVENT_KEYS,
   HTTP_EVENT_KEYS,
@@ -72,16 +73,25 @@ function EventRow({ event, http }: { event: AlertEventView; http: boolean }) {
           {new Date(event.timestamp).toLocaleTimeString()}
         </time>
         {showHttp && Number.isFinite(status) && (
-          <Badge className={cn("tabular-nums border-transparent", statusBadgeClass(status))}>{status}</Badge>
+          <Badge className={cn("tabular-nums border-transparent", statusBadgeClass(status))}>
+            {status}
+          </Badge>
         )}
         {challenge && meta.challenge_event && (
-          <Badge variant="secondary" className={cn("border-transparent", challengeEventClass(meta.challenge_event))}>
+          <Badge
+            variant="secondary"
+            className={cn("border-transparent", challengeEventClass(meta.challenge_event))}
+          >
             Challenge {meta.challenge_event}
           </Badge>
         )}
-        {(showHttp || challenge) && <span className="font-mono font-medium">{challenge ? meta.method : meta.http_verb}</span>}
         {(showHttp || challenge) && (
-          <span className="min-w-0 break-all font-mono">{challenge ? meta.target_uri : meta.http_path}</span>
+          <span className="font-mono font-medium">{challenge ? meta.method : meta.http_verb}</span>
+        )}
+        {(showHttp || challenge) && (
+          <span className="min-w-0 break-all font-mono">
+            {challenge ? meta.target_uri : meta.http_path}
+          </span>
         )}
       </div>
       {showHttp && (meta.target_fqdn || meta.http_user_agent) && (
@@ -91,7 +101,9 @@ function EventRow({ event, http }: { event: AlertEventView; http: boolean }) {
       )}
       {challenge && (meta.target_host || meta.challenge_fail_reason || meta.http_user_agent) && (
         <p className="mt-0.5 break-words text-[11px] text-muted-foreground">
-          {[meta.target_host, meta.challenge_fail_reason, meta.http_user_agent].filter(Boolean).join(" · ")}
+          {[meta.target_host, meta.challenge_fail_reason, meta.http_user_agent]
+            .filter(Boolean)
+            .join(" · ")}
         </p>
       )}
       {extras.length > 0 && (
@@ -129,7 +141,13 @@ function CopyFingerprint({ id }: { id: string }) {
   return (
     <span ref={anchor} className="inline-flex items-center gap-1 font-mono text-xs">
       <span title={id}>{shortFingerprint(id)}</span>
-      <Button variant="ghost" size="icon" className="size-6" onClick={copy} aria-label="Copy the full fingerprint id">
+      <Button
+        variant="ghost"
+        size="icon"
+        className="size-6"
+        onClick={copy}
+        aria-label="Copy the full fingerprint id"
+      >
         {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
       </Button>
     </span>
@@ -139,7 +157,9 @@ function CopyFingerprint({ id }: { id: string }) {
 /** What the browser challenge saw. Every field is optional: the hub's
  *  context file decides which keys the LAPI stores. */
 function ChallengeSection({ challenge }: { challenge: ChallengeContext }) {
-  const outcome = challenge.event ? challenge.event[0].toUpperCase() + challenge.event.slice(1) : null
+  const outcome = challenge.event
+    ? challenge.event[0].toUpperCase() + challenge.event.slice(1)
+    : null
   const scoreShown = challenge.score !== null
   return (
     <>
@@ -149,7 +169,13 @@ function ChallengeSection({ challenge }: { challenge: ChallengeContext }) {
           label="Outcome"
           value={
             outcome && (
-              <Badge variant="secondary" className={cn("border-transparent", challengeEventClass(challenge.event ?? undefined))}>
+              <Badge
+                variant="secondary"
+                className={cn(
+                  "border-transparent",
+                  challengeEventClass(challenge.event ?? undefined),
+                )}
+              >
                 {outcome}
               </Badge>
             )
@@ -161,14 +187,19 @@ function ChallengeSection({ challenge }: { challenge: ChallengeContext }) {
             value={
               <div className="space-y-1">
                 <span className="tabular-nums">{challenge.score}</span>
-                <p className="text-xs text-muted-foreground">The signals the fingerprint scanner saw, added up.</p>
+                <p className="text-xs text-muted-foreground">
+                  The signals the fingerprint scanner saw, added up.
+                </p>
                 {challenge.reasons.length > 0 && (
                   <ul className="space-y-1">
                     {challenge.reasons.map((reason) => (
                       <li key={reason.signal} className="text-xs">
                         <span className="font-mono">{reason.signal}</span>
                         {reason.points !== null && (
-                          <span className="tabular-nums text-muted-foreground"> · {reason.points} points</span>
+                          <span className="tabular-nums text-muted-foreground">
+                            {" "}
+                            · {reason.points} points
+                          </span>
                         )}
                         {signalNote(reason.signal) && (
                           <p className="text-muted-foreground">{signalNote(reason.signal)}</p>
@@ -183,7 +214,10 @@ function ChallengeSection({ challenge }: { challenge: ChallengeContext }) {
         ) : (
           <DetailField label="Reason" value={challenge.failReason} />
         )}
-        <DetailField label="Fingerprint" value={challenge.fingerprintId && <CopyFingerprint id={challenge.fingerprintId} />} />
+        <DetailField
+          label="Fingerprint"
+          value={challenge.fingerprintId && <CopyFingerprint id={challenge.fingerprintId} />}
+        />
         <DetailField label="Operating system" value={challenge.operatingSystem} />
         <DetailField label="User agent" value={challenge.userAgent} mono />
         <DetailField label="Target path" value={challenge.targetUri} mono />
@@ -204,7 +238,9 @@ function ScenarioTitle({ scenario }: { scenario: string }) {
   return (
     <span className="break-all font-mono text-sm">
       {scenario}
-      {hubUrl && <ExternalLinkButton href={hubUrl} label="Open in the CrowdSec Hub" className="ml-1" />}
+      {hubUrl && (
+        <ExternalLinkButton href={hubUrl} label="Open in the CrowdSec Hub" className="ml-1" />
+      )}
     </span>
   )
 }
@@ -212,7 +248,8 @@ function ScenarioTitle({ scenario }: { scenario: string }) {
 /** The alert's source as IP actions values, or null when it isn't one IP. */
 function alertIpValues(alert: AlertDetailView | undefined): IpRowValues | null {
   if (!alert || alert.scope !== "Ip") return null
-  const asn = alert.asNumber !== null && /^\d+$/.test(alert.asNumber) ? Number(alert.asNumber) : null
+  const asn =
+    alert.asNumber !== null && /^\d+$/.test(alert.asNumber) ? Number(alert.asNumber) : null
   return {
     ip: alert.value,
     countryCode: alert.countryCode,
@@ -222,13 +259,7 @@ function alertIpValues(alert: AlertDetailView | undefined): IpRowValues | null {
   }
 }
 
-function AlertBody({
-  alert,
-  onNavigate,
-}: {
-  alert: AlertDetailView
-  onNavigate: () => void
-}) {
+function AlertBody({ alert, onNavigate }: { alert: AlertDetailView; onNavigate: () => void }) {
   const isIp = alert.scope === "Ip"
   const http = hasHttpEvents(alert.events)
   const { challenge, rest: context } = challengeContext(alert.context)
@@ -237,8 +268,13 @@ function AlertBody({
       <div className="mb-2 flex flex-wrap items-center gap-1.5">
         <AlertKindBadge kind={alert.kind} scenario={alert.scenario} />
         {alert.simulated && (
-          <BadgeHint hint="CrowdSec ran this scenario in simulation mode and enforced nothing" hover="tooltip">
-            <Badge variant="outline" className="cursor-help">Simulated</Badge>
+          <BadgeHint
+            hint="CrowdSec ran this scenario in simulation mode and enforced nothing"
+            hover="tooltip"
+          >
+            <Badge variant="outline" className="cursor-help">
+              Simulated
+            </Badge>
           </BadgeHint>
         )}
       </div>
@@ -255,13 +291,16 @@ function AlertBody({
             )
           }
         />
-        <DetailField
-          label="AS"
-          value={<AsValue name={alert.asName} number={alert.asNumber} />}
-        />
+        <DetailField label="AS" value={<AsValue name={alert.asName} number={alert.asNumber} />} />
         <DetailField label="Range" value={alert.range} mono />
-        <DetailField label="First event" value={alert.startAt && new Date(alert.startAt).toLocaleString()} />
-        <DetailField label="Last event" value={alert.stopAt && new Date(alert.stopAt).toLocaleString()} />
+        <DetailField
+          label="First event"
+          value={alert.startAt && new Date(alert.startAt).toLocaleString()}
+        />
+        <DetailField
+          label="Last event"
+          value={alert.stopAt && new Date(alert.stopAt).toLocaleString()}
+        />
         <DetailField label="Reported by" value={alert.machineId} mono />
       </dl>
       {isIp && (
@@ -282,13 +321,17 @@ function AlertBody({
               <DetailField
                 key={entry.key}
                 label={contextLabel(entry.key)}
-                value={entry.values.length === 0 ? null : (
-                  <ul className="flex flex-col gap-1">
-                    {entry.values.map((value) => (
-                      <li key={value} className="break-all font-mono text-xs">{value}</li>
-                    ))}
-                  </ul>
-                )}
+                value={
+                  entry.values.length === 0 ? null : (
+                    <ul className="flex flex-col gap-1">
+                      {entry.values.map((value) => (
+                        <li key={value} className="break-all font-mono text-xs">
+                          {value}
+                        </li>
+                      ))}
+                    </ul>
+                  )
+                }
               />
             ))}
           </dl>
@@ -303,7 +346,10 @@ function AlertBody({
           {alert.decisions.map((decision) => (
             <li
               key={decision.id ?? `${decision.origin}:${decision.scenario}:${decision.duration}`}
-              className={cn("flex flex-wrap items-center gap-2 border-b border-border/40 py-2 text-xs last:border-0", decision.expired && "opacity-60")}
+              className={cn(
+                "flex flex-wrap items-center gap-2 border-b border-border/40 py-2 text-xs last:border-0",
+                decision.expired && "opacity-60",
+              )}
             >
               <DecisionBadge
                 type={decision.type}
@@ -328,7 +374,8 @@ function AlertBody({
         <>
           {alert.events.length < alert.eventsCount && (
             <p className="text-xs text-muted-foreground">
-              Showing {alert.events.length} of {alert.eventsCount}. CrowdSec stores a sample per alert.
+              Showing {alert.events.length} of {alert.eventsCount}. CrowdSec stores a sample per
+              alert.
             </p>
           )}
           <ul>
@@ -366,9 +413,23 @@ function AlertSheet({
     <DetailSheet
       open={open}
       onOpenChange={onOpenChange}
-      title={scenario ? <ScenarioTitle scenario={scenario} /> : <span className="font-mono text-sm">Alert details</span>}
+      title={
+        scenario ? (
+          <ScenarioTitle scenario={scenario} />
+        ) : (
+          <span className="font-mono text-sm">Alert details</span>
+        )
+      }
       description={description}
-      footer={ip && <DetailIpActions values={ip} showOnMap={showFlyTo} onNavigate={() => onOpenChange(false)} />}
+      footer={
+        ip && (
+          <DetailIpActions
+            values={ip}
+            showOnMap={showFlyTo}
+            onNavigate={() => onOpenChange(false)}
+          />
+        )
+      }
     >
       {ip && (
         <DetailIpBlock values={ip}>

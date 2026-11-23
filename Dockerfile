@@ -20,8 +20,8 @@ COPY resources/ ./resources/
 COPY vite.config.ts tsconfig.json components.json ./
 COPY index.html ./
 
-# vite only: CI typechecks separately.
-RUN bunx vite build
+# Build only: CI typechecks separately.
+RUN bunx vp build
 
 # ------------------------------------------------------------------------------
 # Stage 2: Python dependencies with uv

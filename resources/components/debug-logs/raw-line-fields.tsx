@@ -27,7 +27,9 @@ export function RawLineFieldsView({ rawFields }: { rawFields: RawLineFields }) {
         >
           <h4 className="col-span-2 flex items-baseline gap-1.5 pt-2.5 pb-1 font-medium text-muted-foreground">
             {section.title}
-            <span className="font-normal tabular-nums text-muted-foreground/70">{section.fields.length}</span>
+            <span className="font-normal tabular-nums text-muted-foreground/70">
+              {section.fields.length}
+            </span>
           </h4>
           <dl className="col-span-2 grid grid-cols-subgrid">
             {section.fields.map((field, index) => (

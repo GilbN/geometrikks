@@ -51,10 +51,7 @@ export const EMPTY_SUMMARY: LiveSummary = {
   decisions: { ban: 0, captcha: 0, other: 0 },
 }
 
-export function summarize(
-  requests: readonly LiveRequest[],
-  maxOrigins = 4,
-): LiveSummary {
+export function summarize(requests: readonly LiveRequest[], maxOrigins = 4): LiveSummary {
   if (requests.length === 0) return EMPTY_SUMMARY
 
   const byStatus = new Map<StatusClass, number>()

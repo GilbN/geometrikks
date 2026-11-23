@@ -6,15 +6,10 @@
  * (search, IP, host, server, source format, status, method, country and
  * city live in access-logs-filter-bar.tsx). Pairs with GET /api/v1/access-logs/.
  */
-import { memo, useMemo, useState } from "react"
+import { memo, useEffect, useMemo, useState } from "react"
 import { Columns3 } from "lucide-react"
 import { CountryFlag, CountryLabel } from "@/components/country-flag"
-import {
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useNarrowLayout } from "@/components/data/narrow-layout"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { sortOptions } from "@/components/data/sort-options"
@@ -43,6 +38,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { PaginationFooter } from "@/components/ui/pagination-footer"
+import { pageToClamp } from "@/lib/use-muted-page"
 import { useAccessLogs, useCrowdsecLiveUpdates } from "@/lib/queries"
 import { IpActionsMenu, IpFilterTargetsProvider } from "@/components/ip-actions/ip-actions-menu"
 import { IpLabel } from "@/components/ip-actions/ip-label"
@@ -126,7 +122,13 @@ function renderCell(column: AccessLogColumn, r: AccessLog): React.ReactNode {
     case "country":
       return (
         <span className="whitespace-nowrap" title={r.countryName ?? undefined}>
-          {r.countryCode ? <CountryLabel code={r.countryCode} name={r.countryName}>{r.countryCode}</CountryLabel> : "-"}
+          {r.countryCode ? (
+            <CountryLabel code={r.countryCode} name={r.countryName}>
+              {r.countryCode}
+            </CountryLabel>
+          ) : (
+            "-"
+          )}
         </span>
       )
     case "city":
@@ -153,6 +155,7 @@ const SORT_OPTIONS = sortOptions(ACCESS_LOG_COLUMNS)
 function AccessLogIpActions({ row }: { row: AccessLog }) {
   return (
     <IpActionsMenu
+      muteToggle
       ip={row.ipAddress}
       host={row.host}
       server={row.server}
@@ -170,16 +173,25 @@ function AccessLogNarrowCell({ row }: { row: AccessLog }) {
   return (
     <TableCell className="py-2.5">
       <div className="flex min-w-0 items-center gap-2">
-        <Badge className={cn("shrink-0 tabular-nums border-transparent", statusBadgeClass(row.statusCode))}>
+        <Badge
+          className={cn(
+            "shrink-0 tabular-nums border-transparent",
+            statusBadgeClass(row.statusCode),
+          )}
+        >
           {row.statusCode}
         </Badge>
-        <span className="shrink-0 font-mono text-xs text-muted-foreground">{row.method ?? "-"}</span>
+        <span className="shrink-0 font-mono text-xs text-muted-foreground">
+          {row.method ?? "-"}
+        </span>
         <span className="min-w-0 flex-1 truncate font-mono" title={row.url ?? undefined}>
           {row.url ?? "-"}
         </span>
       </div>
       <div className="mt-1 flex min-w-0 items-center gap-2 text-xs">
-        <span className="shrink-0 whitespace-nowrap text-muted-foreground">{formatRowTime(row.timestamp)}</span>
+        <span className="shrink-0 whitespace-nowrap text-muted-foreground">
+          {formatRowTime(row.timestamp)}
+        </span>
         <span className="ml-auto flex min-w-0 items-center gap-1.5">
           <CountryFlag code={row.countryCode} name={row.countryName} standalone />
           <IpLabel ip={row.ipAddress} className="truncate" />
@@ -202,7 +214,11 @@ const AccessLogTableBody = memo(function AccessLogTableBody({
   onSelect: (row: AccessLog) => void
 }) {
   return (
-    <VirtualTableBody rows={rows} columnCount={narrow ? 1 : shownColumns.length} getRowKey={getRowKey}>
+    <VirtualTableBody
+      rows={rows}
+      columnCount={narrow ? 1 : shownColumns.length}
+      getRowKey={getRowKey}
+    >
       {(row) => (
         <TableRow
           key={row.id}
@@ -213,7 +229,10 @@ const AccessLogTableBody = memo(function AccessLogTableBody({
             <AccessLogNarrowCell row={row} />
           ) : (
             shownColumns.map((c) => (
-              <TableCell key={c.key} className={cn(c.grow && "max-w-0 truncate", c.align === "right" && "text-right")}>
+              <TableCell
+                key={c.key}
+                className={cn(c.grow && "max-w-0 truncate", c.align === "right" && "text-right")}
+              >
                 {renderCell(c, row)}
                 {c.key === "ipAddress" && <AccessLogIpActions row={row} />}
               </TableCell>
@@ -244,16 +263,22 @@ export function AccessLogsTable({
   onPageSizeChange,
   onSortChange,
 }: AccessLogsTableProps) {
-  const { filters, setFilters } = useAccessLogFilters()
-  const filterTargetsFor = useMemo(() => accessLogFilterTargets(filters, setFilters), [filters, setFilters])
+  const { filters, setFilters, muted } = useAccessLogFilters()
+  const filterTargetsFor = useMemo(
+    () => accessLogFilterTargets(filters, setFilters),
+    [filters, setFilters],
+  )
   const { range, customRange } = useTimeRange()
   useCrowdsecLiveUpdates()
   const [selected, setSelected] = useState<AccessLog | null>(null)
   const [layoutRef, narrow] = useNarrowLayout<HTMLDivElement>()
   const isMobile = useIsMobile()
 
-  const { visible, shownColumns, toggleColumn, resetColumns, hasOverrides } =
-    useColumnVisibility("geometrikks-columns-access-logs", ACCESS_LOG_COLUMNS, ACCESS_LOG_RENAMED_COLUMN_KEYS)
+  const { visible, shownColumns, toggleColumn, resetColumns, hasOverrides } = useColumnVisibility(
+    "geometrikks-columns-access-logs",
+    ACCESS_LOG_COLUMNS,
+    ACCESS_LOG_RENAMED_COLUMN_KEYS,
+  )
 
   const { data, isLoading, isError, isPlaceholderData } = useAccessLogs({
     currentPage: page,
@@ -274,11 +299,22 @@ export function AccessLogsTable({
     statusIn: filters.statusCodes.length ? filters.statusCodes : undefined,
     sortField,
     sortOrder,
+    muted,
   })
 
   const rows = data?.items ?? []
   const total = data?.total ?? 0
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
+
+  useEffect(() => {
+    const target = pageToClamp({ loaded: !!data, placeholder: isPlaceholderData, page, pageCount })
+    if (target !== null) onPageChange(target)
+  }, [data, isPlaceholderData, page, pageCount, onPageChange])
+
+  // A changed hidden set can leave the open row off the list.
+  useEffect(() => {
+    setSelected(null)
+  }, [muted.flag, muted.version])
   const state = dataState(isLoading, isError, rows.length)
 
   function toggleSort(field: AccessLogSortField) {
@@ -329,7 +365,12 @@ export function AccessLogsTable({
           stickyHeader={narrow && isMobile}
           tools={
             narrow ? (
-              <TableSortDrawer options={SORT_OPTIONS} sortField={sortField} sortOrder={sortOrder} onSortChange={onSortChange} />
+              <TableSortDrawer
+                options={SORT_OPTIONS}
+                sortField={sortField}
+                sortOrder={sortOrder}
+                onSortChange={onSortChange}
+              />
             ) : (
               columnsMenu
             )
@@ -350,7 +391,22 @@ export function AccessLogsTable({
             />
           }
         >
-          <VirtualTable narrow={narrow} columns={shownColumns} rowCount={rows.length} resetKey={JSON.stringify([page, pageSize, sortField, sortOrder, filters, range, customRange])}>
+          <VirtualTable
+            narrow={narrow}
+            columns={shownColumns}
+            rowCount={rows.length}
+            resetKey={JSON.stringify([
+              page,
+              pageSize,
+              sortField,
+              sortOrder,
+              filters,
+              range,
+              customRange,
+              muted.flag,
+              muted.version,
+            ])}
+          >
             {!narrow && (
               <TableHeader>
                 <TableRow>
@@ -377,7 +433,13 @@ export function AccessLogsTable({
                 </TableRow>
               </TableHeader>
             )}
-            <AccessLogTableBody key={narrow ? "narrow" : "wide"} rows={rows} shownColumns={shownColumns} narrow={narrow} onSelect={setSelected} />
+            <AccessLogTableBody
+              key={narrow ? "narrow" : "wide"}
+              rows={rows}
+              shownColumns={shownColumns}
+              narrow={narrow}
+              onSelect={setSelected}
+            />
           </VirtualTable>
         </DataTableFrame>
       </div>

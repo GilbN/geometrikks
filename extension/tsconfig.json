@@ -1,0 +1,12 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "types": ["chrome", "vite/client", "node"],
+    "paths": {
+      "@/*": ["../resources/*"]
+    }
+  },
+  "include": ["src", "tests", "scripts", "*.ts"],
+  "exclude": ["dist", "dist-e2e", ".build"]
+}

@@ -28,7 +28,8 @@ const OPTION =
   "group rounded-xl bg-glass-card text-left ring-1 ring-border backdrop-blur-[2px] transition-colors hover:ring-primary/50 " +
   "data-[state=checked]:ring-primary data-[state=checked]:bg-[linear-gradient(var(--primary-glow),var(--primary-glow))] data-[state=checked]:hover:ring-primary"
 
-const FOCUS_OUTLINE = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+const FOCUS_OUTLINE =
+  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
 
 const HEADING = "text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground"
 
@@ -37,12 +38,24 @@ const PREVIEW_BAR = "h-1 rounded-full bg-muted-foreground/30"
 /** A miniature app in one scheme of one theme. Token classes only: a `dark:`
  * variant matches any `.dark` ancestor, so it would fire inside a light
  * preview on a dark page. */
-function SchemePreview({ scheme, colorTheme, className }: { scheme: ResolvedTheme; colorTheme: ColorTheme; className?: string }) {
+function SchemePreview({
+  scheme,
+  colorTheme,
+  className,
+}: {
+  scheme: ResolvedTheme
+  colorTheme: ColorTheme
+  className?: string
+}) {
   return (
     <span
       aria-hidden
       data-theme={colorTheme}
-      className={cn(scheme, "grid h-24 grid-cols-[22%_1fr] overflow-hidden rounded-md border border-border bg-background", className)}
+      className={cn(
+        scheme,
+        "grid h-24 grid-cols-[22%_1fr] overflow-hidden rounded-md border border-border bg-background",
+        className,
+      )}
     >
       <span className="flex flex-col gap-1.5 border-r border-border bg-sidebar px-1.5 py-2">
         <span className={PREVIEW_BAR} />
@@ -65,13 +78,25 @@ function SchemePreview({ scheme, colorTheme, className }: { scheme: ResolvedThem
   )
 }
 
-function SchemeArt({ scheme, lightTheme, darkTheme }: { scheme: Theme; lightTheme: ColorTheme; darkTheme: ColorTheme }) {
+function SchemeArt({
+  scheme,
+  lightTheme,
+  darkTheme,
+}: {
+  scheme: Theme
+  lightTheme: ColorTheme
+  darkTheme: ColorTheme
+}) {
   if (scheme === "light") return <SchemePreview scheme="light" colorTheme={lightTheme} />
   if (scheme === "dark") return <SchemePreview scheme="dark" colorTheme={darkTheme} />
   return (
     <span className="grid [&>*]:[grid-area:1/1]">
       <SchemePreview scheme="light" colorTheme={lightTheme} />
-      <SchemePreview scheme="dark" colorTheme={darkTheme} className="[clip-path:inset(0_0_0_50%)]" />
+      <SchemePreview
+        scheme="dark"
+        colorTheme={darkTheme}
+        className="[clip-path:inset(0_0_0_50%)]"
+      />
     </span>
   )
 }
@@ -110,7 +135,8 @@ function ThemeSideToggle({
           data-theme={colorTheme}
           className={cn(scheme, "block size-14 rounded-full ring-1 ring-border ring-inset")}
           style={{
-            backgroundImage: "radial-gradient(circle at 32% 28%, var(--card) 0 12%, var(--background) 45%, var(--primary) 100%)",
+            backgroundImage:
+              "radial-gradient(circle at 32% 28%, var(--card) 0 12%, var(--background) 45%, var(--primary) 100%)",
           }}
         />
         <span className="absolute -right-1 -bottom-1 hidden size-5 place-items-center rounded-full bg-card text-foreground ring-1 ring-border group-aria-pressed/toggle:grid">
@@ -127,7 +153,11 @@ function ThemeCard({ colorTheme }: { colorTheme: ColorTheme }) {
   const { label, description } = THEME_CATALOG[colorTheme]
   const both = lightTheme === colorTheme && darkTheme === colorTheme
   return (
-    <div data-slot="theme-card" data-state={both ? "checked" : "unchecked"} className={cn(OPTION, "relative px-4 pt-5 pb-4")}>
+    <div
+      data-slot="theme-card"
+      data-state={both ? "checked" : "unchecked"}
+      className={cn(OPTION, "relative px-4 pt-5 pb-4")}
+    >
       <div className="mb-4 flex justify-center gap-4">
         <ThemeSideToggle
           scheme="light"
@@ -154,7 +184,9 @@ function ThemeCard({ colorTheme }: { colorTheme: ColorTheme }) {
       >
         {label}
       </button>
-      <span id={`${id}-description`} className="block text-xs text-muted-foreground">{description}</span>
+      <span id={`${id}-description`} className="block text-xs text-muted-foreground">
+        {description}
+      </span>
     </div>
   )
 }
@@ -168,7 +200,9 @@ export function AppearancePage() {
     <div className="space-y-8">
       <section aria-labelledby={schemeHeadingId} className="space-y-3">
         <div className="space-y-1">
-          <h2 id={schemeHeadingId} className={HEADING}>Color scheme</h2>
+          <h2 id={schemeHeadingId} className={HEADING}>
+            Color scheme
+          </h2>
           <p className="text-[13px] text-muted-foreground">
             System follows the device and switches live when it does.
           </p>
@@ -180,7 +214,11 @@ export function AppearancePage() {
           className="grid-cols-3 gap-2"
         >
           {THEMES.map((value) => (
-            <RadioGroupPrimitive.Item key={value} value={value} className={cn(OPTION, FOCUS_OUTLINE, "p-2 pb-1.5 sm:p-2.5 sm:pb-2")}>
+            <RadioGroupPrimitive.Item
+              key={value}
+              value={value}
+              className={cn(OPTION, FOCUS_OUTLINE, "p-2 pb-1.5 sm:p-2.5 sm:pb-2")}
+            >
               <SchemeArt scheme={value} lightTheme={lightTheme} darkTheme={darkTheme} />
               <span className="mt-1.5 block text-center text-[13px] text-muted-foreground group-data-[state=checked]:font-medium group-data-[state=checked]:text-foreground">
                 {SCHEME_LABELS[value]}
@@ -192,12 +230,18 @@ export function AppearancePage() {
 
       <section aria-labelledby={themesHeadingId} className="@container space-y-3">
         <div className="space-y-1">
-          <h2 id={themesHeadingId} className={HEADING}>Themes</h2>
+          <h2 id={themesHeadingId} className={HEADING}>
+            Themes
+          </h2>
           <p className="text-[13px] text-muted-foreground">
             Pick a theme for both modes, or click a sun or moon to set one mode.
           </p>
         </div>
-        <div role="group" aria-labelledby={themesHeadingId} className="grid gap-2 sm:grid-cols-2 @3xl:grid-cols-4">
+        <div
+          role="group"
+          aria-labelledby={themesHeadingId}
+          className="grid gap-2 sm:grid-cols-2 @3xl:grid-cols-4"
+        >
           {COLOR_THEMES.map((value) => (
             <ThemeCard key={value} colorTheme={value} />
           ))}

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 import { describeDecisions, EMPTY_SUMMARY, smooth, summarize, trendPercent } from "./summary"
 import type { LiveRequest } from "./types"
 
@@ -102,8 +102,20 @@ describe("summarize", () => {
 
   it("counts an IP under the type on its most recent request, whatever the buffer order", () => {
     // The store keeps requests newest first; the rule must not depend on that.
-    const newerBan = request({ ip: "9.9.9.9", banned: true, decisionType: "ban", threat: true, receivedAt: 2000 })
-    const olderCaptcha = request({ ip: "9.9.9.9", banned: true, decisionType: "captcha", threat: true, receivedAt: 1000 })
+    const newerBan = request({
+      ip: "9.9.9.9",
+      banned: true,
+      decisionType: "ban",
+      threat: true,
+      receivedAt: 2000,
+    })
+    const olderCaptcha = request({
+      ip: "9.9.9.9",
+      banned: true,
+      decisionType: "captcha",
+      threat: true,
+      receivedAt: 1000,
+    })
 
     expect(summarize([newerBan, olderCaptcha]).decisions).toEqual({ ban: 1, captcha: 0, other: 0 })
     expect(summarize([olderCaptcha, newerBan]).decisions).toEqual({ ban: 1, captcha: 0, other: 0 })

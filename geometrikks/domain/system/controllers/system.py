@@ -7,13 +7,13 @@ is the only user, so no extra guards are needed here.
 from __future__ import annotations
 
 import platform
-
-import msgspec
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as dist_version
 from ipaddress import ip_address, ip_network
-from importlib.metadata import PackageNotFoundError, version as dist_version
 from typing import TYPE_CHECKING, Annotated, Literal
 
+import msgspec
 from litestar import Controller, Litestar, Request, get, post
 from litestar.di import NamedDependency
 from litestar.exceptions import NotFoundException
@@ -28,7 +28,9 @@ from geometrikks.config.introspection import (
     build_settings_overview,
 )
 from geometrikks.config.settings import Settings
-from geometrikks.domain.system import changelog, commit
+from geometrikks.domain.abuseipdb.blacklist import blacklist_about
+from geometrikks.domain.abuseipdb.repositories import AbuseIpdbBlacklistRepository
+from geometrikks.domain.abuseipdb.schemas import AbuseIpdbBlacklistAboutView
 from geometrikks.domain.analytics.asn_classification import (
     DATASET_LICENSE,
     DATASET_NAME,
@@ -38,14 +40,15 @@ from geometrikks.domain.analytics.asn_classification import (
 )
 from geometrikks.domain.drop.schemas import DropListsAboutView, build_drop_lists_about
 from geometrikks.domain.drop.snapshot import ensure_drop_snapshot
-from geometrikks.server import runtime
-from geometrikks.server.logging import get_logger
-from geometrikks.server.scheduler_tracking import JobRunTracker, JobStatus
-from geometrikks.server.schema_wait import bundled_head_revision, bundled_revision_doc
+from geometrikks.domain.system import changelog, commit
 from geometrikks.lib.client_ip import resolve_client_ip
 from geometrikks.lib.utils import GeoIPInfoView, geoip_info
 from geometrikks.lib.validation import canonical_ip
 from geometrikks.lib.versioning import display_version
+from geometrikks.server import runtime
+from geometrikks.server.logging import get_logger
+from geometrikks.server.scheduler_tracking import JobRunTracker, JobStatus
+from geometrikks.server.schema_wait import bundled_head_revision, bundled_revision_doc
 from geometrikks.services.release_check import release_check_enabled
 
 if TYPE_CHECKING:
@@ -206,7 +209,9 @@ class AboutResponse(msgspec.Struct, rename="camel"):
     """Version, runtime and database details for the About page.
 
     `geoip` describes the GeoLite2 City database and `geoipAsn` the ASN database. `dropLists` is null
-    with DROP_ENABLED=false, or when the database cannot answer.
+    with DROP_ENABLED=false, and `abuseipdbBlacklist` with ABUSEIPDB_BLACKLIST_ENABLED=false.
+    When the database cannot answer, `abuseipdbBlacklist` is null, and so is `dropLists` until this process has
+    loaded it once.
     """
 
     app: AboutAppView
@@ -223,6 +228,7 @@ class AboutResponse(msgspec.Struct, rename="camel"):
     asn_classification: AsnClassificationView | None = None
     # None when DROP_ENABLED is off.
     drop_lists: DropListsAboutView | None = None
+    abuseipdb_blacklist: AbuseIpdbBlacklistAboutView | None = None
 
 
 ReleaseCheckStatus = Literal["off", "pending", "checked"]
@@ -314,6 +320,19 @@ async def _drop_lists_about(engine: AsyncEngine, *, enabled: bool) -> DropListsA
         logger.warning("drop_lists_about_unavailable", exc_info=True)
         return None
     return build_drop_lists_about(drop_snapshot, enabled=True)
+
+
+async def _abuseipdb_blacklist_about(engine: AsyncEngine, settings: Settings) -> AbuseIpdbBlacklistAboutView | None:
+    """AbuseIPDB blacklist state for About; None when disabled or the database cannot answer."""
+    if not settings.abuseipdb.blacklist_enabled:
+        return None
+    try:
+        async with AsyncSession(engine) as session:
+            repository = AbuseIpdbBlacklistRepository(session=session, wrap_exceptions=False)
+            return await blacklist_about(repository, file_path=settings.abuseipdb.blacklist_file, now=datetime.now(UTC))
+    except Exception:
+        logger.warning("abuseipdb_blacklist_about_unavailable", exc_info=True)
+        return None
 
 
 async def _database_versions(engine: AsyncEngine) -> DatabaseVersionsView:
@@ -456,7 +475,7 @@ async def _database_stats(engine: AsyncEngine) -> tuple[int | None, list[Hyperta
         return None, []
 
 
-def _job_view(job: "Job", tracker: JobRunTracker) -> SchedulerJobView:
+def _job_view(job: Job, tracker: JobRunTracker) -> SchedulerJobView:
     info = tracker.get(job.id)
     return SchedulerJobView(
         id=job.id,
@@ -531,9 +550,9 @@ class SystemController(Controller):
         summary="Get version, runtime and database details",
         description=(
             "Returns the app version and image, the Python and library versions, the PostgreSQL, TimescaleDB "
-            "and PostGIS versions, the schema migration, and the state of the GeoLite2 databases and DROP "
-            "lists. When the database is unreachable, every database field is null except `migrationHead`, "
-            "the newest migration this build ships."
+            "and PostGIS versions, the schema migration, and the state of the GeoLite2 databases, the DROP "
+            "lists and the AbuseIPDB blacklist. When the database is unreachable, every database field is null "
+            "except `migrationHead`, the newest migration this build ships."
         ),
     )
     async def get_about(
@@ -544,6 +563,7 @@ class SystemController(Controller):
     ) -> AboutResponse:
         """App, runtime, database, and GeoIP metadata for the About page."""
         s = settings
+        database = await _database_versions(db_engine)
         return AboutResponse(
             app=AboutAppView(
                 name=s.name,
@@ -560,7 +580,7 @@ class SystemController(Controller):
                 litestar_version=_dist_version("litestar"),
                 apscheduler_version=_dist_version("apscheduler"),
             ),
-            database=await _database_versions(db_engine),
+            database=database,
             geoip=geoip_info(s.geoip.db_path),
             links=AboutLinksView(repository=REPO_URL, issues=f"{REPO_URL}/issues"),
             geoip_asn=geoip_info(s.geoip.asn_db_path),
@@ -572,6 +592,10 @@ class SystemController(Controller):
                 source_url=DATASET_URL,
             ),
             drop_lists=await _drop_lists_about(db_engine, enabled=s.drop.enabled),
+            # A second connect to a database that just failed can wait out the full connect timeout again.
+            abuseipdb_blacklist=(
+                await _abuseipdb_blacklist_about(db_engine, s) if database.postgres_version is not None else None
+            ),
         )
 
     @get(
@@ -773,5 +797,5 @@ class SystemController(Controller):
         if scheduler is None or scheduler.get_job(job_id) is None:
             raise NotFoundException(detail=f"Unknown scheduler job: {job_id}")
         logger.info("scheduler_job_triggered_manually", job_id=job_id)
-        scheduler.modify_job(job_id, next_run_time=datetime.now(timezone.utc))
+        scheduler.modify_job(job_id, next_run_time=datetime.now(UTC))
         return _job_view(scheduler.get_job(job_id), runtime.get_scheduler_tracker(request.app))

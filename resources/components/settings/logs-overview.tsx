@@ -4,7 +4,15 @@
  * traceback dialog for exceptions, a full-record detail dialog, and a
  * downloads tab for the raw files behind the stream.
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode } from "react"
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentProps,
+  type ReactNode,
+} from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import {
   Archive,
@@ -22,13 +30,7 @@ import { cn } from "@/lib/utils"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Dialog,
   DialogContent,
@@ -50,12 +52,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
-import {
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { MonoChip, StatusLed, type LedTone } from "@/components/settings/status-led"
 import { useLogFiles, useLogTail, queryKeys } from "@/lib/queries"
@@ -110,11 +107,13 @@ const STANDARD_RECORD_KEYS = new Set(["timestamp", "level", "logger", "event", "
  */
 function formatContext(r: LogRecord): string {
   return Object.entries(r)
-    .filter(
-      ([key, value]) =>
+    .filter((entry): entry is [string, string | number | boolean] => {
+      const [key, value] = entry
+      return (
         !STANDARD_RECORD_KEYS.has(key) &&
-        (typeof value === "string" || typeof value === "number" || typeof value === "boolean"),
-    )
+        (typeof value === "string" || typeof value === "number" || typeof value === "boolean")
+      )
+    })
     .map(([key, value]) => `${key}=${value}`)
     .join(" ")
 }
@@ -156,7 +155,10 @@ const getEntryKey = (entry: Entry) => entry.id
 
 function LevelBadge({ level }: { level: string | null | undefined }) {
   return (
-    <Badge variant="outline" className={cn("gap-1 uppercase", levelBadgeClasses[level ?? ""] ?? levelBadgeClasses.info)}>
+    <Badge
+      variant="outline"
+      className={cn("gap-1 uppercase", levelBadgeClasses[level ?? ""] ?? levelBadgeClasses.info)}
+    >
       {level ?? "info"}
     </Badge>
   )
@@ -166,18 +168,32 @@ function LogMessage({ record, className }: { record: LogRecord; className?: stri
   const context = formatContext(record)
   const eventText = record.event ?? "(no message)"
   return (
-    <span className={cn("font-mono text-xs", className)} title={context ? `${eventText} ${context}` : eventText}>
+    <span
+      className={cn("font-mono text-xs", className)}
+      title={context ? `${eventText} ${context}` : eventText}
+    >
       {eventText}
       {context ? <span className="text-muted-foreground"> {context}</span> : null}
     </span>
   )
 }
 
-function TracebackButton({ record, onOpen }: { record: LogRecord; onOpen: (record: LogRecord) => void }) {
+function TracebackButton({
+  record,
+  onOpen,
+}: {
+  record: LogRecord
+  onOpen: (record: LogRecord) => void
+}) {
   if (typeof record.exception !== "string" || record.exception.length === 0) return null
   return (
     <span {...stopRowActivation}>
-      <Button variant="ghost" size="icon-sm" aria-label="View traceback" onClick={() => onOpen(record)}>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        aria-label="View traceback"
+        onClick={() => onOpen(record)}
+      >
         <Layers className="h-3.5 w-3.5" />
       </Button>
     </span>
@@ -199,7 +215,10 @@ function LogRow({
   onOpenTraceback: (record: LogRecord) => void
 }) {
   const record = entry.record
-  const activation = { ...rowActivation<HTMLTableRowElement>(() => onOpenRecord(record)), ...rowProps }
+  const activation = {
+    ...rowActivation<HTMLTableRowElement>(() => onOpenRecord(record)),
+    ...rowProps,
+  }
   const time = record.timestamp ? new Date(record.timestamp) : null
   if (narrow) {
     return (
@@ -208,7 +227,10 @@ function LogRow({
           <div className="flex min-w-0 items-center gap-2">
             <LevelBadge level={record.level} />
             <MonoChip className="min-w-0 truncate">{component(record)}</MonoChip>
-            <span className="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground" title={time?.toLocaleString()}>
+            <span
+              className="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground"
+              title={time?.toLocaleString()}
+            >
               {time ? time.toLocaleTimeString() : "-"}
             </span>
             <TracebackButton record={record} onOpen={onOpenTraceback} />
@@ -303,17 +325,22 @@ export function LogsOverview() {
       return
     }
     const main = list.closest("main")
-    if (main) main.scrollTo({ top: main.scrollTop + list.getBoundingClientRect().top - main.getBoundingClientRect().top })
+    if (main)
+      main.scrollTo({
+        top: main.scrollTop + list.getBoundingClientRect().top - main.getBoundingClientRect().top,
+      })
   }
   // These dialogs have no trigger for Radix to return focus to, so remember
   // what opened them: the row, or its traceback button.
   const returnFocusRef = useRef<HTMLElement | null>(null)
   const openRecord = (record: LogRecord) => {
-    returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    returnFocusRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null
     setSelected(record)
   }
   const openTraceback = (record: LogRecord) => {
-    returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    returnFocusRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null
     setTracebackRecord(record)
   }
   const returnFocus = (event: Event) => {
@@ -387,7 +414,9 @@ export function LogsOverview() {
         if (overflow > 0) setTotalDropped((d) => d + overflow)
         pausedBufferRef.current = combined.slice(-MAX_RECORDS)
         setPendingCount(pausedBufferRef.current.length)
-        setPendingLoginCount(pausedBufferRef.current.filter((r) => r.logger === LOGIN_LOGGER_NAME).length)
+        setPendingLoginCount(
+          pausedBufferRef.current.filter((r) => r.logger === LOGIN_LOGGER_NAME).length,
+        )
         return
       }
 
@@ -505,7 +534,9 @@ export function LogsOverview() {
                 <CardDescription>
                   Streaming from the {activeTab === "login" ? "login" : "application"} log. Newest
                   first; buffer keeps the last 2,000 lines.{" "}
-                  <span className="tabular-nums">{activeEntries.length.toLocaleString()} buffered</span>
+                  <span className="tabular-nums">
+                    {activeEntries.length.toLocaleString()} buffered
+                  </span>
                   {totalDropped > 0 ? (
                     <span className="tabular-nums">, {totalDropped.toLocaleString()} dropped</span>
                   ) : null}
@@ -540,11 +571,7 @@ export function LogsOverview() {
                           </div>
                         </div>
                         {f.available ? (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            asChild
-                          >
+                          <Button variant="outline" size="sm" asChild>
                             <a
                               href={`/api/v1/logs/files/${f.kind}/${encodeURIComponent(f.name)}`}
                               download
@@ -554,11 +581,7 @@ export function LogsOverview() {
                             </a>
                           </Button>
                         ) : (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled
-                          >
+                          <Button variant="outline" size="sm" disabled>
                             <Download className="mr-1.5 h-3.5 w-3.5" />
                             Download
                           </Button>
@@ -571,161 +594,149 @@ export function LogsOverview() {
             )}
           </CardContent>
         ) : (
-        <CardContent className="space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              ref={pauseButtonRef}
-              onClick={togglePause}
-            >
-              {paused ? (
-                <>
-                  <Play className="mr-1.5 h-3.5 w-3.5" />
-                  {activePending > 0 ? `Resume (${activePending} new)` : "Resume"}
-                </>
-              ) : (
-                <>
-                  <Pause className="mr-1.5 h-3.5 w-3.5" />
-                  Pause
-                </>
-              )}
-            </Button>
-
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 w-36 justify-between text-xs"
-                >
-                  <span className="truncate">{multiSelectLabel(levelFilters, "All levels")}</span>
-                  <ChevronsUpDown className="ml-1 h-3.5 w-3.5 shrink-0 opacity-50" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-36">
-                {LEVELS.map((level) => (
-                  <DropdownMenuCheckboxItem
-                    key={level}
-                    checked={levelFilters.includes(level)}
-                    onCheckedChange={() => setLevelFilters((prev) => toggleValue(prev, level))}
-                    onSelect={(e) => e.preventDefault()}
-                  >
-                    {level}
-                  </DropdownMenuCheckboxItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 w-40 justify-between text-xs"
-                >
-                  <span className="truncate">
-                    {multiSelectLabel(componentFilters, "All components")}
-                  </span>
-                  <ChevronsUpDown className="ml-1 h-3.5 w-3.5 shrink-0 opacity-50" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="max-h-80 w-40 overflow-y-auto">
-                {components.length === 0 ? (
-                  <div className="px-2 py-1.5 text-sm text-muted-foreground">No components</div>
+          <CardContent className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="outline" size="sm" ref={pauseButtonRef} onClick={togglePause}>
+                {paused ? (
+                  <>
+                    <Play className="mr-1.5 h-3.5 w-3.5" />
+                    {activePending > 0 ? `Resume (${activePending} new)` : "Resume"}
+                  </>
                 ) : (
-                  components.map((c) => (
+                  <>
+                    <Pause className="mr-1.5 h-3.5 w-3.5" />
+                    Pause
+                  </>
+                )}
+              </Button>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-8 w-36 justify-between text-xs">
+                    <span className="truncate">{multiSelectLabel(levelFilters, "All levels")}</span>
+                    <ChevronsUpDown className="ml-1 h-3.5 w-3.5 shrink-0 opacity-50" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-36">
+                  {LEVELS.map((level) => (
                     <DropdownMenuCheckboxItem
-                      key={c}
-                      checked={componentFilters.includes(c)}
-                      onCheckedChange={() => setComponentFilters((prev) => toggleValue(prev, c))}
+                      key={level}
+                      checked={levelFilters.includes(level)}
+                      onCheckedChange={() => setLevelFilters((prev) => toggleValue(prev, level))}
                       onSelect={(e) => e.preventDefault()}
                     >
-                      {c}
+                      {level}
                     </DropdownMenuCheckboxItem>
-                  ))
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
 
-            <div className="relative min-w-48 flex-1">
-              <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                placeholder="Search message or record..."
-                className="h-8 pl-7 text-xs"
-              />
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-8 w-40 justify-between text-xs">
+                    <span className="truncate">
+                      {multiSelectLabel(componentFilters, "All components")}
+                    </span>
+                    <ChevronsUpDown className="ml-1 h-3.5 w-3.5 shrink-0 opacity-50" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="max-h-80 w-40 overflow-y-auto">
+                  {components.length === 0 ? (
+                    <div className="px-2 py-1.5 text-sm text-muted-foreground">No components</div>
+                  ) : (
+                    components.map((c) => (
+                      <DropdownMenuCheckboxItem
+                        key={c}
+                        checked={componentFilters.includes(c)}
+                        onCheckedChange={() => setComponentFilters((prev) => toggleValue(prev, c))}
+                        onSelect={(e) => e.preventDefault()}
+                      >
+                        {c}
+                      </DropdownMenuCheckboxItem>
+                    ))
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              <div className="relative min-w-48 flex-1">
+                <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  placeholder="Search message or record..."
+                  className="h-8 pl-7 text-xs"
+                />
+              </div>
             </div>
-          </div>
 
-          <div ref={wrapperRef} className="min-w-0">
-            {filtered.length === 0 ? (
-              <p className="flex h-24 items-center justify-center rounded-md border text-center text-sm text-muted-foreground">
-                {activeEntries.length === 0
-                  ? "Waiting for log lines..."
-                  : "No log lines match the current filters."}
-              </p>
-            ) : (
-              <div className="overflow-clip rounded-md border">
-                {/* Zero height, so the pill floats over the list without moving it.
+            <div ref={wrapperRef} className="min-w-0">
+              {filtered.length === 0 ? (
+                <p className="flex h-24 items-center justify-center rounded-md border text-center text-sm text-muted-foreground">
+                  {activeEntries.length === 0
+                    ? "Waiting for log lines..."
+                    : "No log lines match the current filters."}
+                </p>
+              ) : (
+                <div className="overflow-clip rounded-md border">
+                  {/* Zero height, so the pill floats over the list without moving it.
                     The box clips rather than hides its overflow: hidden would make
                     it the pill's sticky container, and the pill would scroll away. */}
-                <div className="sticky top-2 z-20 flex h-0 justify-center">
-                  {!paused && scrolledAway && activePending > 0 && (
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      className="mt-2 rounded-full shadow-md"
-                      onClick={() => {
-                        showNewest()
-                        // The pill goes away once the lines show; keep keyboard focus in the card.
-                        pauseButtonRef.current?.focus({ preventScroll: true })
-                      }}
-                    >
-                      <ArrowUp className="h-3.5 w-3.5" />
-                      {activePending.toLocaleString()} new {activePending === 1 ? "line" : "lines"}
-                    </Button>
-                  )}
-                </div>
-                <VirtualTable
-                  narrow={narrow}
-                  columns={LOG_COLUMNS}
-                  rowCount={filtered.length}
-                  resetKey={JSON.stringify([activeTab, levelFilters, componentFilters, search])}
-                >
-                  {!narrow && (
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-24">Time</TableHead>
-                        <TableHead className="w-24">Level</TableHead>
-                        <TableHead className="w-28">Component</TableHead>
-                        <TableHead>Message</TableHead>
-                        <TableHead className="w-10" />
-                      </TableRow>
-                    </TableHeader>
-                  )}
-                  <VirtualTableBody
-                    key={narrow ? "narrow" : "wide"}
-                    rows={filtered}
-                    columnCount={narrow ? 1 : LOG_COLUMNS.length}
-                    getRowKey={getEntryKey}
-                    onAwayFromTopChange={setScrolledAway}
-                  >
-                    {(entry) => (
-                      <LogRow
-                        entry={entry}
-                        narrow={narrow}
-                        onOpenRecord={openRecord}
-                        onOpenTraceback={openTraceback}
-                      />
+                  <div className="sticky top-2 z-20 flex h-0 justify-center">
+                    {!paused && scrolledAway && activePending > 0 && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="mt-2 rounded-full shadow-md"
+                        onClick={() => {
+                          showNewest()
+                          // The pill goes away once the lines show; keep keyboard focus in the card.
+                          pauseButtonRef.current?.focus({ preventScroll: true })
+                        }}
+                      >
+                        <ArrowUp className="h-3.5 w-3.5" />
+                        {activePending.toLocaleString()} new{" "}
+                        {activePending === 1 ? "line" : "lines"}
+                      </Button>
                     )}
-                  </VirtualTableBody>
-                </VirtualTable>
-              </div>
-            )}
-          </div>
-        </CardContent>
+                  </div>
+                  <VirtualTable
+                    narrow={narrow}
+                    columns={LOG_COLUMNS}
+                    rowCount={filtered.length}
+                    resetKey={JSON.stringify([activeTab, levelFilters, componentFilters, search])}
+                  >
+                    {!narrow && (
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-24">Time</TableHead>
+                          <TableHead className="w-24">Level</TableHead>
+                          <TableHead className="w-28">Component</TableHead>
+                          <TableHead>Message</TableHead>
+                          <TableHead className="w-10" />
+                        </TableRow>
+                      </TableHeader>
+                    )}
+                    <VirtualTableBody
+                      key={narrow ? "narrow" : "wide"}
+                      rows={filtered}
+                      columnCount={narrow ? 1 : LOG_COLUMNS.length}
+                      getRowKey={getEntryKey}
+                      onAwayFromTopChange={setScrolledAway}
+                    >
+                      {(entry) => (
+                        <LogRow
+                          entry={entry}
+                          narrow={narrow}
+                          onOpenRecord={openRecord}
+                          onOpenTraceback={openTraceback}
+                        />
+                      )}
+                    </VirtualTableBody>
+                  </VirtualTable>
+                </div>
+              )}
+            </div>
+          </CardContent>
         )}
       </Card>
 
@@ -754,7 +765,9 @@ export function LogsOverview() {
         description={
           shownRecord && (
             <>
-              {shownRecord.timestamp ? new Date(shownRecord.timestamp).toLocaleString() : "unknown time"}
+              {shownRecord.timestamp
+                ? new Date(shownRecord.timestamp).toLocaleString()
+                : "unknown time"}
               {shownRecord.logger ? ` · ${shownRecord.logger}` : ""}
             </>
           )
@@ -822,7 +835,13 @@ function LogDetail({
 
   if (drawer.phone) {
     return (
-      <Drawer key={drawer.key} direction={drawer.direction} open={drawer.open} onOpenChange={onOpenChange} onClosed={drawer.onClosed}>
+      <Drawer
+        key={drawer.key}
+        direction={drawer.direction}
+        open={drawer.open}
+        onOpenChange={onOpenChange}
+        onClosed={drawer.onClosed}
+      >
         <DrawerContent className={drawer.contentClassName} onCloseAutoFocus={closeAutoFocus}>
           {title && (
             <>

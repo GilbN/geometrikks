@@ -3,18 +3,27 @@ import os
 import socket
 import unicodedata
 from functools import lru_cache
-from importlib.metadata import PackageNotFoundError, version as distribution_version
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as distribution_version
 from ipaddress import ip_network
 from pathlib import Path
 from typing import Annotated, Literal
 from urllib.parse import quote, urlsplit
 
 import msgspec
-from pydantic import Field, PrivateAttr, SecretStr, ValidationInfo, field_validator, model_validator
+from pydantic import (
+    Field,
+    PrivateAttr,
+    SecretStr,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
 from pydantic.json_schema import JsonDict
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
-from geometrikks.lib.urls import validate_https_url
+
 from geometrikks.lib.geoip import ALLOWED_GEOIP_LOCALES
+from geometrikks.lib.urls import validate_https_url
 
 
 def _env_file() -> str | None:
@@ -691,7 +700,7 @@ class LokiSettings(BaseSettings):
         # urlsplit checks the port only when it is read, and httpx2 would then
         # raise InvalidURL at the first request.
         try:
-            parts.port
+            _ = parts.port
         except ValueError as exc:
             raise ValueError("LOKI_URL has an invalid port") from exc
         return value.rstrip("/")
@@ -1066,7 +1075,7 @@ class CrowdSecSettings(BaseSettings):
     stream_poll_interval: float = Field(
         default=15.0,
         gt=0,
-        description="Seconds between decision-stream polls feeding live ban/unban updates",
+        description="Seconds between decision-stream polls, which keep the banned-IP list and the live ban/unban updates current",
         json_schema_extra=ADVANCED_FIELD,
     )
 
@@ -1129,8 +1138,8 @@ class AbuseIpdbSettings(BaseSettings):
         description=(
             "AbuseIPDB API key. Setting it lets GeoMetrikks check IPs against "
             "api.abuseipdb.com. Opening a public IP in the inspector sends it to AbuseIPDB "
-            "and uses one daily check. An IP checked again within 15 minutes usually "
-            "costs nothing, since the last 512 answers are kept for 15 minutes."
+            "and uses one daily check. Opening the same IP again within 15 minutes spends "
+            "none, unless the server restarted or checked 512 other IPs in between."
         ),
     )
     reporting_enabled: bool = Field(

@@ -15,7 +15,10 @@ export function indexBannedFeatures(data: BannedMapCollection | undefined) {
 
 /** Members of the given groups, deduplicated and in the backend's order
  *  (busiest first, then by address); unknown ids are skipped. */
-export function bannedGroupMembers(ids: Iterable<string>, index: Map<string, BannedMapFeature>): BannedMapIp[] {
+export function bannedGroupMembers(
+  ids: Iterable<string>,
+  index: Map<string, BannedMapFeature>,
+): BannedMapIp[] {
   const ips = new Map<string, BannedMapIp>()
   for (const id of ids) {
     for (const member of index.get(id)?.properties.bannedIps ?? []) ips.set(member.ip, member)
@@ -25,7 +28,10 @@ export function bannedGroupMembers(ids: Iterable<string>, index: Map<string, Ban
 
 /** The coordinate group that holds an address. The backend maps each IP to
  *  one location, so at most one group matches. */
-export function bannedGroupOf(ip: string, index: Map<string, BannedMapFeature>): BannedMapFeature | undefined {
+export function bannedGroupOf(
+  ip: string,
+  index: Map<string, BannedMapFeature>,
+): BannedMapFeature | undefined {
   for (const feature of index.values()) {
     if (feature.properties.bannedIps.some((member) => member.ip === ip)) return feature
   }
@@ -42,11 +48,20 @@ export function topBannedIps(data: BannedMapCollection | undefined, limit = 5): 
       rows.push({
         ipAddress: ip.ip,
         eventCount: ip.eventCount,
-        location: { id: ip.locationId, latitude, longitude, city: ip.city, countryCode: ip.countryCode, countryName: null },
+        location: {
+          id: ip.locationId,
+          latitude,
+          longitude,
+          city: ip.city,
+          countryCode: ip.countryCode,
+          countryName: null,
+        },
       })
     }
   }
-  return rows.sort((a, b) => b.eventCount - a.eventCount || a.ipAddress.localeCompare(b.ipAddress)).slice(0, limit)
+  return rows
+    .sort((a, b) => b.eventCount - a.eventCount || a.ipAddress.localeCompare(b.ipAddress))
+    .slice(0, limit)
 }
 
 /** Group ids of every leaf in a cluster. Leaves are coordinate groups, so
@@ -57,5 +72,7 @@ export async function bannedClusterGroupIds(
   leafCount: number,
 ): Promise<string[]> {
   const leaves = await source.getClusterLeaves(clusterId, leafCount, 0)
-  return leaves.flatMap((leaf) => (typeof leaf.properties?.groupId === "string" ? [leaf.properties.groupId] : []))
+  return leaves.flatMap((leaf) =>
+    typeof leaf.properties?.groupId === "string" ? [leaf.properties.groupId] : [],
+  )
 }

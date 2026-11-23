@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import gzip
 import hashlib
-from pathlib import Path
+from datetime import UTC
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -372,7 +372,7 @@ async def test_import_file_detects_the_format_from_a_sample_not_the_first_line(t
 
 async def test_import_file_before_drops_lines_at_or_after_the_cutoff(tmp_path, geoip_reader, monkeypatch):
     """--before keeps an import from overlapping rows a newer log already wrote."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from geometrikks.services import importer
 
@@ -387,7 +387,7 @@ async def test_import_file_before_drops_lines_at_or_after_the_cutoff(tmp_path, g
     result = await importer.import_file(
         log, service=service, parser=parser, reader=geoip_reader,
         session_maker=session_maker,
-        before=datetime(2024, 8, 3, 11, 14, 17, tzinfo=timezone.utc),
+        before=datetime(2024, 8, 3, 11, 14, 17, tzinfo=UTC),
     )
 
     assert result.lines_total == 4
@@ -402,7 +402,7 @@ async def test_import_file_before_drops_lines_at_or_after_the_cutoff(tmp_path, g
 
 async def test_import_file_before_applies_to_lines_without_geo_data(tmp_path, geoip_reader, monkeypatch):
     """A private client IP gets no geo data or access log, but its line is still dated."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from geometrikks.services import importer
 
@@ -416,7 +416,7 @@ async def test_import_file_before_applies_to_lines_without_geo_data(tmp_path, ge
     result = await importer.import_file(
         log, service=service, parser=parser, reader=geoip_reader,
         session_maker=session_maker,
-        before=datetime(2024, 8, 3, tzinfo=timezone.utc),
+        before=datetime(2024, 8, 3, tzinfo=UTC),
     )
 
     assert result.lines_after_cutoff == 1
@@ -426,9 +426,9 @@ async def test_import_file_before_applies_to_lines_without_geo_data(tmp_path, ge
 
 # make_log_line stamps 13:14:17 +0200, which is 11:14:17 UTC on that day.
 def _utc_day(day: int):
-    from datetime import datetime, timezone
+    from datetime import datetime
 
-    return datetime(2024, 8, day, 11, 14, 17, tzinfo=timezone.utc)
+    return datetime(2024, 8, day, 11, 14, 17, tzinfo=UTC)
 
 
 def _deps_with_prior_job(tmp_path, prior_job):

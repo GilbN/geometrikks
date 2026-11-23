@@ -54,9 +54,12 @@ export type AboutLinksView = {
  * Version, runtime and database details for the About page.
  *
  * `geoip` describes the GeoLite2 City database and `geoipAsn` the ASN database. `dropLists` is null
- * with DROP_ENABLED=false, or when the database cannot answer.
+ * with DROP_ENABLED=false, and `abuseipdbBlacklist` with ABUSEIPDB_BLACKLIST_ENABLED=false.
+ * When the database cannot answer, `abuseipdbBlacklist` is null, and so is `dropLists` until this process has
+ * loaded it once.
  */
 export type AboutResponse = {
+  abuseipdbBlacklist?: AbuseIpdbBlacklistAboutView | null;
   app: AboutAppView;
   asnClassification?: AsnClassificationView | null;
   database: DatabaseVersionsView;
@@ -122,6 +125,46 @@ export type AbuseContactResponse = {
    * The first address of the network.
    */
   startAddress: string | null;
+};
+
+/**
+ * AbuseIpdbBlacklistAboutView
+ *
+ * How current the stored AbuseIPDB blacklist is, for Settings > About.
+ */
+export type AbuseIpdbBlacklistAboutView = {
+  /**
+   * True when the list is more than 72 hours old, so GeoMetrikks no longer marks its IPs.
+   */
+  expired: boolean;
+  /**
+   * ABUSEIPDB_BLACKLIST_FILE, or null when downloading.
+   */
+  filePath: string | null;
+  /**
+   * When AbuseIPDB generated the list, as ISO 8601 in UTC. For a plaintext file, when the file was last written. Null before the first list.
+   */
+  generatedAt: string | null;
+  /**
+   * How many IPs the stored list holds, also while `expired` hides them.
+   */
+  ipCount: number;
+  /**
+   * When the last download started, as ISO 8601 in UTC. Always null for a file.
+   */
+  lastAttemptAt: string | null;
+  /**
+   * True when the last download stored no list. False for 2 minutes after it starts, while it may still run. Always false for a file.
+   */
+  lastAttemptFailed: boolean;
+  /**
+   * When GeoMetrikks downloaded the list, or when the file was last written, as ISO 8601 in UTC. Null before the first list.
+   */
+  refreshedAt: string | null;
+  /**
+   * `file` when ABUSEIPDB_BLACKLIST_FILE is set, else `download`. The stored list can still come from an earlier source until this one delivers a list.
+   */
+  source: "download" | "file";
 };
 
 /**
@@ -601,9 +644,11 @@ export type ApiKeyConnection = {
   apiVersion: string;
   appVersion: string;
   /**
-   * Configured server features, independent of key scope and current service availability. crowdsecWrite also requires a read_write key or a browser session when auth is enabled.
+   * Configured server features and API features this server supports, independent of key scope and current service availability. crowdsecWrite also requires a read_write key or a browser session when auth is enabled.
    */
-  capabilities: Array<"crowdsec" | "crowdsecWrite" | "asn" | "drop">;
+  capabilities: Array<
+    "crowdsec" | "crowdsecWrite" | "asn" | "drop" | "analyticsHostFilter"
+  >;
   /**
    * The key's expiry, or null if it never expires.
    */
@@ -1104,6 +1149,22 @@ export type CreateApiKeyPayload = {
 };
 
 /**
+ * CreateMutedIpPayload
+ *
+ * The IP or range to mute and an optional note.
+ */
+export type CreateMutedIpPayload = {
+  /**
+   * An IPv4 or IPv6 address, or a range in CIDR form. IPv4-mapped IPv6 addresses count as their IPv4 form.
+   */
+  network: string;
+  /**
+   * Up to 100 characters once surrounding whitespace is trimmed. Blank means none.
+   */
+  note?: string | null;
+};
+
+/**
  * CreatedApiKey
  *
  * A new API key. This response is the only place the full key ever appears.
@@ -1267,6 +1328,22 @@ export type DatabaseInfoResponse = {
 };
 
 /**
+ * DatabaseLinkReport
+ *
+ * The TLS state of the instance's database connection.
+ */
+export type DatabaseLinkReport = {
+  /**
+   * The session that wrote this heartbeat uses TLS.
+   */
+  encrypted?: boolean;
+  /**
+   * The instance checked the server's certificate chain and its name.
+   */
+  serverVerified?: boolean;
+};
+
+/**
  * DatabaseVersionsView
  *
  * The database server, its extensions and the schema version.
@@ -1415,9 +1492,11 @@ export type DisabledConnection = {
   apiVersion: string;
   appVersion: string;
   /**
-   * Configured server features, independent of key scope and current service availability. crowdsecWrite also requires a read_write key or a browser session when auth is enabled.
+   * Configured server features and API features this server supports, independent of key scope and current service availability. crowdsecWrite also requires a read_write key or a browser session when auth is enabled.
    */
-  capabilities: Array<"crowdsec" | "crowdsecWrite" | "asn" | "drop">;
+  capabilities: Array<
+    "crowdsec" | "crowdsecWrite" | "asn" | "drop" | "analyticsHostFilter"
+  >;
   mode: "disabled";
 };
 
@@ -2107,6 +2186,10 @@ export type HealthResponse = {
  */
 export type HeartbeatPayload = {
   /**
+   * The TLS state of the instance's database connection. Null from an older release or when the state could not be read.
+   */
+  databaseLink?: DatabaseLinkReport | null;
+  /**
    * Records that failed to write in the last 5 minutes.
    */
   failed5M?: number | null;
@@ -2229,9 +2312,9 @@ export type IngestionHealth = {
    */
   running: boolean;
   /**
-   * `disabled` with LOGPARSER_ENABLED=false, `degraded` when ingestion should run but does not, else `running`.
+   * `disabled` with LOGPARSER_ENABLED=false, `starting` while startup has not reached ingestion yet, `degraded` when ingestion should run but does not, else `running`.
    */
-  status?: "running" | "degraded" | "disabled";
+  status?: "running" | "starting" | "degraded" | "disabled";
   unavailableSources?: Array<UnavailableSourceHealth>;
 };
 
@@ -2900,6 +2983,24 @@ export type MapSettingsView = {
    * Where this server sits, in decimal degrees. Null when unknown.
    */
   serverLongitude: number | null;
+};
+
+/**
+ * MutedIpView
+ *
+ * One muted IP or range.
+ */
+export type MutedIpView = {
+  createdAt: string;
+  id: string;
+  /**
+   * The IP or range in CIDR form, with no host bits set. A single IP uses /32 or /128.
+   */
+  network: string;
+  /**
+   * Free text about why it is muted.
+   */
+  note: string | null;
 };
 
 /**
@@ -3621,9 +3722,11 @@ export type SessionConnection = {
   apiVersion: string;
   appVersion: string;
   /**
-   * Configured server features, independent of key scope and current service availability. crowdsecWrite also requires a read_write key or a browser session when auth is enabled.
+   * Configured server features and API features this server supports, independent of key scope and current service availability. crowdsecWrite also requires a read_write key or a browser session when auth is enabled.
    */
-  capabilities: Array<"crowdsec" | "crowdsecWrite" | "asn" | "drop">;
+  capabilities: Array<
+    "crowdsec" | "crowdsecWrite" | "asn" | "drop" | "analyticsHostFilter"
+  >;
   mode: "session";
 };
 
@@ -4094,6 +4197,10 @@ export type TopCountryDto = {
 export type TopCountryStatsDto = {
   countryCode: string;
   countryName: string | null;
+  /**
+   * Hits with a status of 400 or higher.
+   */
+  errorHits: number;
   hits: number;
   /**
    * Distinct client IPs from the country.
@@ -4278,6 +4385,10 @@ export type TopIpDto = {
  */
 export type TopIpsResponse = {
   /**
+   * Distinct client IPs in the range after all filters, counting those beyond `limit`.
+   */
+  distinctIps: number;
+  /**
    * The request's `endDate`, echoed as ISO 8601.
    */
   endDate: string;
@@ -4291,7 +4402,7 @@ export type TopIpsResponse = {
 /**
  * TopUrlDTO
  *
- * One host and path with its hits.
+ * One URL with its hits, for one host or summed across the `hostIn` hosts.
  */
 export type TopUrlDto = {
   /**
@@ -4304,7 +4415,7 @@ export type TopUrlDto = {
   errorHits: number;
   hits: number;
   /**
-   * The Host header of the requests. Null when the log line carries none, as in nginx's combined format.
+   * The Host header of the requests. Null when the log line carries none, as in nginx's combined format. Null for every row when `hostIn` names more than one different host.
    */
   host: string | null;
   /**
@@ -4321,7 +4432,7 @@ export type TopUrlDto = {
 /**
  * TopUrlsResponse
  *
- * Host and path pairs ordered by hits, most first.
+ * URLs ordered by hits, most first, per host and path or summed across two or more `hostIn` hosts.
  */
 export type TopUrlsResponse = {
   /**
@@ -4435,7 +4546,7 @@ export type ApiV1AbuseipdbBlacklistGetBlacklistError =
 
 export type ApiV1AbuseipdbBlacklistGetBlacklistResponses = {
   /**
-   * Request fulfilled, document follows
+   * The list, or an empty one.
    */
   200: AbuseIpdbBlacklistResponse;
 };
@@ -4588,7 +4699,7 @@ export type ApiV1AbuseipdbReportsHistoryListReportHistoryData = {
      */
     pageSize?: number;
     /**
-     * Search, up to 200 characters. Matches the start of the IP, or part of the comment or the sender's name, ignoring case.
+     * Search, up to 200 characters. A whole IP matches only that address, and other text matches the start of the IP. Either also matches part of the comment or the sender's name, ignoring case.
      */
     q?: string | null;
     /**
@@ -4683,7 +4794,7 @@ export type ApiV1AccessLogDebugListAccessLogDebugData = {
      */
     toTimestamp?: string | null;
     /**
-     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400. Lines that did not parse into an access log line have no value and drop out.
+     * Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400. Lines that did not parse into an access log line have no value and drop out.
      */
     ipAddressIn?: Array<string> | null;
     /**
@@ -4851,7 +4962,7 @@ export type ApiV1AccessLogsListAccessLogsData = {
      */
     methodIn?: Array<string> | null;
     /**
-     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressIn?: Array<string> | null;
     /**
@@ -4867,7 +4978,7 @@ export type ApiV1AccessLogsListAccessLogsData = {
      */
     statusIn?: Array<number> | null;
     /**
-     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
@@ -4898,6 +5009,10 @@ export type ApiV1AccessLogsListAccessLogsData = {
      * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
      */
     asnNotIn?: Array<number> | null;
+    /**
+     * Leave out the muted IPs. An IP include filter on the same request wins.
+     */
+    excludeMutedIps?: boolean;
   };
   url: "/api/v1/access-logs";
 };
@@ -5219,6 +5334,10 @@ export type ApiV1AnalyticsTimeSeriesGetTimeSeriesData = {
      */
     window?: string | null;
     /**
+     * Leave out the muted IPs. An IP include filter on the same request wins.
+     */
+    excludeMutedIps?: boolean;
+    /**
      * `hourly` or `daily` buckets. Leave it out to get hourly buckets for ranges up to 30 days and daily buckets for longer ones.
      */
     granularity?: "hourly" | "daily" | null;
@@ -5231,11 +5350,11 @@ export type ApiV1AnalyticsTimeSeriesGetTimeSeriesData = {
      */
     city?: Array<string> | null;
     /**
-     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddress?: Array<string> | null;
     /**
-     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
@@ -5246,6 +5365,14 @@ export type ApiV1AnalyticsTimeSeriesGetTimeSeriesData = {
      * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
      */
     asnNotIn?: Array<number> | null;
+    /**
+     * Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one. Lines without a host are left out.
+     */
+    hostIn?: Array<string> | null;
+    /**
+     * Leave out requests to these hosts, matched exactly against the logged Host value. Repeat the parameter to pass more than one. Lines without a host stay in.
+     */
+    hostNotIn?: Array<string> | null;
     /**
      * An IANA timezone such as `Europe/Oslo`. Daily buckets then start at midnight in that zone for ranges of 30 days or less, and longer ranges keep UTC days unless the endpoint's description says otherwise. Hourly buckets ignore it, so on ranges that get hourly buckets it changes nothing. An unknown zone gets a 400. Defaults to UTC.
      */
@@ -5358,6 +5485,10 @@ export type ApiV1AnalyticsTopAsnsGetTopAsnsData = {
      */
     window?: string | null;
     /**
+     * Leave out the muted IPs. An IP include filter on the same request wins.
+     */
+    excludeMutedIps?: boolean;
+    /**
      * How many ASNs to return, from 1 to 100. Defaults to 25.
      */
     limit?: number;
@@ -5370,11 +5501,11 @@ export type ApiV1AnalyticsTopAsnsGetTopAsnsData = {
      */
     city?: Array<string> | null;
     /**
-     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddress?: Array<string> | null;
     /**
-     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
@@ -5385,6 +5516,14 @@ export type ApiV1AnalyticsTopAsnsGetTopAsnsData = {
      * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
      */
     asnNotIn?: Array<number> | null;
+    /**
+     * Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one. Lines without a host are left out.
+     */
+    hostIn?: Array<string> | null;
+    /**
+     * Leave out requests to these hosts, matched exactly against the logged Host value. Repeat the parameter to pass more than one. Lines without a host stay in.
+     */
+    hostNotIn?: Array<string> | null;
   };
   url: "/api/v1/analytics/top-asns";
 };
@@ -5439,6 +5578,10 @@ export type ApiV1AnalyticsTopCitiesGetTopCitiesData = {
      */
     window?: string | null;
     /**
+     * Leave out the muted IPs. An IP include filter on the same request wins.
+     */
+    excludeMutedIps?: boolean;
+    /**
      * How many cities to return, from 1 to 100. Defaults to 25.
      */
     limit?: number;
@@ -5451,11 +5594,11 @@ export type ApiV1AnalyticsTopCitiesGetTopCitiesData = {
      */
     city?: Array<string> | null;
     /**
-     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddress?: Array<string> | null;
     /**
-     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
@@ -5466,6 +5609,14 @@ export type ApiV1AnalyticsTopCitiesGetTopCitiesData = {
      * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
      */
     asnNotIn?: Array<number> | null;
+    /**
+     * Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one. Lines without a host are left out.
+     */
+    hostIn?: Array<string> | null;
+    /**
+     * Leave out requests to these hosts, matched exactly against the logged Host value. Repeat the parameter to pass more than one. Lines without a host stay in.
+     */
+    hostNotIn?: Array<string> | null;
   };
   url: "/api/v1/analytics/top-cities";
 };
@@ -5520,6 +5671,10 @@ export type ApiV1AnalyticsTopCountriesGetTopCountriesData = {
      */
     window?: string | null;
     /**
+     * Leave out the muted IPs. An IP include filter on the same request wins.
+     */
+    excludeMutedIps?: boolean;
+    /**
      * How many countries to return, from 1 to 100. Defaults to 25.
      */
     limit?: number;
@@ -5532,11 +5687,11 @@ export type ApiV1AnalyticsTopCountriesGetTopCountriesData = {
      */
     city?: Array<string> | null;
     /**
-     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddress?: Array<string> | null;
     /**
-     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
@@ -5547,6 +5702,14 @@ export type ApiV1AnalyticsTopCountriesGetTopCountriesData = {
      * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
      */
     asnNotIn?: Array<number> | null;
+    /**
+     * Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one. Lines without a host are left out.
+     */
+    hostIn?: Array<string> | null;
+    /**
+     * Leave out requests to these hosts, matched exactly against the logged Host value. Repeat the parameter to pass more than one. Lines without a host stay in.
+     */
+    hostNotIn?: Array<string> | null;
   };
   url: "/api/v1/analytics/top-countries";
 };
@@ -5601,6 +5764,10 @@ export type ApiV1AnalyticsTopIpsGetTopIpsData = {
      */
     window?: string | null;
     /**
+     * Leave out the muted IPs. An IP include filter on the same request wins.
+     */
+    excludeMutedIps?: boolean;
+    /**
      * How many IPs to return, from 1 to 100. Defaults to 25.
      */
     limit?: number;
@@ -5613,11 +5780,11 @@ export type ApiV1AnalyticsTopIpsGetTopIpsData = {
      */
     city?: Array<string> | null;
     /**
-     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddress?: Array<string> | null;
     /**
-     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
@@ -5628,6 +5795,14 @@ export type ApiV1AnalyticsTopIpsGetTopIpsData = {
      * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
      */
     asnNotIn?: Array<number> | null;
+    /**
+     * Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one. Lines without a host are left out.
+     */
+    hostIn?: Array<string> | null;
+    /**
+     * Leave out requests to these hosts, matched exactly against the logged Host value. Repeat the parameter to pass more than one. Lines without a host stay in.
+     */
+    hostNotIn?: Array<string> | null;
   };
   url: "/api/v1/analytics/top-ips";
 };
@@ -5682,6 +5857,10 @@ export type ApiV1AnalyticsTopUrlsGetTopUrlsData = {
      */
     window?: string | null;
     /**
+     * Leave out the muted IPs. An IP include filter on the same request wins.
+     */
+    excludeMutedIps?: boolean;
+    /**
      * How many URLs to return, from 1 to 100. Defaults to 25.
      */
     limit?: number;
@@ -5694,11 +5873,11 @@ export type ApiV1AnalyticsTopUrlsGetTopUrlsData = {
      */
     city?: Array<string> | null;
     /**
-     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddress?: Array<string> | null;
     /**
-     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
@@ -5709,6 +5888,14 @@ export type ApiV1AnalyticsTopUrlsGetTopUrlsData = {
      * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
      */
     asnNotIn?: Array<number> | null;
+    /**
+     * Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one. Lines without a host are left out.
+     */
+    hostIn?: Array<string> | null;
+    /**
+     * Leave out requests to these hosts, matched exactly against the logged Host value. Repeat the parameter to pass more than one. Lines without a host stay in.
+     */
+    hostNotIn?: Array<string> | null;
   };
   url: "/api/v1/analytics/top-urls";
 };
@@ -5763,6 +5950,10 @@ export type ApiV1AnalyticsTopUserAgentsGetTopUserAgentsData = {
      */
     window?: string | null;
     /**
+     * Leave out the muted IPs. An IP include filter on the same request wins.
+     */
+    excludeMutedIps?: boolean;
+    /**
      * How many user agents to return, from 1 to 100. Defaults to 25.
      */
     limit?: number;
@@ -5775,11 +5966,11 @@ export type ApiV1AnalyticsTopUserAgentsGetTopUserAgentsData = {
      */
     city?: Array<string> | null;
     /**
-     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddress?: Array<string> | null;
     /**
-     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
@@ -5790,6 +5981,14 @@ export type ApiV1AnalyticsTopUserAgentsGetTopUserAgentsData = {
      * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
      */
     asnNotIn?: Array<number> | null;
+    /**
+     * Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one. Lines without a host are left out.
+     */
+    hostIn?: Array<string> | null;
+    /**
+     * Leave out requests to these hosts, matched exactly against the logged Host value. Repeat the parameter to pass more than one. Lines without a host stay in.
+     */
+    hostNotIn?: Array<string> | null;
   };
   url: "/api/v1/analytics/top-user-agents";
 };
@@ -6844,11 +7043,11 @@ export type ApiV1GeoEventsListGeoEventsData = {
      */
     toTimestamp?: string | null;
     /**
-     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressIn?: Array<string> | null;
     /**
-     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
@@ -6936,11 +7135,11 @@ export type ApiV1GeoEventsLogsGetGeoLogsData = {
      */
     cityIn?: Array<string> | null;
     /**
-     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressIn?: Array<string> | null;
     /**
-     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
@@ -6955,6 +7154,10 @@ export type ApiV1GeoEventsLogsGetGeoLogsData = {
      * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
      */
     asnNotIn?: Array<number> | null;
+    /**
+     * Leave out the muted IPs. An IP include filter on the same request wins.
+     */
+    excludeMutedIps?: boolean;
     /**
      * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
@@ -7043,11 +7246,11 @@ export type ApiV1GeoEventsSummaryGetGeoLogSummaryData = {
      */
     cityIn?: Array<string> | null;
     /**
-     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressIn?: Array<string> | null;
     /**
-     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
@@ -7062,6 +7265,10 @@ export type ApiV1GeoEventsSummaryGetGeoLogSummaryData = {
      * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
      */
     asnNotIn?: Array<number> | null;
+    /**
+     * Leave out the muted IPs. An IP include filter on the same request wins.
+     */
+    excludeMutedIps?: boolean;
     /**
      * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
@@ -7124,11 +7331,11 @@ export type ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesData = {
      */
     cityIn?: Array<string> | null;
     /**
-     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressIn?: Array<string> | null;
     /**
-     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
@@ -7143,6 +7350,10 @@ export type ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesData = {
      * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
      */
     asnNotIn?: Array<number> | null;
+    /**
+     * Leave out the muted IPs. An IP include filter on the same request wins.
+     */
+    excludeMutedIps?: boolean;
     /**
      * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
@@ -7209,11 +7420,11 @@ export type ApiV1GeoEventsTopAsnsGetGeoLogTopAsnsData = {
      */
     cityIn?: Array<string> | null;
     /**
-     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressIn?: Array<string> | null;
     /**
-     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
@@ -7228,6 +7439,10 @@ export type ApiV1GeoEventsTopAsnsGetGeoLogTopAsnsData = {
      * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
      */
     asnNotIn?: Array<number> | null;
+    /**
+     * Leave out the muted IPs. An IP include filter on the same request wins.
+     */
+    excludeMutedIps?: boolean;
     /**
      * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
@@ -7290,11 +7505,11 @@ export type ApiV1GeoEventsTopCitiesGetGeoLogTopCitiesData = {
      */
     cityIn?: Array<string> | null;
     /**
-     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressIn?: Array<string> | null;
     /**
-     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
@@ -7309,6 +7524,10 @@ export type ApiV1GeoEventsTopCitiesGetGeoLogTopCitiesData = {
      * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
      */
     asnNotIn?: Array<number> | null;
+    /**
+     * Leave out the muted IPs. An IP include filter on the same request wins.
+     */
+    excludeMutedIps?: boolean;
     /**
      * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
@@ -7371,11 +7590,11 @@ export type ApiV1GeoEventsTopCountriesGetGeoLogTopCountriesData = {
      */
     cityIn?: Array<string> | null;
     /**
-     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressIn?: Array<string> | null;
     /**
-     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
@@ -7390,6 +7609,10 @@ export type ApiV1GeoEventsTopCountriesGetGeoLogTopCountriesData = {
      * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
      */
     asnNotIn?: Array<number> | null;
+    /**
+     * Leave out the muted IPs. An IP include filter on the same request wins.
+     */
+    excludeMutedIps?: boolean;
     /**
      * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
@@ -7452,11 +7675,11 @@ export type ApiV1GeoEventsTopIpsGetGeoLogTopIpsData = {
      */
     cityIn?: Array<string> | null;
     /**
-     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressIn?: Array<string> | null;
     /**
-     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
@@ -7471,6 +7694,10 @@ export type ApiV1GeoEventsTopIpsGetGeoLogTopIpsData = {
      * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
      */
     asnNotIn?: Array<number> | null;
+    /**
+     * Leave out the muted IPs. An IP include filter on the same request wins.
+     */
+    excludeMutedIps?: boolean;
     /**
      * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
@@ -7588,6 +7815,10 @@ export type ApiV1GeoLocationsGeojsonGetGeojsonData = {
   path?: never;
   query: {
     /**
+     * Leave out the muted IPs. An IP include filter on the same request wins.
+     */
+    excludeMutedIps?: boolean;
+    /**
      * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     fromTimestamp: string;
@@ -7604,11 +7835,11 @@ export type ApiV1GeoLocationsGeojsonGetGeojsonData = {
      */
     city?: Array<string> | null;
     /**
-     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Keep only these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressIn?: Array<string> | null;
     /**
-     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     * Leave out these client IPs or ranges. Repeat the parameter to pass more than one. Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, or a value that is neither, gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
@@ -8154,6 +8385,120 @@ export type ApiV1LogsTailTailResponses = {
 
 export type ApiV1LogsTailTailResponse =
   ApiV1LogsTailTailResponses[keyof ApiV1LogsTailTailResponses];
+
+export type ApiV1MutedIpsListMutedIpsData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/muted-ips";
+};
+
+export type ApiV1MutedIpsListMutedIpsResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: Array<MutedIpView>;
+};
+
+export type ApiV1MutedIpsListMutedIpsResponse =
+  ApiV1MutedIpsListMutedIpsResponses[keyof ApiV1MutedIpsListMutedIpsResponses];
+
+export type ApiV1MutedIpsCreateMutedIpData = {
+  body: CreateMutedIpPayload;
+  path?: never;
+  query?: never;
+  url: "/api/v1/muted-ips";
+};
+
+export type ApiV1MutedIpsCreateMutedIpErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+  /**
+   * The network is already muted (`muted_ip_exists`) or the list is full (`muted_ip_list_full`).
+   */
+  409: ErrorEnvelope;
+  /**
+   * The body is not sent as application/json.
+   */
+  415: ErrorEnvelope;
+};
+
+export type ApiV1MutedIpsCreateMutedIpError =
+  ApiV1MutedIpsCreateMutedIpErrors[keyof ApiV1MutedIpsCreateMutedIpErrors];
+
+export type ApiV1MutedIpsCreateMutedIpResponses = {
+  /**
+   * Document created, URL follows
+   */
+  201: MutedIpView;
+};
+
+export type ApiV1MutedIpsCreateMutedIpResponse =
+  ApiV1MutedIpsCreateMutedIpResponses[keyof ApiV1MutedIpsCreateMutedIpResponses];
+
+export type ApiV1MutedIpsEntryIdDeleteMutedIpData = {
+  body?: never;
+  path: {
+    /**
+     * The `id` of the entry, from the list.
+     */
+    entry_id: string;
+  };
+  query?: never;
+  url: "/api/v1/muted-ips/{entry_id}";
+};
+
+export type ApiV1MutedIpsEntryIdDeleteMutedIpErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+  /**
+   * No entry has this id.
+   */
+  404: ErrorEnvelope;
+};
+
+export type ApiV1MutedIpsEntryIdDeleteMutedIpError =
+  ApiV1MutedIpsEntryIdDeleteMutedIpErrors[keyof ApiV1MutedIpsEntryIdDeleteMutedIpErrors];
+
+export type ApiV1MutedIpsEntryIdDeleteMutedIpResponses = {
+  /**
+   * Request fulfilled, nothing follows
+   */
+  204: void;
+};
+
+export type ApiV1MutedIpsEntryIdDeleteMutedIpResponse =
+  ApiV1MutedIpsEntryIdDeleteMutedIpResponses[keyof ApiV1MutedIpsEntryIdDeleteMutedIpResponses];
 
 export type ApiV1ReportsAbuseGetAbuseReportData = {
   body?: never;

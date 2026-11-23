@@ -7,10 +7,10 @@ access_logs, so their is_active() gate is load-bearing.
 from __future__ import annotations
 
 import pytest
-from geometrikks.domain.exceptions import DomainValidationError
 
 from geometrikks.domain.analytics.controllers import _build_filters
 from geometrikks.domain.analytics.repositories import AnalyticsFilters
+from geometrikks.domain.exceptions import DomainValidationError
 
 
 class TestIsActive:
@@ -31,7 +31,7 @@ class TestSqlConditions:
     def test_exclude_only_emits_negated_any(self) -> None:
         clause, params = AnalyticsFilters(ip_exclude=["10.0.0.1"]).sql_conditions()
         assert "NOT (ip_address = ANY(CAST(:filter_ips_exclude AS inet[])))" in clause
-        assert params == {"filter_ips_exclude": ["10.0.0.1"]}
+        assert params == {"filter_ips_exclude": ["10.0.0.1", "::ffff:10.0.0.1"]}
 
     def test_all_dimensions_emit_all_clauses(self) -> None:
         clause, params = AnalyticsFilters(
@@ -58,7 +58,7 @@ class TestBuildFilters:
         assert _build_filters(None, None, None, []).ip_exclude is None
 
     def test_invalid_excluded_ip_raises(self) -> None:
-        with pytest.raises(DomainValidationError, match="Invalid IP address"):
+        with pytest.raises(DomainValidationError, match="Enter an IP address or CIDR network"):
             _build_filters(None, None, None, ["not-an-ip"])
 
 
@@ -70,8 +70,8 @@ class TestAsnFilters:
         assert AnalyticsFilters(asns_exclude=[13335]).is_active() is True
 
     def test_only_asn_filters_need_raw_rows(self) -> None:
-        # log_ip_*_stats carries IP, country and city but no ASN, so only an
-        # ASN filter forces the per-IP lists off the aggregates.
+        # log_ip_*_stats carries IP, country and city but no ASN or host, so
+        # only an ASN or host filter forces the per-IP lists off the aggregates.
         assert AnalyticsFilters(country_codes=["NO"], ip_exclude=["10.0.0.1"]).needs_raw_rows() is False
         assert AnalyticsFilters(asns=[13335]).needs_raw_rows() is True
         assert AnalyticsFilters(asns_exclude=[13335]).needs_raw_rows() is True
@@ -98,3 +98,84 @@ class TestAsnFilters:
         filters = _build_filters(None, None, None, None, asn_in=[], asn_not_in=[])
         assert filters.asns is None
         assert filters.asns_exclude is None
+
+
+class TestHostFilters:
+    def test_host_filter_is_active_and_needs_raw_rows(self) -> None:
+        filters = AnalyticsFilters(hosts=["a.example"])
+        assert filters.is_active() is True
+        assert filters.needs_raw_rows() is True
+
+    def test_host_filter_emits_any_clause(self) -> None:
+        clause, params = AnalyticsFilters(hosts=["a.example"]).sql_conditions()
+        assert clause == "AND host = ANY(:filter_hosts)"
+        assert params == {"filter_hosts": ["a.example"]}
+
+    def test_build_filters_passes_hosts(self) -> None:
+        assert _build_filters(None, None, None, host_in=["a.example"]).hosts == ["a.example"]
+        assert _build_filters(None, None, None, host_in=[]).hosts is None
+
+    def test_build_filters_dedupes_hosts_in_order(self) -> None:
+        filters = _build_filters(None, None, None, host_in=["b.example", "a.example", "b.example"])
+        assert filters.hosts == ["b.example", "a.example"]
+
+    def test_host_exclude_is_active_and_needs_raw_rows(self) -> None:
+        filters = AnalyticsFilters(hosts_exclude=["a.example"])
+        assert filters.is_active() is True
+        assert filters.needs_raw_rows() is True
+
+    def test_host_exclude_keeps_rows_without_host(self) -> None:
+        clause, params = AnalyticsFilters(hosts_exclude=["a.example"]).sql_conditions()
+        assert clause == "AND (host IS NULL OR NOT (host = ANY(:filter_hosts_exclude)))"
+        assert params == {"filter_hosts_exclude": ["a.example"]}
+
+    def test_build_filters_passes_and_dedupes_host_exclude(self) -> None:
+        filters = _build_filters(None, None, None, host_not_in=["b.example", "a.example", "b.example"])
+        assert filters.hosts_exclude == ["b.example", "a.example"]
+        assert _build_filters(None, None, None, host_not_in=[]).hosts_exclude is None
+
+    @pytest.mark.parametrize(
+        "filters",
+        [
+            AnalyticsFilters(hosts=["a.example"]),
+            AnalyticsFilters(hosts_exclude=["a.example"]),
+            AnalyticsFilters(hosts=["a.example"], hosts_exclude=["b.example"]),
+        ],
+        ids=["include", "exclude", "both"],
+    )
+    def test_only_hosts_is_true_for_host_filters_alone(self, filters: AnalyticsFilters) -> None:
+        assert filters.only_hosts() is True
+
+    def test_only_hosts_is_false_without_filters(self) -> None:
+        assert AnalyticsFilters().only_hosts() is False
+
+    @pytest.mark.parametrize(
+        "other_filter",
+        [
+            {"country_codes": ["NO"]},
+            {"cities": ["Oslo"]},
+            {"ip_addresses": ["10.0.0.1"]},
+            {"ip_exclude": ["10.0.0.1"]},
+            {"asns": [1]},
+            {"asns_exclude": [1]},
+        ],
+        ids=["country", "city", "ip", "ip-exclude", "asn", "asn-exclude"],
+    )
+    def test_only_hosts_is_false_with_another_filter(self, other_filter: dict) -> None:
+        assert AnalyticsFilters(hosts=["a.example"], **other_filter).only_hosts() is False
+
+    def test_merges_hosts_for_two_different_hosts(self) -> None:
+        assert AnalyticsFilters(hosts=["a", "b"]).merges_hosts() is True
+
+    @pytest.mark.parametrize(
+        "filters",
+        [
+            AnalyticsFilters(hosts=["a"]),
+            AnalyticsFilters(hosts=["a", "a"]),
+            AnalyticsFilters(),
+            AnalyticsFilters(hosts_exclude=["a", "b"]),
+        ],
+        ids=["one", "repeated", "none", "exclude"],
+    )
+    def test_merges_hosts_is_false_otherwise(self, filters: AnalyticsFilters) -> None:
+        assert filters.merges_hosts() is False

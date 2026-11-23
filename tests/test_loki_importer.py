@@ -1,7 +1,7 @@
 """import_loki_range: windows, dedup, bookkeeping, format lock."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -18,7 +18,7 @@ pytestmark = pytest.mark.anyio
 GEOIP_DB_PATH = "tests/GeoLite2-City-Test.mmdb"
 TEST_IP = "2.125.160.216"
 QUERY = '{job="nginx"}'
-SINCE = datetime(2026, 9, 1, tzinfo=timezone.utc)
+SINCE = datetime(2026, 9, 1, tzinfo=UTC)
 
 
 def make_log_line(ip: str, moment: datetime) -> str:
@@ -130,7 +130,7 @@ def flushed_records(service) -> list:
 def test_to_ns_keeps_microseconds() -> None:
     from geometrikks.services.loki_importer import to_ns
 
-    moment = datetime(2026, 9, 1, 12, 0, 0, 123456, tzinfo=timezone.utc)
+    moment = datetime(2026, 9, 1, 12, 0, 0, 123456, tzinfo=UTC)
     assert to_ns(moment) == int(moment.timestamp()) * NS + 123_456_000
 
 
@@ -326,7 +326,10 @@ async def test_transport_error_leaves_cursor_at_last_window_and_resume_continues
 
 
 async def test_completed_range_is_refused(fake, geoip_reader, deps) -> None:
-    from geometrikks.services.loki_importer import LokiImportOverlapError, import_loki_range
+    from geometrikks.services.loki_importer import (
+        LokiImportOverlapError,
+        import_loki_range,
+    )
 
     service, session_maker = deps
     source = make_source(fake)
@@ -345,7 +348,10 @@ async def test_completed_range_is_refused(fake, geoip_reader, deps) -> None:
 
 
 async def test_partial_overlap_is_refused_and_force_writes_a_new_row(fake, geoip_reader, deps) -> None:
-    from geometrikks.services.loki_importer import LokiImportOverlapError, import_loki_range
+    from geometrikks.services.loki_importer import (
+        LokiImportOverlapError,
+        import_loki_range,
+    )
 
     service, session_maker = deps
     source = make_source(fake)
@@ -463,7 +469,10 @@ async def test_progress_reports_once_per_day(fake, geoip_reader, deps) -> None:
 
 
 async def test_failed_batch_raises_and_leaves_cursor(fake, geoip_reader, deps) -> None:
-    from geometrikks.services.loki_importer import LokiImportWriteError, import_loki_range
+    from geometrikks.services.loki_importer import (
+        LokiImportWriteError,
+        import_loki_range,
+    )
 
     service, session_maker = deps
 
@@ -487,7 +496,10 @@ async def test_failed_batch_raises_and_leaves_cursor(fake, geoip_reader, deps) -
 
 
 async def test_resume_refuses_a_range_another_run_filled_in(fake, geoip_reader, deps) -> None:
-    from geometrikks.services.loki_importer import LokiImportOverlapError, import_loki_range
+    from geometrikks.services.loki_importer import (
+        LokiImportOverlapError,
+        import_loki_range,
+    )
 
     service, session_maker = deps
     source = make_source(fake)

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 import { myIpExclusion, toggleWithFreshIp } from "./my-ip-exclusion"
 
 const MY_IP = "2001:db8:4f1::1a"
@@ -9,8 +9,12 @@ function harness(clientIp: Parameters<typeof myIpExclusion>[0], initial: string[
     myIpExclusion(
       clientIp,
       excludedIps,
-      (ip) => { excludedIps = [...excludedIps, ip] },
-      (ip) => { excludedIps = excludedIps.filter((value) => value !== ip) },
+      (ip) => {
+        excludedIps = [...excludedIps, ip]
+      },
+      (ip) => {
+        excludedIps = excludedIps.filter((value) => value !== ip)
+      },
     )
   return { current, excludedIps: () => excludedIps }
 }
@@ -37,14 +41,19 @@ describe("myIpExclusion", () => {
   })
 
   it("removes the address as it was typed, whatever its case", () => {
-    const h = harness({ ip: MY_IP, behindUntrustedProxy: false }, ["2001:DB8:4F1::1A", "198.51.100.23"])
+    const h = harness({ ip: MY_IP, behindUntrustedProxy: false }, [
+      "2001:DB8:4F1::1A",
+      "198.51.100.23",
+    ])
     expect(h.current().excluded).toBe(true)
     h.current().toggle()
     expect(h.excludedIps()).toEqual(["198.51.100.23"])
   })
 
   it("matches the same address written out in full", () => {
-    const h = harness({ ip: MY_IP, behindUntrustedProxy: false }, ["2001:0db8:04f1:0000:0000:0000:0000:001a"])
+    const h = harness({ ip: MY_IP, behindUntrustedProxy: false }, [
+      "2001:0db8:04f1:0000:0000:0000:0000:001a",
+    ])
     expect(h.current().excluded).toBe(true)
     h.current().toggle()
     expect(h.excludedIps()).toEqual([])
@@ -54,14 +63,22 @@ describe("myIpExclusion", () => {
 describe("toggleWithFreshIp", () => {
   const OLD_IP = "198.51.100.23"
 
-  function tap(lookup: () => Promise<{ ip: string | null; behindUntrustedProxy: boolean }>, initial: string[], mounted = true) {
+  function tap(
+    lookup: () => Promise<{ ip: string | null; behindUntrustedProxy: boolean }>,
+    initial: string[],
+    mounted = true,
+  ) {
     let excludedIps = [...initial]
     const done = toggleWithFreshIp(
       lookup,
       () => mounted,
       () => excludedIps,
-      (ip) => { excludedIps = [...excludedIps, ip] },
-      (ip) => { excludedIps = excludedIps.filter((value) => value !== ip) },
+      (ip) => {
+        excludedIps = [...excludedIps, ip]
+      },
+      (ip) => {
+        excludedIps = excludedIps.filter((value) => value !== ip)
+      },
     )
     return done.then(() => excludedIps)
   }
@@ -80,11 +97,18 @@ describe("toggleWithFreshIp", () => {
     let excludedIps: string[] = []
     let answer: (value: { ip: string; behindUntrustedProxy: boolean }) => void = () => {}
     const done = toggleWithFreshIp(
-      () => new Promise((resolve) => { answer = resolve }),
+      () =>
+        new Promise((resolve) => {
+          answer = resolve
+        }),
       () => true,
       () => excludedIps,
-      (ip) => { excludedIps = [...excludedIps, ip] },
-      (ip) => { excludedIps = excludedIps.filter((value) => value !== ip) },
+      (ip) => {
+        excludedIps = [...excludedIps, ip]
+      },
+      (ip) => {
+        excludedIps = excludedIps.filter((value) => value !== ip)
+      },
     )
     excludedIps = [MY_IP]
     answer({ ip: MY_IP, behindUntrustedProxy: false })

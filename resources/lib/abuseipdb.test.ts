@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest"
+import { describe, expect, test } from "vite-plus/test"
 import type { ReportIpDto, ReportedIpDto } from "@/generated/api/types.gen"
 import {
   abuseipdbCheckUrl,
@@ -90,12 +90,17 @@ const trafficEvidence = (overrides: Partial<ReportIpDto> = {}) =>
 describe("categories", () => {
   test("lists the 23 categories in id order", () => {
     expect(ABUSEIPDB_CATEGORIES).toHaveLength(23)
-    expect(ABUSEIPDB_CATEGORIES.map((category) => category.id)).toEqual(Array.from({ length: 23 }, (_, index) => index + 1))
+    expect(ABUSEIPDB_CATEGORIES.map((category) => category.id)).toEqual(
+      Array.from({ length: 23 }, (_, index) => index + 1),
+    )
     expect(ABUSEIPDB_CATEGORIES[20]).toEqual({ id: 21, name: "Web App Attack" })
   })
 
   test("ssh brute force maps to 18 and 22", () => {
-    expect(categoriesForScenarios(["crowdsecurity/ssh-bf"])).toEqual({ ids: [18, 22], fromCrowdsec: true })
+    expect(categoriesForScenarios(["crowdsecurity/ssh-bf"])).toEqual({
+      ids: [18, 22],
+      fromCrowdsec: true,
+    })
   })
 
   test("sqli maps to 16 and 21", () => {
@@ -106,11 +111,17 @@ describe("categories", () => {
   })
 
   test("http probing maps to 21 only", () => {
-    expect(categoriesForScenarios(["crowdsecurity/http-probing"])).toEqual({ ids: [21], fromCrowdsec: true })
+    expect(categoriesForScenarios(["crowdsecurity/http-probing"])).toEqual({
+      ids: [21],
+      fromCrowdsec: true,
+    })
   })
 
   test("bad user agent maps to 19", () => {
-    expect(categoriesForScenarios(["crowdsecurity/http-bad-user-agent"])).toEqual({ ids: [19], fromCrowdsec: true })
+    expect(categoriesForScenarios(["crowdsecurity/http-bad-user-agent"])).toEqual({
+      ids: [19],
+      fromCrowdsec: true,
+    })
   })
 
   test("port scan and open proxy", () => {
@@ -119,12 +130,18 @@ describe("categories", () => {
   })
 
   test("several scenarios merge without duplicates", () => {
-    expect(categoriesForScenarios(["crowdsecurity/http-probing", "crowdsecurity/http-sensitive-files"]).ids).toEqual([21])
+    expect(
+      categoriesForScenarios(["crowdsecurity/http-probing", "crowdsecurity/http-sensitive-files"])
+        .ids,
+    ).toEqual([21])
   })
 
   test("manual and unknown fall back to 21 and 19", () => {
     expect(categoriesForScenarios(["manual"])).toEqual({ ids: [19, 21], fromCrowdsec: false })
-    expect(categoriesForScenarios(["manual 'ban' from 'cli'"])).toEqual({ ids: [19, 21], fromCrowdsec: false })
+    expect(categoriesForScenarios(["manual 'ban' from 'cli'"])).toEqual({
+      ids: [19, 21],
+      fromCrowdsec: false,
+    })
     expect(categoriesForScenarios([])).toEqual({ ids: [19, 21], fromCrowdsec: false })
   })
 })
@@ -157,7 +174,10 @@ describe("localScenarios", () => {
 
   test("CAPI and lists decisions never count", () => {
     const evidence = ipEvidence({
-      decisions: [decision("CAPI", "crowdsecurity/http-probing"), decision("lists", "crowdsecurity/http-probing")],
+      decisions: [
+        decision("CAPI", "crowdsecurity/http-probing"),
+        decision("lists", "crowdsecurity/http-probing"),
+      ],
     })
     expect(localScenarios(evidence)).toEqual([])
     expect(categoriesForScenarios(localScenarios(evidence)).fromCrowdsec).toBe(false)
@@ -181,9 +201,12 @@ describe("buildReportComment", () => {
   })
 
   test("strips any author prefix from scenarios", () => {
-    expect(buildReportComment(ipEvidence(), ["LePresidente/http-generic-403-bf", "crowdsecurity/ssh-bf"])).toBe(
-      "CrowdSec: http-generic-403-bf, ssh-bf.",
-    )
+    expect(
+      buildReportComment(ipEvidence(), [
+        "LePresidente/http-generic-403-bf",
+        "crowdsecurity/ssh-bf",
+      ]),
+    ).toBe("CrowdSec: http-generic-403-bf, ssh-bf.")
   })
 
   test("stays within 1024 code points and keeps the CrowdSec part", () => {
@@ -192,7 +215,9 @@ describe("buildReportComment", () => {
       hits: 10,
       errorHits: 10,
     }))
-    const comment = buildReportComment(trafficEvidence({ paths: longPaths }), ["crowdsecurity/http-probing"])
+    const comment = buildReportComment(trafficEvidence({ paths: longPaths }), [
+      "crowdsecurity/http-probing",
+    ])
     expect(commentLength(comment)).toBeLessThanOrEqual(MAX_COMMENT_LENGTH)
     expect(comment.endsWith("CrowdSec: http-probing.")).toBe(true)
     expect(comment).toContain("/0aaa")
@@ -200,11 +225,15 @@ describe("buildReportComment", () => {
   })
 
   test("names a scenario once when two authors share it", () => {
-    expect(buildReportComment(ipEvidence(), ["crowdsecurity/ssh-bf", "custom/ssh-bf"])).toBe("CrowdSec: ssh-bf.")
+    expect(buildReportComment(ipEvidence(), ["crowdsecurity/ssh-bf", "custom/ssh-bf"])).toBe(
+      "CrowdSec: ssh-bf.",
+    )
   })
 
   test("a scenario's reason stays out of the comment", () => {
-    expect(buildReportComment(ipEvidence(), ["geometrikks/manual-ban: spam"])).toBe("CrowdSec: manual-ban.")
+    expect(buildReportComment(ipEvidence(), ["geometrikks/manual-ban: spam"])).toBe(
+      "CrowdSec: manual-ban.",
+    )
   })
 
   test("a user agent that does not fit is dropped", () => {
@@ -219,14 +248,23 @@ describe("buildReportComment", () => {
   })
 
   test("the user agent stays between the paths and CrowdSec after paths were cut", () => {
-    const longPaths = Array.from({ length: 10 }, (_, index) => ({ url: `/${index}${"a".repeat(199)}`, hits: 1, errorHits: 1 }))
-    const comment = buildReportComment(trafficEvidence({ paths: longPaths }), ["crowdsecurity/http-probing"])
+    const longPaths = Array.from({ length: 10 }, (_, index) => ({
+      url: `/${index}${"a".repeat(199)}`,
+      hits: 1,
+      errorHits: 1,
+    }))
+    const comment = buildReportComment(trafficEvidence({ paths: longPaths }), [
+      "crowdsecurity/http-probing",
+    ])
     expect(comment).not.toContain("/9aaa")
     expect(comment).toMatch(/\. User agent: zgrab\/0\.x\. CrowdSec: http-probing\.$/)
   })
 
   test("many scenarios are cut whole, in order, within the limit", () => {
-    const scenarios = Array.from({ length: 60 }, (_, index) => `author/scenario-${index}-${"s".repeat(10)}`)
+    const scenarios = Array.from(
+      { length: 60 },
+      (_, index) => `author/scenario-${index}-${"s".repeat(10)}`,
+    )
     const comment = buildReportComment(ipEvidence(), scenarios)
     expect(commentLength(comment)).toBeLessThanOrEqual(MAX_COMMENT_LENGTH)
     expect(comment).toContain("scenario-0-ssssssssss, scenario-1-")
@@ -243,7 +281,9 @@ describe("buildReportComment", () => {
   })
 
   test("the counts stay when they alone fill the budget", () => {
-    const comment = buildReportComment(trafficEvidence({ totalRequests: 412 }), [`author/${"x".repeat(2000)}`])
+    const comment = buildReportComment(trafficEvidence({ totalRequests: 412 }), [
+      `author/${"x".repeat(2000)}`,
+    ])
     expect(comment.startsWith("412 HTTP requests")).toBe(true)
     expect(comment).not.toContain("CrowdSec")
     expect(commentLength(comment)).toBeLessThanOrEqual(MAX_COMMENT_LENGTH)
@@ -293,28 +333,43 @@ describe("reportedItemState", () => {
   })
 
   test("inside the window it counts down and disables", () => {
-    expect(reportedItemState(entry("2026-11-07T11:54:00Z"), now)).toEqual({ detail: "again in 9 min", disabled: true })
+    expect(reportedItemState(entry("2026-11-07T11:54:00Z"), now)).toEqual({
+      detail: "again in 9 min",
+      disabled: true,
+    })
     expect(reportedItemState(entry("2026-11-07T11:54:00Z", "unconfirmed"), now).disabled).toBe(true)
   })
 
   test("a report stamped slightly in the future counts as just sent", () => {
-    expect(reportedItemState(entry("2026-11-07T12:02:00Z"), now)).toEqual({ detail: "again in 15 min", disabled: true })
+    expect(reportedItemState(entry("2026-11-07T12:02:00Z"), now)).toEqual({
+      detail: "again in 15 min",
+      disabled: true,
+    })
   })
 
   test("after the window it shows the age", () => {
-    expect(reportedItemState(entry("2026-11-07T11:30:00Z"), now)).toEqual({ detail: "reported 30 min ago", disabled: false })
+    expect(reportedItemState(entry("2026-11-07T11:30:00Z"), now)).toEqual({
+      detail: "reported 30 min ago",
+      disabled: false,
+    })
     expect(reportedItemState(entry("2026-11-07T10:00:00Z", "unconfirmed"), now)).toEqual({
       detail: "may have been sent 2 h ago",
       disabled: false,
     })
     expect(reportedItemState(entry("2026-11-04T12:00:00Z"), now).detail).toBe("reported 3 d ago")
-    expect(reportedItemState(entry("2026-10-28T12:00:00Z"), now).detail).toBe("reported on 2026-10-28")
+    expect(reportedItemState(entry("2026-10-28T12:00:00Z"), now).detail).toBe(
+      "reported on 2026-10-28",
+    )
   })
 })
 
 describe("reportedItemRefreshIn", () => {
   const now = Date.parse("2026-11-07T12:00:00Z")
-  const entry = (reportedAt: string): ReportedIpDto => ({ ipAddress: "3.5.140.2", reportedAt, status: "sent" })
+  const entry = (reportedAt: string): ReportedIpDto => ({
+    ipAddress: "3.5.140.2",
+    reportedAt,
+    status: "sent",
+  })
 
   test("nothing to refresh without a report or past the window", () => {
     expect(reportedItemRefreshIn(undefined, now)).toBeNull()
@@ -355,28 +410,67 @@ describe("canonicalIp", () => {
     expect(canonicalIp(input)).toBe(expected)
   })
 
-  test.each(["", "not-an-ip", "1.2.3", "1.2.3.256", "01.2.3.4", "1:2:3:4:5:6:7:8:9", "2600::1::2", "2600:1f18::1%eth0", "12345::1"])(
-    "%s is not an address",
-    (input) => {
-      expect(canonicalIp(input)).toBeNull()
-    },
-  )
+  test.each([
+    "",
+    "not-an-ip",
+    "1.2.3",
+    "1.2.3.256",
+    "01.2.3.4",
+    "1:2:3:4:5:6:7:8:9",
+    "2600::1::2",
+    "2600:1f18::1%eth0",
+    "12345::1",
+  ])("%s is not an address", (input) => {
+    expect(canonicalIp(input)).toBeNull()
+  })
 })
 
 describe("isPublicIp", () => {
-  test.each(["3.5.140.2", "8.8.8.8", "2600:1f18::1", "2001:4860:4860::8888", "::ffff:8.8.8.8", "192.0.0.9", "2001:3::1", "64:ff9b::808:808"])(
-    "%s is public",
-    (ip) => {
-      expect(isPublicIp(ip)).toBe(true)
-    },
-  )
+  test.each([
+    "3.5.140.2",
+    "8.8.8.8",
+    "2600:1f18::1",
+    "2001:4860:4860::8888",
+    "::ffff:8.8.8.8",
+    "192.0.0.9",
+    "2001:3::1",
+    "64:ff9b::808:808",
+  ])("%s is public", (ip) => {
+    expect(isPublicIp(ip)).toBe(true)
+  })
 
   // The first row matches tests/test_abuseipdb_service.py's refusals.
   test.each([
-    "10.0.0.1", "127.0.0.2", "::1", "203.0.113.7", "2001:db8::1", "fe80::1%eth0", "not-an-ip", "2600:1f18::1%eth0", "::ffff:10.0.0.1",
-    "10.0.0.5", "172.16.0.1", "192.168.1.34", "100.64.0.1", "169.254.1.1", "192.0.2.1", "198.51.100.7", "198.18.0.1",
-    "0.0.0.0", "255.255.255.255", "240.0.0.1", "224.0.0.1", "239.255.255.250",
-    "::", "fc00::1", "fd12:3456::1", "fe80::1", "ff02::1", "2001::1", "2002::1", "3fff::1",
+    "10.0.0.1",
+    "127.0.0.2",
+    "::1",
+    "203.0.113.7",
+    "2001:db8::1",
+    "fe80::1%eth0",
+    "not-an-ip",
+    "2600:1f18::1%eth0",
+    "::ffff:10.0.0.1",
+    "10.0.0.5",
+    "172.16.0.1",
+    "192.168.1.34",
+    "100.64.0.1",
+    "169.254.1.1",
+    "192.0.2.1",
+    "198.51.100.7",
+    "198.18.0.1",
+    "0.0.0.0",
+    "255.255.255.255",
+    "240.0.0.1",
+    "224.0.0.1",
+    "239.255.255.250",
+    "::",
+    "fc00::1",
+    "fd12:3456::1",
+    "fe80::1",
+    "ff02::1",
+    "2001::1",
+    "2002::1",
+    "3fff::1",
   ])("%s is refused", (ip) => {
     expect(isPublicIp(ip)).toBe(false)
   })
@@ -386,13 +480,20 @@ describe("reportItemState", () => {
   const now = Date.parse("2026-11-07T12:00:00Z")
 
   test("a non-public address is disabled whatever its history", () => {
-    expect(reportItemState("10.0.0.5", undefined, now)).toEqual({ detail: "not a public address", disabled: true })
+    expect(reportItemState("10.0.0.5", undefined, now)).toEqual({
+      detail: "not a public address",
+      disabled: true,
+    })
   })
 
   test("a public address follows its latest report", () => {
     expect(reportItemState("3.5.140.2", undefined, now)).toEqual({ detail: null, disabled: false })
     expect(
-      reportItemState("3.5.140.2", { ipAddress: "3.5.140.2", reportedAt: "2026-11-07T11:54:00Z", status: "sent" }, now),
+      reportItemState(
+        "3.5.140.2",
+        { ipAddress: "3.5.140.2", reportedAt: "2026-11-07T11:54:00Z", status: "sent" },
+        now,
+      ),
     ).toEqual({ detail: "again in 9 min", disabled: true })
   })
 })
@@ -471,7 +572,9 @@ test("blacklistMarkTitle stands alone without an earlier title", () => {
 })
 
 test("blacklistMarkTitle follows a decision title", () => {
-  expect(blacklistMarkTitle("Active CrowdSec ban decision")).toBe("Active CrowdSec ban decision. On AbuseIPDB's blacklist")
+  expect(blacklistMarkTitle("Active CrowdSec ban decision")).toBe(
+    "Active CrowdSec ban decision. On AbuseIPDB's blacklist",
+  )
 })
 
 test("blacklistMarkTitle follows the decision and DROP text, in that order", () => {

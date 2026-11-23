@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import os
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
@@ -22,9 +23,19 @@ from structlog.testing import capture_logs
 from geometrikks.config.settings import AbuseIpdbSettings, Settings
 from geometrikks.domain.abuseipdb import blacklist as blacklist_module
 from geometrikks.domain.abuseipdb import blacklist_file as blacklist_file_module
-from geometrikks.domain.abuseipdb.blacklist import current_blacklist, refresh_blacklist, refresh_blacklist_file
-from geometrikks.domain.abuseipdb.models import AbuseIpdbBlacklistEntry, AbuseIpdbBlacklistStatus
+from geometrikks.domain.abuseipdb.blacklist import (
+    EMPTY_BLACKLIST_BODY,
+    blacklist_about,
+    current_blacklist,
+    refresh_blacklist,
+    refresh_blacklist_file,
+)
+from geometrikks.domain.abuseipdb.models import (
+    AbuseIpdbBlacklistEntry,
+    AbuseIpdbBlacklistStatus,
+)
 from geometrikks.domain.abuseipdb.repositories import AbuseIpdbBlacklistRepository
+from geometrikks.domain.abuseipdb.schemas import AbuseIpdbBlacklistResponse
 from geometrikks.server.core import create_app
 from geometrikks.services.abuseipdb import AbuseIpdbClient, BlacklistResult
 from tests.integration.test_drop_snapshot_pg import build_settings
@@ -491,10 +502,12 @@ async def test_a_long_file_keeps_its_first_ips(pg_session_maker, clean_abuseipdb
     assert (truncated_logs[0]["count"], truncated_logs[0]["kept"]) == (3, 2)
 
 
-async def read_view(pg_session_maker, *, enabled: bool, now: datetime):
+async def read_view(pg_session_maker, *, enabled: bool, now: datetime) -> AbuseIpdbBlacklistResponse:
     async with pg_session_maker() as session:
         repository = AbuseIpdbBlacklistRepository(session=session, wrap_exceptions=False)
-        return await current_blacklist(repository, enabled=enabled, now=now)
+        blacklist = await current_blacklist(repository, enabled=enabled, now=now)
+    body = EMPTY_BLACKLIST_BODY if blacklist is None or blacklist.body is None else blacklist.body
+    return msgspec.json.decode(body, type=AbuseIpdbBlacklistResponse)
 
 
 @pytest.fixture()
@@ -549,6 +562,113 @@ async def test_a_list_generated_more_than_72_hours_ago_is_hidden(
     assert captured_logs[0]["generated_at"] == (NOW - timedelta(hours=72, seconds=1)).isoformat()
 
 
+async def test_the_encoded_list_is_reused_until_the_status_changes(pg_session_maker, clean_abuseipdb_blacklist):
+    await store_list(pg_session_maker, ["3.5.140.2"], refreshed_at=NOW - timedelta(hours=1))
+    first_view = await read_view(pg_session_maker, enabled=True, now=NOW)
+    async with pg_session_maker() as session, session.begin():
+        await session.execute(text("INSERT INTO abuseipdb_blacklist (ip_address) VALUES ('3.5.140.9')"))
+
+    unchanged_view = await read_view(pg_session_maker, enabled=True, now=NOW)
+    async with pg_session_maker() as session, session.begin():
+        await session.execute(text("UPDATE abuseipdb_blacklist_status SET refreshed_at = :at"), {"at": NOW})
+    changed_view = await read_view(pg_session_maker, enabled=True, now=NOW)
+
+    assert first_view.ips == unchanged_view.ips == ["3.5.140.2"]
+    assert changed_view.ips == ["3.5.140.2", "3.5.140.9"]
+    assert changed_view.refreshed_at == NOW
+
+
+async def test_a_matching_etag_skips_the_list(pg_session_maker, clean_abuseipdb_blacklist):
+    await store_list(pg_session_maker, ["3.5.140.2"], refreshed_at=NOW - timedelta(hours=1))
+    async with pg_session_maker() as session:
+        repository = AbuseIpdbBlacklistRepository(session=session, wrap_exceptions=False)
+        first = await current_blacklist(repository, enabled=True, now=NOW)
+        assert first is not None
+        repository.ips = AsyncMock(side_effect=AssertionError)  # type: ignore[method-assign]
+        blacklist_module.reset_blacklist_body()
+
+        revalidated = await current_blacklist(repository, enabled=True, now=NOW, if_none_match=first.etag)
+
+    assert revalidated == blacklist_module.CurrentBlacklist(etag=first.etag, body=None)
+
+
+async def test_an_expired_or_disabled_list_ignores_a_matching_etag(
+    pg_session_maker, clean_abuseipdb_blacklist, forget_logged_expiry
+):
+    refreshed_at = NOW - timedelta(hours=72, seconds=1)
+    await store_list(pg_session_maker, ["3.5.140.2"], refreshed_at=refreshed_at)
+    etag = blacklist_module._etag(refreshed_at, GENERATED_AT)
+    async with pg_session_maker() as session:
+        repository = AbuseIpdbBlacklistRepository(session=session, wrap_exceptions=False)
+
+        assert await current_blacklist(repository, enabled=True, now=NOW, if_none_match=etag) is None
+        assert await current_blacklist(repository, enabled=False, now=NOW, if_none_match=etag) is None
+
+
+async def test_concurrent_first_reads_load_the_rows_once(
+    pg_session_maker, clean_abuseipdb_blacklist, monkeypatch: pytest.MonkeyPatch
+):
+    await store_list(pg_session_maker, ["3.5.140.2"], refreshed_at=NOW - timedelta(hours=1))
+    row_reads = 0
+    read_rows = AbuseIpdbBlacklistRepository.ips
+    read_status = AbuseIpdbBlacklistRepository.status
+    both_read_the_status = asyncio.Barrier(2)
+
+    async def counted_read(repository: AbuseIpdbBlacklistRepository) -> list[str]:
+        nonlocal row_reads
+        row_reads += 1
+        return await read_rows(repository)
+
+    async def status_then_wait(repository: AbuseIpdbBlacklistRepository) -> AbuseIpdbBlacklistStatus | None:
+        status = await read_status(repository)
+        async with asyncio.timeout(5):
+            await both_read_the_status.wait()
+        return status
+
+    monkeypatch.setattr(AbuseIpdbBlacklistRepository, "ips", counted_read)
+    monkeypatch.setattr(AbuseIpdbBlacklistRepository, "status", status_then_wait)
+
+    async def read_once():
+        async with pg_session_maker() as session:
+            repository = AbuseIpdbBlacklistRepository(session=session, wrap_exceptions=False)
+            return await current_blacklist(repository, enabled=True, now=NOW)
+
+    first, second = await asyncio.gather(read_once(), read_once())
+
+    assert first is not None and second is not None and first.body == second.body
+    assert row_reads == 1
+
+
+async def test_a_list_replaced_mid_read_carries_the_new_version(
+    pg_session_maker, clean_abuseipdb_blacklist, monkeypatch: pytest.MonkeyPatch
+):
+    old_refreshed_at = NOW - timedelta(hours=1)
+    await store_list(pg_session_maker, ["3.5.140.2"], refreshed_at=old_refreshed_at)
+    async with pg_session_maker() as session:
+        repository = AbuseIpdbBlacklistRepository(session=session, wrap_exceptions=False)
+        read_rows = repository.ips
+        replaced = False
+
+        async def replace_then_read() -> list[str]:
+            nonlocal replaced
+            if not replaced:
+                replaced = True
+                async with pg_session_maker() as other_session, other_session.begin():
+                    await AbuseIpdbBlacklistRepository(session=other_session, wrap_exceptions=False).replace(
+                        ["3.5.140.9"], generated_at=GENERATED_AT, refreshed_at=NOW
+                    )
+            return await read_rows()
+
+        monkeypatch.setattr(repository, "ips", replace_then_read)
+        blacklist = await current_blacklist(repository, enabled=True, now=NOW)
+
+    assert blacklist is not None and blacklist.body is not None
+    body = msgspec.json.decode(blacklist.body, type=AbuseIpdbBlacklistResponse)
+    assert (body.refreshed_at, body.ips) == (NOW, ["3.5.140.9"])
+    assert blacklist.etag == blacklist_module._etag(NOW, GENERATED_AT)
+    assert blacklist.etag != blacklist_module._etag(old_refreshed_at, GENERATED_AT)
+
+
 async def test_a_later_expiry_is_logged_again(pg_session_maker, clean_abuseipdb_blacklist, forget_logged_expiry):
     await store_list(pg_session_maker, ["3.5.140.9"], refreshed_at=NOW - timedelta(hours=80))
     with capture_logs() as first_expiry_logs:
@@ -570,6 +690,25 @@ def app_settings(migrated_database_url: str) -> Settings:
     )
 
 
+async def test_the_stored_ips_read_back_in_python_spelling(pg_session_maker, clean_abuseipdb_blacklist):
+    written = [
+        "3.5.140.2",
+        "2001:0db8:0000:0000:0000:0000:0000:0001",
+        "2001:DB8:0:0:1:0:0:1",
+        "2001:db8:0:1:1:1:1:1",
+        "2600:1f18::",
+        "::ffff:3.5.140.9",
+        "::3.5.140.10",
+        "64:ff9b::3.5.140.11",
+    ]
+    await store_list(pg_session_maker, written)
+
+    async with pg_session_maker() as session:
+        ips = await AbuseIpdbBlacklistRepository(session=session, wrap_exceptions=False).ips()
+
+    assert sorted(ips) == sorted(str(ipaddress.ip_address(ip)) for ip in written)
+
+
 async def test_the_route_returns_the_stored_list(pg_session_maker, clean_abuseipdb_blacklist, app_settings):
     refreshed_at = datetime.now(UTC).replace(microsecond=0) - timedelta(hours=1)
     generated_at = refreshed_at - timedelta(hours=2)
@@ -582,6 +721,8 @@ async def test_the_route_returns_the_stored_list(pg_session_maker, clean_abuseip
         status_response = await http.get("/api/v1/abuseipdb/status")
 
     assert blacklist_response.status_code == 200
+    assert blacklist_response.headers["cache-control"] == "private, max-age=300"
+    assert blacklist_response.headers["etag"].startswith('W/"')
     assert blacklist_response.json() == {
         "generatedAt": generated_at.isoformat().replace("+00:00", "Z"),
         "refreshedAt": refreshed_at.isoformat().replace("+00:00", "Z"),
@@ -599,4 +740,132 @@ async def test_the_route_is_empty_with_the_feature_off(pg_session_maker, clean_a
         status_response = await http.get("/api/v1/abuseipdb/status")
 
     assert blacklist_response.json() == {"generatedAt": None, "refreshedAt": None, "ips": []}
+    assert blacklist_response.headers["cache-control"] == "no-cache"
+    assert "etag" not in blacklist_response.headers
     assert status_response.json()["blacklistEnabled"] is False
+
+
+async def test_the_route_answers_a_current_etag_with_304(pg_session_maker, clean_abuseipdb_blacklist, app_settings):
+    refreshed_at = datetime.now(UTC).replace(microsecond=0) - timedelta(hours=1)
+    await store_list(pg_session_maker, ["3.5.140.2"], generated_at=refreshed_at, refreshed_at=refreshed_at)
+
+    async with AsyncTestClient(create_app(settings=app_settings)) as http:
+        first_response = await http.get("/api/v1/abuseipdb/blacklist")
+        etag = first_response.headers["etag"]
+        not_modified = await http.get("/api/v1/abuseipdb/blacklist", headers={"If-None-Match": etag})
+        async with pg_session_maker() as session, session.begin():
+            await session.execute(
+                text("UPDATE abuseipdb_blacklist_status SET refreshed_at = :at"), {"at": refreshed_at + timedelta(minutes=1)}
+            )
+        changed = await http.get("/api/v1/abuseipdb/blacklist", headers={"If-None-Match": etag})
+
+    assert (not_modified.status_code, not_modified.content) == (304, b"")
+    assert not_modified.headers["etag"] == etag
+    assert not_modified.headers["cache-control"] == "private, max-age=300"
+    assert not_modified.headers["vary"] == "Accept-Encoding"
+    assert changed.status_code == 200
+    assert changed.headers["etag"] != etag
+    assert changed.json()["ips"] == ["3.5.140.2"]
+
+
+async def read_about(pg_session_maker, *, file_path: Path | None = None, now: datetime = NOW):
+    async with pg_session_maker() as session:
+        repository = AbuseIpdbBlacklistRepository(session=session, wrap_exceptions=False)
+        return await blacklist_about(repository, file_path=file_path, now=now)
+
+
+async def test_about_before_the_first_download(pg_session_maker, clean_abuseipdb_blacklist):
+    about = await read_about(pg_session_maker)
+
+    assert about.source == "download"
+    assert (about.ip_count, about.refreshed_at, about.last_attempt_at) == (0, None, None)
+    assert (about.last_attempt_failed, about.expired) == (False, False)
+
+
+async def test_about_counts_the_stored_list(pg_session_maker, clean_abuseipdb_blacklist):
+    await store_list(pg_session_maker, ["3.5.140.2", "2600:1f18::1"])
+
+    about = await read_about(pg_session_maker)
+
+    assert about.ip_count == 2
+    assert (about.generated_at, about.refreshed_at, about.last_attempt_at) == (GENERATED_AT, NOW, NOW)
+    assert (about.last_attempt_failed, about.expired) == (False, False)
+
+
+async def test_about_reports_a_good_download_as_not_failed(pg_session_maker, clean_abuseipdb_blacklist):
+    client, _ = blacklist_client(answer)
+    await refresh_blacklist(pg_session_maker, client, now=NOW)
+
+    about = await read_about(pg_session_maker, now=NOW + timedelta(minutes=3))
+
+    assert (about.ip_count, about.last_attempt_failed) == (2, False)
+
+
+async def test_about_reports_a_failed_download(pg_session_maker, clean_abuseipdb_blacklist):
+    await store_list(pg_session_maker, ["3.5.140.2"], refreshed_at=NOW - timedelta(hours=6))
+    client, _ = blacklist_client(rate_limited)
+    await refresh_blacklist(pg_session_maker, client, now=NOW)
+
+    about = await read_about(pg_session_maker, now=NOW + timedelta(minutes=3))
+
+    assert about.last_attempt_failed is True
+    assert about.last_attempt_at == NOW
+    assert about.ip_count == 1
+
+
+async def test_about_does_not_call_a_download_still_running_failed(pg_session_maker, clean_abuseipdb_blacklist):
+    await store_list(pg_session_maker, ["3.5.140.2"], refreshed_at=NOW - timedelta(hours=6))
+    async with pg_session_maker() as session, session.begin():
+        repository = AbuseIpdbBlacklistRepository(session=session, wrap_exceptions=False)
+        assert await repository.claim_attempt(NOW, last_allowed=NOW - timedelta(hours=5))
+
+    about = await read_about(pg_session_maker, now=NOW + timedelta(minutes=1))
+
+    assert (about.last_attempt_at, about.last_attempt_failed) == (NOW, False)
+
+
+async def test_about_reports_a_failed_first_download(pg_session_maker, clean_abuseipdb_blacklist):
+    client, _ = blacklist_client(rate_limited)
+    await refresh_blacklist(pg_session_maker, client, now=NOW)
+
+    about = await read_about(pg_session_maker, now=NOW + timedelta(minutes=3))
+
+    assert (about.refreshed_at, about.last_attempt_failed) == (None, True)
+
+
+async def test_about_counts_an_expired_list(pg_session_maker, clean_abuseipdb_blacklist):
+    await store_list(pg_session_maker, ["3.5.140.2", "3.5.140.9"], refreshed_at=NOW - timedelta(hours=72, seconds=1))
+
+    about = await read_about(pg_session_maker)
+
+    assert (about.expired, about.ip_count) == (True, 2)
+
+
+async def test_about_for_a_file_ignores_download_attempts(pg_session_maker, clean_abuseipdb_blacklist):
+    await store_list(
+        pg_session_maker, ["3.5.140.2"], refreshed_at=NOW - timedelta(hours=1), last_attempt_at=NOW
+    )
+
+    about = await read_about(pg_session_maker, file_path=Path("/data/blacklist.txt"), now=NOW + timedelta(minutes=3))
+
+    assert (about.source, about.file_path) == ("file", "/data/blacklist.txt")
+    assert (about.last_attempt_at, about.last_attempt_failed) == (None, False)
+
+
+async def test_the_about_route_carries_the_blacklist(pg_session_maker, clean_abuseipdb_blacklist, app_settings):
+    refreshed_at = datetime.now(UTC) - timedelta(hours=1)
+    await store_list(
+        pg_session_maker, ["3.5.140.2"], generated_at=refreshed_at - timedelta(hours=2), refreshed_at=refreshed_at
+    )
+    feature_off = app_settings.model_copy(update={"abuseipdb": AbuseIpdbSettings(api_key="test-key", _env_file=None)})
+
+    async with AsyncTestClient(create_app(settings=app_settings)) as http:
+        about = (await http.get("/api/v1/system/about")).json()
+    async with AsyncTestClient(create_app(settings=feature_off)) as http:
+        about_feature_off = (await http.get("/api/v1/system/about")).json()
+
+    assert about["abuseipdbBlacklist"]["ipCount"] == 1
+    assert about["abuseipdbBlacklist"]["source"] == "download"
+    assert about["abuseipdbBlacklist"]["lastAttemptFailed"] is False
+    assert about["abuseipdbBlacklist"]["expired"] is False
+    assert about_feature_off["abuseipdbBlacklist"] is None

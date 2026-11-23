@@ -85,7 +85,14 @@ export class LiveTrafficStore {
     const oldest = newest - (this.windowSeconds - 1)
     const buckets: SecondBucket[] = []
     for (let second = oldest; second <= newest; second += 1) {
-      buckets.push({ second, total: 0, threats: 0, banned: 0, worstStatus: "unknown", requestIds: [] })
+      buckets.push({
+        second,
+        total: 0,
+        threats: 0,
+        banned: 0,
+        worstStatus: "unknown",
+        requestIds: [],
+      })
     }
 
     for (const request of this.requests) {

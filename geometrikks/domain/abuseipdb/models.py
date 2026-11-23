@@ -5,7 +5,15 @@ from uuid import UUID
 
 from advanced_alchemy import base
 from advanced_alchemy.types import DateTimeUTC
-from sqlalchemy import CheckConstraint, ForeignKey, Index, SmallInteger, Text, Uuid, desc
+from sqlalchemy import (
+    CheckConstraint,
+    ForeignKey,
+    Index,
+    SmallInteger,
+    Text,
+    Uuid,
+    desc,
+)
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Mapped, mapped_column
 

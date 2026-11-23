@@ -3,11 +3,7 @@
 export type DataState = "loading" | "error" | "empty" | "ready"
 
 /** Derive a DataState from the usual TanStack query flags plus a row count. */
-export function dataState(
-  isLoading: boolean,
-  isError: boolean,
-  count: number,
-): DataState {
+export function dataState(isLoading: boolean, isError: boolean, count: number): DataState {
   if (isLoading) return "loading"
   if (isError) return "error"
   return count > 0 ? "ready" : "empty"

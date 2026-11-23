@@ -6,17 +6,16 @@ queries (charts) while raw-table queries (top lists) still see them.
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
+import pytest
 from sqlalchemy import text
 
 from geometrikks.domain.analytics.repositories import SummaryStatsRepository
 
-import pytest
-
 pytestmark = pytest.mark.anyio
 
-NOW = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+NOW = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
 OLD = NOW - timedelta(days=10)
 # Inside the simulated policy refresh window: without a row here, the
 # refresh has nothing to materialize and never advances the CAGG watermark,
@@ -142,7 +141,7 @@ async def test_hourly_probe_clamped_to_hourly_retention(pg_engine, pg_session_ma
                 "WHERE view_name = 'summary_hourly_stats'"
             ))).scalar()
             rows = (await conn.execute(
-                text(f"SELECT DISTINCT (bucket AT TIME ZONE 'UTC')::date FROM {mat}")  # noqa: S608
+                text(f"SELECT DISTINCT (bucket AT TIME ZONE 'UTC')::date FROM {mat}")
             )).scalars().all()
         return set(rows)
 
