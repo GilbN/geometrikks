@@ -46,7 +46,7 @@ export function CombinedSortHead<F extends string>({
               : onSortChange(options[0].field, "desc")
           }
           className={cn(
-            "inline-flex items-center gap-1 uppercase hover:text-foreground",
+            "inline-flex items-center gap-1 uppercase hover:text-foreground pointer-coarse:h-10",
             active ? "text-foreground" : "text-muted-foreground",
           )}
         >
@@ -71,7 +71,7 @@ export function CombinedSortHead<F extends string>({
             <button
               type="button"
               aria-label={`Sort ${label.toLowerCase()} by`}
-              className="inline-flex size-5 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground"
+              className="inline-flex size-5 items-center justify-center rounded-sm pointer-coarse:size-10 text-muted-foreground hover:bg-accent hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground"
             >
               <ChevronDown className="h-3.5 w-3.5" />
             </button>
@@ -81,6 +81,7 @@ export function CombinedSortHead<F extends string>({
               Sort {label.toLowerCase()} by
             </DropdownMenuLabel>
             <DropdownMenuRadioGroup
+              aria-label={`Sort ${label.toLowerCase()} by`}
               value={active?.field ?? ""}
               onValueChange={(value) => onSortChange(value as F, active ? sortOrder : "desc")}
             >
@@ -92,6 +93,7 @@ export function CombinedSortHead<F extends string>({
             </DropdownMenuRadioGroup>
             <DropdownMenuSeparator />
             <DropdownMenuRadioGroup
+              aria-label="Order"
               value={active ? sortOrder : ""}
               onValueChange={(value) => onSortChange(shown.field, value as "asc" | "desc")}
             >

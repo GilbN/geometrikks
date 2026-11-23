@@ -595,9 +595,20 @@ test.describe("access-logs view choices", () => {
   })
 })
 
+// Real rows are wider than the fixture: long IPv6 clients, referrers, long city names.
+const realisticRows: AccessLog[] = accessRows.slice(0, 20).map((row, index) => ({
+  ...row,
+  ipAddress: index % 2 ? "2804:24c8:51e5:25aa:676b:32d5:8f1f:c7aa" : "203.0.113.254",
+  host: "status.example.com",
+  referrer: "https://www.example.com/a/long/referring/page",
+  city: "Vila Nova de Gaia",
+  countryCode: "PT",
+  countryName: "Portugal",
+}))
+
 // A laptop, and a phone held sideways, which also gets the wide table.
 for (const device of [
-  { name: "a laptop", use: { viewport: { width: 1280, height: 720 } } },
+  { name: "a laptop", use: { viewport: { width: 1280, height: 720 }, isMobile: false } },
   {
     name: "a phone held sideways",
     use: { viewport: { width: 932, height: 430 }, hasTouch: true, isMobile: true },
@@ -611,18 +622,26 @@ for (const device of [
         (url) => url.pathname.replace(/\/$/, "") === "/api/v1/access-logs",
         (route) =>
           route.fulfill({
-            json: { items: accessRows.slice(0, 20), total: 20, limit: 50, offset: 0 },
+            json: { items: realisticRows, total: 20, limit: 50, offset: 0 },
           }),
       )
       await page.goto("/access-logs")
       const table = page.locator("table[aria-rowcount]")
       await expect(table).toHaveAttribute("aria-rowcount", "21")
       const request = table.getByRole("columnheader", { name: /Request/ })
-      expect((await request.boundingBox())!.width).toBeGreaterThanOrEqual(250)
+      expect((await request.boundingBox())!.width).toBeGreaterThanOrEqual(235)
       const path = table
         .locator('tr[data-index="0"]')
         .getByText(accessRows[0].url!, { exact: true })
-      expect((await path.boundingBox())!.width).toBeGreaterThan(40)
+      expect((await path.boundingBox())!.width).toBeGreaterThan(20)
+      // A laptop fits the whole table; a phone held sideways may scroll it.
+      if (!device.use.isMobile) {
+        expect(
+          await table.evaluate(
+            (element) => element.parentElement!.scrollWidth - element.parentElement!.clientWidth,
+          ),
+        ).toBeLessThanOrEqual(1)
+      }
     })
   })
 }

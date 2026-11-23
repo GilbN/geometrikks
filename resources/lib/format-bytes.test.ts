@@ -12,5 +12,6 @@ describe("formatBytes", () => {
     expect(formatBytes(455)).toBe("455 B")
     expect(formatBytes(0)).toBe("0 B")
     expect(formatBytes(1536)).toBe("1.5 KB")
+    expect(formatBytes(454.54545)).toBe("455 B")
   })
 })

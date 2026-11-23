@@ -222,7 +222,10 @@ export function VirtualTableBody<T>({
 
   // Rows measured at the other density would keep their old height until they
   // scroll into view again. Narrow rows ignore density.
+  const measuredDensity = useRef(density)
   useLayoutEffect(() => {
+    if (measuredDensity.current === density) return
+    measuredDensity.current = density
     if (!narrow) virtualizer.measure()
   }, [density, narrow, virtualizer])
 

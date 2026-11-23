@@ -3,6 +3,7 @@
  * table has a combined one, the time format shared by every table, and the
  * visible fields. Density and layout are per table, kept by useTableView.
  */
+import { useState } from "react"
 import { Columns3, SlidersHorizontal } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -66,9 +67,10 @@ export function TableViewMenu({
   canReset: boolean
 }) {
   const [timeFormat, setTimeFormat] = useTimeFormat()
-  const now = new Date()
+  // Taken when the menu opens, so the examples hold still while rows stream in.
+  const [now, setNow] = useState(() => new Date())
   return (
-    <DropdownMenu>
+    <DropdownMenu onOpenChange={(open) => open && setNow(new Date())}>
       <DropdownMenuTrigger asChild>
         <Button variant="outline" size="sm" className="h-8">
           <SlidersHorizontal className="mr-1 h-3.5 w-3.5" /> View
@@ -77,6 +79,7 @@ export function TableViewMenu({
       <DropdownMenuContent align="end" collisionPadding={8} className="w-auto min-w-56">
         <DropdownMenuLabel className={LABEL_CLASS}>Rows</DropdownMenuLabel>
         <DropdownMenuRadioGroup
+          aria-label="Rows"
           value={density}
           onValueChange={(value) => onDensityChange(value as RowDensity)}
         >
@@ -92,6 +95,7 @@ export function TableViewMenu({
             <DropdownMenuSeparator />
             <DropdownMenuLabel className={LABEL_CLASS}>Columns</DropdownMenuLabel>
             <DropdownMenuRadioGroup
+              aria-label="Columns"
               value={layout}
               onValueChange={(value) => onLayoutChange(value as ColumnLayout)}
             >
@@ -111,6 +115,7 @@ export function TableViewMenu({
             <DropdownMenuSeparator />
             <DropdownMenuLabel className={LABEL_CLASS}>Time</DropdownMenuLabel>
             <DropdownMenuRadioGroup
+              aria-label="Time"
               value={timeFormat}
               onValueChange={(value) => setTimeFormat(value as TimeFormat)}
             >

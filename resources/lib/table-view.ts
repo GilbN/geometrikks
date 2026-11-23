@@ -92,6 +92,9 @@ export function useTableView(tableId: string) {
   const update = useCallback(
     (patch: TableViewChoice) => {
       const next = { ...parseTableView(read(key)), ...patch }
+      // Drop a choice that is back at its default, so Reset view stays off until something differs.
+      if (next.density === defaultDensity()) delete next.density
+      if (next.layout === "combined") delete next.layout
       write(key, Object.keys(next).length ? JSON.stringify(next) : null)
     },
     [key],
@@ -102,7 +105,7 @@ export function useTableView(tableId: string) {
   return {
     density: choice.density ?? defaultDensity(),
     layout: choice.layout ?? "combined",
-    hasViewOverrides: raw !== null,
+    hasViewOverrides: Object.keys(choice).length > 0,
     setDensity,
     setLayout,
     resetView,

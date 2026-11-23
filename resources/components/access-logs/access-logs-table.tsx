@@ -162,11 +162,11 @@ function renderCombinedCell(
       const target = `${has("host") ? (r.host ?? "") : ""}${has("url") ? (r.url ?? "") : ""}`
       const title = [has("method") ? r.method : null, target].filter(Boolean).join(" ")
       return (
-        <span className="flex min-w-0 items-baseline gap-2 font-mono" title={title}>
+        <span className="flex min-w-0 items-baseline gap-2 font-mono" title={title || undefined}>
           {has("method") && (
             <span
               className={cn(
-                "min-w-[38px] shrink-0 text-[11px] font-semibold",
+                "min-w-[46px] shrink-0 text-[11px] font-semibold",
                 r.method && r.method !== "GET"
                   ? "text-amber-600 dark:text-amber-400"
                   : "text-muted-foreground",
@@ -176,9 +176,12 @@ function renderCombinedCell(
             </span>
           )}
           {has("host") && (
-            <span className="min-w-0 shrink truncate text-muted-foreground">{r.host ?? "-"}</span>
+            // The path truncates first; the cap leaves it room beside a very long host.
+            <span className="max-w-[60%] shrink-0 truncate text-muted-foreground">
+              {r.host ?? "-"}
+            </span>
           )}
-          {has("url") && <span className="min-w-[40%] flex-1 truncate">{r.url ?? "-"}</span>}
+          {has("url") && <span className="min-w-0 truncate">{r.url ?? "-"}</span>}
         </span>
       )
     }

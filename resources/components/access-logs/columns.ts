@@ -141,7 +141,7 @@ const COMBINED_GROUPS: readonly {
     label: "Request",
     fields: ["method", "host", "url"],
     grow: true,
-    minWidth: "16rem",
+    minWidth: "15rem",
   },
   { key: "client", label: "Client", fields: ["ipAddress"] },
   { key: "location", label: "Location", fields: ["city", "country"], width: "9rem" },

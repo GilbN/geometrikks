@@ -71,7 +71,7 @@ interface ColumnDef {
   sortField?: AccessLogDebugSortField
   sortKind?: SortKind
   defaultVisible: boolean
-  /** Start hidden on mobile viewports (still selectable via the Columns menu). */
+  /** Start hidden on mobile viewports (still selectable from the View menu). */
   mobileHidden?: boolean
   render: (row: AccessLogDebugEntry, timeFormat: TimeFormat) => React.ReactNode
 }
