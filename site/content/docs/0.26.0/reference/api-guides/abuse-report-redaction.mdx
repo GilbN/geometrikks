@@ -1,0 +1,67 @@
+---
+title: Abuse report redaction
+description: What the abuse report endpoint returns, which fields it leaves out, and every rule it uses to scrub your names and secrets.
+---
+
+An abuse report goes to a third party, so the endpoint leaves out what describes your side of a request and scrubs your names, addresses and credentials from what remains. The rules below are all of them. A name or secret that no rule covers goes out as logged, so read a report before you send it. [Abuse reports](../../features/abuse-reports.mdx) covers building one in the app.
+
+## The report endpoint
+
+`GET /api/v1/reports/abuse` takes `startDate`, `endDate` and exactly one of `ipAddress` or `asn`. Neither or both answers 400. The range includes `startDate` and stops just before `endDate`. All times in the report are UTC, and it reads the raw access logs, which go back `ANALYTICS_RAW_RETENTION_DAYS` days, 180 by default.
+
+- `maxIps` applies to an ASN report: how many of the ASN's busiest addresses, by request count, to report on. It defaults to 25 and allows 1 to 100. `ipCount`, `totalRequests` and `status4xx` still count every address of the ASN in the range.
+- `linesPerIp` sets how many of each address's newest log lines to include, listed oldest first. It defaults to 20 and allows 0 to 500, and 0 leaves the lines out.
+
+## Fields that never go out
+
+The report has no `host`, `server`, `referrer` or `remote_user` on any line. Alerts come without the CrowdSec machine name and the alert message.
+
+## What counts as yours
+
+Redaction replaces your names and addresses with `[redacted]`. To find them it looks at hosts, because `host` holds whatever Host header the client sent and a scanner can put any name there.
+
+- A host counts as yours when, in the 30 days up to the report end, it got at least one 2xx response or at least 5 distinct client IPs used it. The 30 days apply whatever the report's own range.
+- A redirect does not make a host yours, because an HTTP to HTTPS redirect answers any Host. A scanner's spoofed `Host: www.google.com` passes neither test and stays in the evidence.
+- A host that counts brings its registrable domain with it: `blog.example.com` adds `example.com`, and `blog.example.co.uk` adds `example.co.uk`.
+- Hosts on the reported IPs' own lines count when they sit under one of those domains.
+- A host that is an address counts when the address is public. Private and reserved addresses name no one, and a payload aimed at `127.0.0.1` stays as evidence.
+- A GeoMetrikks server name counts when it contains a dot and is not an address. A dotless name like `ubuntu` stays.
+- Names shorter than 4 characters never count, because they would scrub unrelated text.
+
+## How the scrubbing matches
+
+- Matching ignores case.
+- A name has to end where a word ends, so `example.com` does not touch `example.community`. Its start is open, so `%2F%2Fexample.com` still matches.
+- An address also matches its other spellings: an IPv4 address with zero-padded parts such as `195.000.194.210`, and an IPv6 address written out in full.
+- A `user:password@` in front of a scrubbed name is removed with it.
+- In a path, a percent-encoded name such as `auth%2Eexample%2Ecom` is decoded and scrubbed.
+- User agents get the name matching only. The query rules below apply to URLs.
+
+## Query strings
+
+In a URL's query string, the whole value of a parameter becomes `[redacted]` when any of these holds:
+
+- The value, once decoded, names one of your hosts or addresses. A forward-auth redirect like `?rd=https://app.example.com/api?apikey=...` loses its key along with the host.
+- The parameter name ends in a credential word: `apikey`, `auth`, `jwt`, `key`, `passwd`, `password`, `phpsessid`, `pwd`, `secret`, `session`, `sessid`, `sessionid`, `sid`, `sig`, `signature` or `token`. The name is split into words, so `api_key`, `apiKey`, `X-Plex-Token` and `reconnectionToken` match, while `zipcode` and `monkey` do not.
+- The value is a relative redirect whose own query has a parameter like that, as in `?rd=/api?apikey=...`.
+
+`code` is not a credential word, because `?code=phpinfo();` is the evidence. Every other parameter stays as the client sent it.
+
+`redactions` in the response counts every replacement.
+
+## CrowdSec data
+
+`crowdsec.status` says what the report holds:
+
+- `disabled`: the CrowdSec integration is off.
+- `ok`: decisions and alerts are included.
+- `decisions-only`: the server has no machine credentials, so there are no alerts.
+- `unavailable`: the LAPI failed. The access-log evidence is still there.
+
+A decision keeps its scenario only when its origin is `crowdsec`, `CAPI`, `lists` or `appsec`. Any other origin, such as `cscli` or GeoMetrikks' own bans, is a person's decision whose scenario can hold their reason, so the report says `manual`. An alert keeps its scenario when its kind is `crowdsec`, `waf`, `bot-detection`, `capi` or `papi`. A LAPI older than 1.7 sends no kind; the scenario then stays only when it looks like a hub name, `author/name`, and does not start with `geometrikks/`.
+
+Alerts are fetched for the report range only: at most the newest 1000 for a single IP and the newest 100 for each address of an ASN. `alertsTruncated` is true for an address that hit the limit, which means older alerts in the range are missing. The LAPI has no batch lookup, so the server asks once for decisions and once for alerts per address, four addresses at a time.
+
+## The abuse contact endpoint
+
+`GET /api/v1/reports/abuse-contact` takes exactly one of `ipAddress` or `asn` and returns the RDAP record's holder, its prefixes and its abuse addresses. Sending neither or both answers 400. The server picks the registry itself, from IANA's bootstrap files at data.iana.org. It fetches the same few files for every lookup and keeps them for 24 hours, so those downloads say nothing about the target. Only the query to the registry carries the address or AS number. Every request and redirect has to be https to a public DNS name. A private or reserved address answers 400, space no registry covers or holds answers 404, and a failed registry or IANA request answers 502. Answers are cached for 24 hours.

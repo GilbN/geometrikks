@@ -1,0 +1,91 @@
+---
+title: import-logs
+description: Import rotated or archived access-log files, plain or gzip, into the database.
+---
+
+Live tailing opens a file at its end, so lines written before the app started never reach the database. `import-logs` reads whole files through the same parser, GeoIP lookup and database writes as live tailing. Each row gets the time written in its log line, not the time of the import. When every file is done, the command refreshes the continuous aggregates for the imported time range, so the charts show it.
+
+```bash
+docker compose exec -u geometrikks app litestar import-logs /var/log/access/access.log.1.gz
+```
+
+With the stack stopped, use `docker compose run --rm app litestar import-logs ...` instead. [CLI](./index.mdx#run-a-command) explains both forms.
+
+<Callout type="warn">
+Import rotated or archived files only. A file the app also tails gets counted twice: once by the tail and once by the import.
+</Callout>
+
+## Files
+
+- Pass one or more paths in one run. They are paths inside the container. The compose file mounts the host folder from `ACCESS_LOG_DIR` at `/var/log/access`, read-only.
+- The command runs as the `geometrikks` user, whose ids come from `PUID` and `PGID`, 1000 by default. `-u geometrikks` on `exec` makes sure of that. A file that user can't read stops the command before anything is imported, with an error that names the path.
+- A name ending in `.gz` is read as gzip, any other name as plain text. A gzip file under another name fails the format check below.
+- A shell glob in the command expands on the host, against host paths. To expand it inside the container, wrap the command in `sh -c`, as the [Nginx Proxy Manager](../../sources/nginx-proxy-manager.mdx#import-npms-existing-logs) import does.
+- The import follows the parser settings of the app. IPs in `LOGPARSER_IGNORE_IPS` are dropped, and with `LOGPARSER_SEND_LOGS=false` it writes map events only, with no Access Logs rows.
+- The GeoLite2 City database must be in place. Without it the command stops before reading anything. Start the app once with MaxMind credentials and it downloads the database. [GeoLite2](../../get-started/geolite2.mdx) covers the setup. Without the ASN database the import runs, prints a note, and the rows have no ASN data until you run [`backfill-asn`](./backfills.mdx#backfill-asn).
+
+## Formats
+
+`--format` takes `auto`, the default, or one of `geometrikks-json`, `nginx`, `traefik-json`, `caddy-json` and `npm`. `npm` is Nginx Proxy Manager's own log format, which only `import-logs` reads.
+
+Before it writes anything, the command reads the file's first 1,000 lines. With `auto` it detects the format from them. If none of them parses in the detected or pinned format, the command rejects the file and moves on to the next one.
+
+With `auto`, a file whose lines match no format in full gets the relaxed match when its lines carry a client IP and a timestamp that a format can read, but lack other fields that format needs. This works for every format. Its requests become map events with no Access Logs rows. Pin the format with `--format` to require a full parse. Lines that don't match then count as skipped in the summary and land in Debug Logs.
+
+## Server name
+
+`--server NAME` stamps `NAME` on every row the run imports. Without it, rows get the server name of the first tailed file, from `LOGPARSER_SERVER_NAME`, or of the first Loki selector when no file is tailed. The command prints `Stamping server:` with the name before it starts. A blank `--server` is refused.
+
+Archives from another proxy need their own run with that proxy's `--server`. Imported under the default name, their requests show up under the wrong server in the Server filters.
+
+## Batch size
+
+`--batch-size`, default 500, is the number of records per database commit. Each batch commits on its own, and the command records the file as imported only after its last batch. A run stopped partway through a file, by Ctrl-C or a crash, leaves its committed batches in place with no record of the import. The next run imports the whole file again, so the rows from those batches end up twice.
+
+## Files imported before
+
+The command fingerprints each file by a SHA-256 checksum of its bytes. The same bytes are skipped on a later run, even under another file name, with `skipped: already imported`. A rotation that only renames an archive, as NPM's does, keeps its checksum, so rerunning the same glob skips what is done. A rotation that compresses a file changes its bytes. With logrotate's `delaycompress`, `access.log.1` and the `access.log.2.gz` it turns into later are two different files to the import, so import either the plain copies or the gzip copies of one log, not both.
+
+`--force` imports a file again from its start, up to `--before` when you pass one, and stores the new cutoff. It deletes nothing, so the rows the first import wrote stay and their lines end up twice.
+
+## Cut off at a time with `--before`
+
+`--before` leaves out lines stamped at or after the given moment, and the summary counts them. It takes a date or a datetime:
+
+- `2026-10-01`, midnight UTC
+- `2026-10-01T14:03:12`, UTC
+- `2026-10-01T14:03:12+02:00`, with an offset
+- fractional seconds, such as `2026-10-01T14:03:12.500`, with or without an offset
+
+A value without an offset is UTC. Use it when an archive overlaps a log GeoMetrikks already ingests, for example when a proxy keeps writing its own log next to the one the app tails. Pass the first timestamp of the ingested log, and the import stops where live data begins.
+
+The cutoff is stored with the file's checksum. A later run of the same file depends on it:
+
+| Next run of the same file | What happens |
+| --- | --- |
+| The same `--before` | Skipped as already imported. |
+| A later `--before` | Imports only the lines between the stored cutoff and the new one. |
+| No `--before` | Imports the lines from the stored cutoff on. |
+| An earlier `--before` | Refused with an error, because the rows past it are already written. |
+| `--force`, with or without `--before` | Imports from the start of the file, up to the new `--before` if given, duplicating the rows already written. The new cutoff replaces the stored one. |
+
+A file first imported without `--before` has no cutoff, so every later run skips it until you pass `--force`.
+
+## Retention
+
+The retention policy deletes raw rows older than `ANALYTICS_RAW_RETENTION_DAYS`, default 180 days. Lines older than that window import, and the policy deletes them on its next run. Access Logs loses those rows, while the daily aggregates keep the counts the import added.
+
+The app applies the setting to the policy only when it starts. To keep older archives, raise it in `.env`, run `docker compose up -d` so the app starts with the new value, then import.
+
+## When a file fails
+
+A file rejected by the format check, or refused because of an earlier `--before`, doesn't stop the others. At the end the command lists the files it didn't import and exits with an error. Any other error that reaches the command stops the run, such as a database error while it looks up or saves a file's import record.
+
+A failed write doesn't stop the run either. It fails in one of two ways, and both log `ingestion_batch_failed` with the error and the number of records lost:
+
+- One record fails while the batch is being built, for example while its location is looked up. The command rolls back that record and the ones before it in the same batch, then goes on with the rest of the batch. The event also carries the start of the failing line.
+- The batch's commit fails, usually on a database error for one of its rows. The command rolls back the whole batch and goes on with the next one.
+
+Either way it still counts the batch as written and records the file as imported, so a later run skips the file and those lines never arrive. After an import, search its output for `ingestion_batch_failed`. If it is there, fix the cause and import that file again with `--force`. The rows that did commit then end up twice.
+
+If refreshing an aggregate fails, the rows are written but the analytics views don't show the imported range in that aggregate yet. The command names the aggregates, exits with an error, and the warnings above the message give the reason.

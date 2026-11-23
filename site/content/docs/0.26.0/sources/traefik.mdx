@@ -1,0 +1,99 @@
+---
+title: Traefik
+description: Write Traefik's JSON access log to a file, keep the headers GeoMetrikks needs, and set it up for Pangolin.
+---
+
+GeoMetrikks reads Traefik's JSON access log, the `traefik-json` format. Traefik logs to stdout by default, and GeoMetrikks can't read stdout, so the log has to go to a file.
+
+## Write the log to a file
+
+Add this to Traefik's static configuration:
+
+```yaml
+accessLog:
+  filePath: "/var/log/traefik/access.log"
+  format: json
+  fields:
+    headers:
+      names:
+        User-Agent: keep
+        Referer: keep
+```
+
+Traefik drops request headers from the log by default. GeoMetrikks reads the user agent and the referrer only from the kept `request_User-Agent` and `request_Referer` fields, so without the two `keep` lines every request has an empty user agent and referrer.
+
+## Fields GeoMetrikks reads
+
+Traefik's default JSON log has every field below except the two headers. If you trim the log with `fields.names` or `fields.defaultMode`, keep the ones you want filled.
+
+| Field | What it feeds |
+| --- | --- |
+| `ClientHost`, or `ClientAddr` when it is empty | The client IP. Required. |
+| `StartUTC`, `StartLocal` or `time` | The request time. Required. |
+| `DownstreamStatus` | The status code. A line without it is skipped. |
+| `RequestMethod`, `RequestPath`, `RequestProtocol` | Method, URL and HTTP version. |
+| `DownstreamContentSize` | Bytes sent. |
+| `Duration` | Request time. |
+| `OriginDuration` | Upstream response time. |
+| `RequestHost`, or `RequestAddr` when it is empty | The host filter. |
+| `ClientUsername` | Remote user. |
+| `request_User-Agent`, `request_Referer` | User agent and referrer, from the kept headers. |
+
+## Point GeoMetrikks at the file
+
+Set the host folder Traefik writes to as `ACCESS_LOG_DIR` in `.env`. The compose file mounts it read-only at `/var/log/access`:
+
+```dotenv
+ACCESS_LOG_DIR=/path/to/traefik/logs
+LOGPARSER_LOG_PATHS=/var/log/access/access.log
+```
+
+Run `docker compose up -d` to recreate the container with the new mount. GeoMetrikks detects the format from the file's lines. `LOGPARSER_LOG_FORMATS=traefik-json` pins it.
+
+- Rotate the file with logrotate and signal Traefik afterwards with `docker kill --signal=USR1 traefik`. GeoMetrikks follows the rotation.
+- To skip the file mount, ship the file to [Grafana Loki](./loki.mdx) and read it from there instead.
+
+## Behind a CDN or load balancer
+
+Traefik strips `X-Forwarded-For` from peers it doesn't trust. List the CDN's or load balancer's ranges under `entryPoints.<name>.forwardedHeaders.trustedIPs`, and Traefik logs the chain as it arrived. GeoMetrikks takes the rightmost entry, the one your proxy appended. Without `trustedIPs`, Traefik logs the proxy's address and the map shows the proxy.
+
+Don't set `forwardedHeaders.insecure`. It trusts the header from anyone, so a client can put any address on your map. [Real client IP behind a proxy](./proxy-setup.mdx#traefik) has the full setup, including what happens with more than one hop.
+
+## Pangolin
+
+[Pangolin](https://github.com/fosrl/pangolin) puts Traefik in front of its tunnels, so GeoMetrikks reads its log as a Traefik log. Run GeoMetrikks on the Pangolin server, where the log file is, or ship the file to [Loki](./loki.mdx).
+
+Pangolin's installer turns the access log on only when you install CrowdSec with it. The log then goes to `config/traefik/logs/access.log` in the Pangolin directory. Without CrowdSec, add the `accessLog` block from [Write the log to a file](#write-the-log-to-a-file) to `config/traefik/traefik_config.yml`. Pangolin's compose file already mounts `config/traefik/logs` at `/var/log/traefik`, the folder that block's `filePath` writes to.
+
+The CrowdSec install's `accessLog` block drops every field it doesn't list. GeoMetrikks parses what is left, but requests have no host, referrer or upstream time. Its `filters` also hide fast redirects. Traefik keeps a line when any filter matches, so it never logs a 3xx response that took under 100 ms. In `config/traefik/traefik_config.yml`, delete the `filters` block and add three names:
+
+```yaml
+accessLog:
+  fields:
+    names:
+      RequestHost: keep
+      OriginDuration: keep
+    headers:
+      names:
+        Referer: keep
+```
+
+`RequestHost` fills the host, `OriginDuration` the upstream time and the kept `Referer` header the `request_Referer` field. Keep the names already in the lists, then run `docker compose restart traefik` in the Pangolin directory. Point GeoMetrikks at the logs:
+
+```dotenv
+ACCESS_LOG_DIR=/path/to/pangolin/config/traefik/logs
+LOGPARSER_LOG_PATHS=/var/log/access/access.log
+```
+
+- In the default install, Traefik receives connections straight from the internet, so the log carries the visitor's address. Behind Cloudflare's proxy, add Cloudflare's ranges to `forwardedHeaders.trustedIPs` on the `websecure` entry point, as in [Real client IP behind a proxy](./proxy-setup.mdx#traefik). If Gerbil's SNI proxy sits in front of Traefik, with port 443 mapped to 8443, Traefik logs the proxy's address unless the entry point accepts PROXY protocol from it.
+- Pangolin's guide to [Traefik log rotation](https://docs.pangolin.net/self-host/advanced/traefik-log-rotation) sets up logrotate for this file. GeoMetrikks follows the rotation.
+
+## GeoMetrikks behind Traefik
+
+The sections above are about the requests Traefik logs for your sites. When Traefik also serves GeoMetrikks itself, the app resolves the client address of its own requests from `X-Forwarded-For`, and trusts that header only from the peers in `APP_TRUSTED_PROXIES`. It records the resolved address in the login log, on the OpenID Connect login lines, as an API key's "Last used" address and on the `api_key_rejected`, `api_key_created` and `api_key_revoked` lines. The Exclude your IP filter on the log pages looks your address up the same way.
+
+Set `APP_TRUSTED_PROXIES` to Traefik's Docker network. Left empty, every one of those records Traefik's address. When Cloudflare connects to Traefik directly, Traefik doesn't rewrite the peer, so the chain it forwards still ends in the Cloudflare node that connected. The app stops there, and records Cloudflare's address, unless Cloudflare's ranges are in `APP_TRUSTED_PROXIES` next to Traefik's network.
+
+Behind a Cloudflare Tunnel, Traefik's peer is `cloudflared`, not a Cloudflare range. Cloudflare's edge puts the visitor in `X-Forwarded-For` and `cloudflared` passes it on. Trust the address `cloudflared` connects from in two places: under `forwardedHeaders.trustedIPs` on Traefik's entry point, and in `APP_TRUSTED_PROXIES` next to Traefik's network. The app then walks the chain from the right past Traefik and `cloudflared` and records the visitor. Without the `trustedIPs` entry, Traefik strips the header Cloudflare set, and the visitor never reaches the app or Traefik's log. See [Cloudflare Tunnel](./proxy-setup.mdx#cloudflare-tunnel).
+
+`APP_TRUSTED_PROXIES` has no effect on how the log parser reads Traefik's access log. See the [configuration reference](../reference/configuration.mdx#application) for the value format.

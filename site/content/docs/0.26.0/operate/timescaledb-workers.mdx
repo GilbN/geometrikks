@@ -1,0 +1,85 @@
+---
+title: TimescaleDB background workers
+description: Why the shipped compose file raises the TimescaleDB worker pool, how the numbers add up, and how to set them on your own PostgreSQL server.
+---
+
+GeoMetrikks keeps its charts fast with continuous aggregates, rollups that TimescaleDB refreshes on a schedule. TimescaleDB also drops old rows and compresses old chunks on a schedule. Every one of these is a job, and each run of a job takes a background worker process for as long as it runs.
+
+## What GeoMetrikks registers
+
+Every start sets up these jobs, or updates them when a setting has changed:
+
+| Jobs | Count | Runs |
+| --- | --- | --- |
+| Refresh of each continuous aggregate | 19 | Every `ANALYTICS_CAGG_REFRESH_INTERVAL_MINUTES`, 5 by default |
+| Retention on the raw tables and the hourly aggregates | 11 | Once a day |
+| Compression on the raw tables, named `Columnstore Policy` in the log | 3 | Every 12 hours |
+
+TimescaleDB adds two jobs of its own, telemetry and the cleanup of its job history. The image installs TimescaleDB in the `postgres` database as well as `geometrikks`, so those two run in both.
+
+The app creates the 19 refreshes in one go at startup, so they come due within a few seconds of each other. The `timescaledb-ha` image sizes the pool at 16 background workers, which can't hold them all, and PostgreSQL logs:
+
+```text
+WARNING:  failed to launch job 1015 "Refresh Continuous Aggregate Policy [1015]": out of background workers
+```
+
+TimescaleDB tries a skipped job again a second later. The charts read the aggregates and add the raw rows a refresh hasn't reached yet, so they still show recent traffic, but they get slower the further the refreshes fall behind.
+
+## What the compose file sets
+
+The `timescale_db` service in the shipped [`docker-compose.yml`](https://github.com/GilbN/geometrikks/blob/main/docker-compose.yml) raises the pool with three flags:
+
+```yaml
+services:
+  timescale_db:
+    command:
+      - -c
+      - timescaledb.max_background_workers=40
+      - -c
+      - max_parallel_workers=8
+      - -c
+      - max_worker_processes=51
+```
+
+| Setting | Value | What it limits |
+| --- | --- | --- |
+| `timescaledb.max_background_workers` | `40` | Processes TimescaleDB may use: its launcher, one scheduler per database with TimescaleDB installed, and the jobs running at once. The 19 refreshes, the launcher and the schedulers for the `postgres` and `geometrikks` databases take 22. The other 18 cover the 11 retention jobs, the 3 compression jobs and the 4 TimescaleDB jobs. |
+| `max_parallel_workers` | `8` | Processes the whole server may use for parallel operations, such as parallel queries and index builds. When the image first creates the database, it sets this to the number of CPUs the container sees. The compose file pins it at 8 so that 40 + 8 + 3 still fits in `max_worker_processes` on a host with more CPUs. |
+| `max_worker_processes` | `51` | Every background worker PostgreSQL may start, from both pools above and its own, such as the logical replication launcher. 51 is 40 + 8 + 3. The 3 spare slots come from the image, which sets 16 + CPU count + 3 when it tunes a new database, so 27 on an 8-core host. |
+
+When you raise `timescaledb.max_background_workers` or `max_parallel_workers`, raise `max_worker_processes` by the same amount. When PostgreSQL runs out of worker slots, the scheduler logs `failed to launch job ... failed to start a background worker`. When the launcher can't start a scheduler for the same reason, it logs `no available background worker slots`. When `timescaledb.max_background_workers` is too small to start a scheduler, the launcher logs `TimescaleDB background worker limit of ... exceeded`.
+
+`timescaledb.max_background_workers` and `max_worker_processes` take effect only when PostgreSQL starts. After you edit the `command:` block, run `docker compose up -d` to recreate the database container.
+
+## Installs from before 0.9.0
+
+Compose files downloaded before 0.9.0 have no `command:` block on the database service. Copy the block above onto your `timescale_db` service and run `docker compose up -d`. If you already added a `command:` list, for example for TLS, add the three `-c` pairs to it instead.
+
+## Your own PostgreSQL server
+
+On a PostgreSQL server you run yourself, set the values in `postgresql.conf`, or with `ALTER SYSTEM`, and restart PostgreSQL. On a server that only holds GeoMetrikks, the compose values work as they are:
+
+```sql
+ALTER SYSTEM SET timescaledb.max_background_workers = 40;
+ALTER SYSTEM SET max_parallel_workers = 8;
+ALTER SYSTEM SET max_worker_processes = 51;
+```
+
+On a server with other workloads, never lower a value it already has. Keep a higher `max_parallel_workers`. Set `max_worker_processes` to at least `timescaledb.max_background_workers` + `max_parallel_workers` + 3 for PostgreSQL's own workers, plus any your replication and other extensions use. Each other database with TimescaleDB installed needs one more scheduler slot, and its jobs share the same pool. Raise `timescaledb.max_background_workers` for them, and `max_worker_processes` by the same amount.
+
+## Check the settings
+
+With the shipped compose file, the database service is `timescale_db`, the user `geouser` and the database `geometrikks`:
+
+```bash
+docker compose exec timescale_db psql -U geouser -d geometrikks \
+  -c "SHOW timescaledb.max_background_workers;" \
+  -c "SHOW max_parallel_workers;" \
+  -c "SHOW max_worker_processes;"
+```
+
+A job skipped with `out of background workers` leaves nothing in `timescaledb_information.job_stats`, so check the database log instead. Fifteen minutes after a recreate, this should print nothing:
+
+```bash
+docker compose logs timescale_db | grep -E "out of background workers|failed to start a background worker|no available background worker slots|background worker limit"
+```
