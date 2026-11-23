@@ -236,6 +236,13 @@ def _free_port() -> int:
         return probe.getsockname()[1]
 
 
+def _head(path: Path, lines: int = LOG_TAIL_LINES) -> str:
+    try:
+        return "\n".join(path.read_text(errors="replace").splitlines()[:lines])
+    except OSError:
+        return ""
+
+
 def _tail(path: Path, lines: int = LOG_TAIL_LINES) -> str:
     try:
         return "\n".join(path.read_text(errors="replace").splitlines()[-lines:])
@@ -405,15 +412,17 @@ def _browser_starts(runner: Runner) -> bool:
             timeout=BROWSER_SECONDS,
         )
     except TimeoutError:
-        say(f"could not start Playwright's Chromium: it did not start within {BROWSER_SECONDS} s")
-        return False
-    finally:
-        for line in sweep_marked(lambda pair: pair == plan_marker)[0]:
-            say(f"preflight: {line}")
-    if code != 0:
-        reason = _tail(runner.log_dir / log) or f"the probe exited {code} without a message"
+        printed = _head(runner.log_dir / log)
+        say(f"could not start Playwright's Chromium: it did not start within {BROWSER_SECONDS} s\n{printed}".rstrip())
+        code = None
+    swept, sweep_failed = sweep_marked(lambda pair: pair == plan_marker)
+    for line in swept:
+        say(f"preflight: {line.replace('from a capture', 'from the browser probe')}")
+    if code:
+        # Playwright puts the cause first and appends its call log.
+        reason = _head(runner.log_dir / log) or f"the probe exited {code} without a message"
         say(f"could not start Playwright's Chromium:\n{reason}")
-    return code == 0
+    return code == 0 and not sweep_failed
 
 
 def gather_facts(args: argparse.Namespace, runner: Runner, *, ledger_exists: bool) -> Facts:
@@ -594,8 +603,13 @@ def dry_run(args: argparse.Namespace) -> int:
             code = EXIT_INTERRUPTED
         finally:
             with interrupts_ignored():
-                for line in _teardown(private.owned(), private, env, logs if logs.is_dir() else scratch):
+                report = _teardown(private.owned(), private, env, logs if logs.is_dir() else scratch)
+                dry_marker = f"SHOTS_PLAN={scratch / 'plan.json'}".encode()
+                swept, sweep_failed = sweep_marked(lambda pair: pair == dry_marker)
+                for line in report + swept:
                     say(f"teardown: {line}")
+                if sweep_failed:
+                    code = code or EXIT_FAILED
                 if _ledger_holds(private):
                     say(f"teardown: kept {scratch}, its ledger still lists resources; run --cleanup")
                     code = code or EXIT_FAILED

@@ -496,6 +496,25 @@ def test_dry_run_exits_refused_on_problems_else_failed_when_the_list_fails(
     assert not list(isolated.root.glob("dry-*"))
 
 
+def test_dry_run_teardown_kills_a_browser_left_by_the_preflight(
+    isolated: Isolated, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    markers: list[Callable[[bytes], bool]] = []
+
+    def record(marker: Callable[[bytes], bool]) -> tuple[list[str], bool]:
+        markers.append(marker)
+        return [], False
+
+    monkeypatch.setattr(run, "sweep_marked", record)
+    monkeypatch.setattr(run, "gather_facts", lambda args, runner, ledger_exists: None)
+    monkeypatch.setattr(run, "preflight_problems", lambda facts: [])
+    monkeypatch.setattr(run.Runner, "which", lambda runner, name: f"/usr/bin/{name}")
+    monkeypatch.setattr(run.Runner, "run", lambda runner, argv, **_: 0)
+    run.dry_run(run_args())
+    plan = f"SHOTS_PLAN={isolated.root / f'dry-{os.getpid()}' / 'plan.json'}".encode()
+    assert [marker(plan) for marker in markers] == [True]
+
+
 # --- steps 8 and 12, the shared helper, and the preflight --------------------------------------------------
 
 
@@ -608,6 +627,20 @@ def test_preflight_takes_a_chromium_that_starts(tmp_path: Path) -> None:
     assert node_args.read_text().split("\0")[:-1] == ["--input-type=module", "-e", run.BROWSER_PROBE]
 
 
+def test_preflight_keeps_the_start_of_a_long_probe_error(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    lines = f"{shutil.which('seq')} -f 'call log line %g' 60"
+    assert run._browser_starts(stub_node(tmp_path, f"echo 'Failed to launch' >&2; {lines} >&2; exit 1")) is False
+    assert "Failed to launch" in capsys.readouterr().out
+
+
+def test_preflight_refuses_when_the_sweep_cannot_stop_a_browser(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(run, "sweep_marked", lambda marker: (["could not stop stray process 4242 from a capture"], True))
+    assert run._browser_starts(stub_node(tmp_path, "exit 0")) is False
+    assert "could not stop stray process 4242" in capsys.readouterr().out
+
+
 def test_preflight_names_the_exit_code_of_a_silent_probe(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     assert run._browser_starts(stub_node(tmp_path, "exit 3")) is False
     assert "the probe exited 3 without a message" in capsys.readouterr().out
@@ -617,8 +650,9 @@ def test_preflight_refuses_when_chromium_hangs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.setattr(run, "BROWSER_SECONDS", 0.5)
-    assert run._browser_starts(stub_node(tmp_path, f"exec {shutil.which('sleep')} 300")) is False
-    assert "did not start within 0.5 s" in capsys.readouterr().out
+    assert run._browser_starts(stub_node(tmp_path, f"echo 'slow start' >&2; exec {shutil.which('sleep')} 300")) is False
+    out = capsys.readouterr().out
+    assert "did not start within 0.5 s" in out and "slow start" in out
 
 
 def test_the_browser_probe_keeps_playwright_temp_files_in_the_run_folder(tmp_path: Path) -> None:
@@ -629,11 +663,17 @@ def test_the_browser_probe_keeps_playwright_temp_files_in_the_run_folder(tmp_pat
     assert temp_dir.is_dir() and temp_dir.is_relative_to(runner.log_dir)
 
 
-def test_the_browser_probe_stops_a_browser_its_node_left_running(tmp_path: Path) -> None:
+def test_the_browser_probe_stops_a_browser_its_node_left_running(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     pid_file = tmp_path / "pid"
+    quoted_pid = shlex.quote(str(pid_file))
     # Playwright starts the browser in a process group of its own, as setsid does here.
-    detached = f"{shutil.which('setsid')} {shutil.which('sleep')} 300 & echo $! > {shlex.quote(str(pid_file))}"
-    assert run._browser_starts(stub_node(tmp_path, f"{detached}; exit 1")) is False
+    browser_script = f"echo $$ > {quoted_pid}; exec {shutil.which('sleep')} 300"
+    detached = f"{shutil.which('setsid')} {shutil.which('sh')} -c {shlex.quote(browser_script)} &"
+    wait = f"while [ ! -s {quoted_pid} ]; do {shutil.which('sleep')} 0.05; done"
+    assert run._browser_starts(stub_node(tmp_path, f"{detached} {wait}; exit 1")) is False
+    assert "from the browser probe" in capsys.readouterr().out
     browser = Path("/proc") / pid_file.read_text().strip()
     deadline = time.monotonic() + 5
     while browser.exists() and time.monotonic() < deadline:
