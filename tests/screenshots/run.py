@@ -85,6 +85,7 @@ from tests.screenshots.lapi import (
     load_events,
     network_args,
 )
+from tests.screenshots.muted import muted_request_ips, write_fixture_mutes
 from tests.screenshots.plan import (
     MissingParamError,
     Shot,
@@ -1051,6 +1052,10 @@ class FullRun:
             if listed:
                 raise RunFailed(f"DROP lists hold non-documentation entries: {', '.join(listed)}")
             say(f"AbuseIPDB: {await write_fixture_reports(conn, now=self.now)} fixture reports written")
+            say(f"Muted IPs: {await write_fixture_mutes(conn, now=self.now)} entries written")
+            covered = await muted_request_ips(conn)
+            if covered:
+                raise RunFailed(f"Muted IPs entries cover stored requests from: {', '.join(covered)}")
         finally:
             await conn.close()
             await engine.dispose()

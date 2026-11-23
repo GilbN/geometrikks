@@ -173,6 +173,13 @@ SCENES: tuple[Scene, ...] = (
         viewports=("desktop", "phone"),
     ),
     Scene(
+        id="muted-ips",
+        title="Muted IPs",
+        alt="The Muted IPs settings page with the form for adding an IP or CIDR range, above a table of three saved entries with their notes.",
+        path="/settings/muted-ips",
+        viewports=("desktop", "phone"),
+    ),
+    Scene(
         id="live",
         title="Live map",
         alt="The map in live mode, with arcs carrying incoming requests to the servers and a readout of the live request rate.",
