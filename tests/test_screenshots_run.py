@@ -5,9 +5,11 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shlex
 import shutil
 import signal
 import subprocess
+import time
 from collections.abc import Callable, Generator, Iterator, Sequence
 from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass, field, replace
@@ -494,6 +496,25 @@ def test_dry_run_exits_refused_on_problems_else_failed_when_the_list_fails(
     assert not list(isolated.root.glob("dry-*"))
 
 
+def test_dry_run_teardown_kills_a_browser_left_by_the_preflight(
+    isolated: Isolated, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    markers: list[Callable[[bytes], bool]] = []
+
+    def record(marker: Callable[[bytes], bool]) -> tuple[list[str], bool]:
+        markers.append(marker)
+        return [], False
+
+    monkeypatch.setattr(run, "sweep_marked", record)
+    monkeypatch.setattr(run, "gather_facts", lambda args, runner, ledger_exists: None)
+    monkeypatch.setattr(run, "preflight_problems", lambda facts: [])
+    monkeypatch.setattr(run.Runner, "which", lambda runner, name: f"/usr/bin/{name}")
+    monkeypatch.setattr(run.Runner, "run", lambda runner, argv, **_: 0)
+    run.dry_run(run_args())
+    plan = f"SHOTS_PLAN={isolated.root / f'dry-{os.getpid()}' / 'plan.json'}".encode()
+    assert [marker(plan) for marker in markers] == [True]
+
+
 # --- steps 8 and 12, the shared helper, and the preflight --------------------------------------------------
 
 
@@ -576,6 +597,111 @@ def test_preflight_skips_the_shared_server_with_own_db(tmp_path: Path, monkeypat
     monkeypatch.setattr(run, "_database_exists", database_check(OSError("connection refused")))
     facts = run.gather_facts(run_args(own_db=True), no_docker(tmp_path), ledger_exists=False)
     assert facts.database_reachable is True
+
+
+def stub_node(tmp_path: Path, script: str) -> run.Runner:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    node = bin_dir / "node"
+    node.write_text(f"#!/bin/sh\n{script}\n")
+    node.chmod(0o755)
+    logs = tmp_path / "run" / "logs"
+    logs.mkdir(parents=True)
+    return run.Runner(ledger=Ledger(tmp_path / "ledger.json"), env={"PATH": str(bin_dir)}, log_dir=logs)
+
+
+def test_preflight_refuses_when_chromium_does_not_start(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    runner = stub_node(tmp_path, 'printf "Host system is missing dependencies\\nrun install-deps\\n" >&2; exit 1')
+    facts = run.gather_facts(run_args(own_db=True), runner, ledger_exists=False)
+    assert facts.browser_starts is False
+    out = capsys.readouterr().out
+    assert "Host system is missing dependencies" in out and "run install-deps" in out
+    assert any("npx playwright install chromium" in problem for problem in preflight_problems(facts))
+
+
+def test_preflight_takes_a_chromium_that_starts(tmp_path: Path) -> None:
+    node_args = tmp_path / "node-args"
+    runner = stub_node(tmp_path, f"printf '%s\\0' \"$@\" > {shlex.quote(str(node_args))}")
+    facts = run.gather_facts(run_args(own_db=True), runner, ledger_exists=False)
+    assert facts.browser_starts is True
+    assert node_args.read_text().split("\0")[:-1] == ["--input-type=module", "-e", run.BROWSER_PROBE]
+
+
+def test_preflight_keeps_the_start_of_a_long_probe_error(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    lines = f"{shutil.which('seq')} -f 'call log line %g' 60"
+    assert run._browser_starts(stub_node(tmp_path, f"echo 'Failed to launch' >&2; {lines} >&2; exit 1")) is False
+    assert "Failed to launch" in capsys.readouterr().out
+
+
+def test_preflight_refuses_when_the_sweep_cannot_stop_a_browser(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(run, "sweep_marked", lambda marker: (["could not stop stray process 4242 from a capture"], True))
+    assert run._browser_starts(stub_node(tmp_path, "exit 0")) is False
+    assert "could not stop stray process 4242" in capsys.readouterr().out
+
+
+def test_preflight_names_the_exit_code_of_a_silent_probe(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    assert run._browser_starts(stub_node(tmp_path, "exit 3")) is False
+    assert "the probe exited 3 without a message" in capsys.readouterr().out
+
+
+def test_preflight_refuses_when_chromium_hangs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(run, "BROWSER_SECONDS", 0.5)
+    assert run._browser_starts(stub_node(tmp_path, f"echo 'slow start' >&2; exec {shutil.which('sleep')} 300")) is False
+    out = capsys.readouterr().out
+    assert "did not start within 0.5 s" in out and "slow start" in out
+
+
+def test_the_browser_probe_keeps_playwright_temp_files_in_the_run_folder(tmp_path: Path) -> None:
+    seen = tmp_path / "seen"
+    runner = stub_node(tmp_path, f'printf %s "$TMPDIR" > {shlex.quote(str(seen))}')
+    assert run._browser_starts(runner) is True
+    temp_dir = Path(seen.read_text())
+    assert temp_dir.is_dir() and temp_dir.is_relative_to(runner.log_dir)
+
+
+def test_the_browser_probe_stops_a_browser_its_node_left_running(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    pid_file = tmp_path / "pid"
+    quoted_pid = shlex.quote(str(pid_file))
+    # Playwright starts the browser in a process group of its own, as setsid does here.
+    browser_script = f"echo $$ > {quoted_pid}; exec {shutil.which('sleep')} 300"
+    detached = f"{shutil.which('setsid')} {shutil.which('sh')} -c {shlex.quote(browser_script)} &"
+    wait = f"while [ ! -s {quoted_pid} ]; do {shutil.which('sleep')} 0.05; done"
+    assert run._browser_starts(stub_node(tmp_path, f"{detached} {wait}; exit 1")) is False
+    assert "from the browser probe" in capsys.readouterr().out
+    browser = Path("/proc") / pid_file.read_text().strip()
+    deadline = time.monotonic() + 5
+    while browser.exists() and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert not browser.exists()
+
+
+def test_preflight_refuses_without_node(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    facts = run.gather_facts(run_args(own_db=True), no_docker(tmp_path), ledger_exists=False)
+    assert facts.browser_starts is False
+    assert "node is not on the run's PATH" in capsys.readouterr().out
+
+
+@pytest.mark.skipif(
+    shutil.which("node") is None or not (run.REPO_ROOT / "node_modules").is_dir(),
+    reason="needs node and the root node_modules",
+)
+def test_the_browser_probe_reports_a_missing_chromium_build(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    browsers = tmp_path / "browsers"
+    browsers.mkdir()
+    env = {"PATH": os.environ["PATH"], "HOME": str(tmp_path), "PLAYWRIGHT_BROWSERS_PATH": str(browsers)}
+    logs = tmp_path / "run" / "logs"
+    logs.mkdir(parents=True)
+    runner = run.Runner(ledger=Ledger(tmp_path / "ledger.json"), env=env, log_dir=logs)
+    assert run._browser_starts(runner) is False
+    assert str(browsers) in capsys.readouterr().out
 
 
 ABUSEIPDB_OFF: dict[str, object] = {"enabled": False, "reportingEnabled": False, "blacklistEnabled": False}

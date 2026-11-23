@@ -11,6 +11,7 @@ Scene ids in `plan.py` are public. The docs place shots with `<Screenshot scene=
 - A CARTO basemap key. CARTO's terms want one key per deployment, so export your own as `MAP_CARTO_API_KEY` or pass `--carto-key`.
 - An Esri key for the `satellite` scene, the one shot of the map's Satellite view. Export it as `MAP_ESRI_API_KEY` or pass `--esri-key`. A run that leaves the scene out with `--only` needs none.
 - `bun install` at the repo root and in `site/`. The encoder needs `site/node_modules/sharp`.
+- Playwright's Chromium for the installed Playwright version, from `npx playwright install chromium`. The preflight starts it once and refuses when it does not start.
 - No Vite dev server for this checkout. The run refuses while `public/hot` exists, because the app would load its assets from the dev server.
 - At least 3 GiB of available memory and 10 GB of free disk. The preflight names both numbers when either is short.
 
