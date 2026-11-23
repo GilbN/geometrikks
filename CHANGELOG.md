@@ -10,10 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `GET /api/v1/crowdsec/alerts/daily` returns daily CrowdSec alert counts for scripts, and `GET /api/v1/crowdsec/stats` adds the active decision split and the count of decisions expiring soon.
+- A View menu replaces the Columns button on Access Logs, Geo Logs and Debug Logs, and Settings > Logs has one with Rows and Time. Rows can be Compact, the default with a mouse, or Comfortable. The log tables share 24-hour time by default, and on Access Logs the Combined layout merges request, client and location fields.
 
 ### Changed
 
 - The Security page replaces its four top tiles with one summary of active decisions, alerts per day for the last 7 days and the top scenarios. Manual bans now show their reason in Top scenarios instead of "manual-ban". Alerts per day needs `CROWDSEC_MACHINE_ID` and `CROWDSEC_MACHINE_PASSWORD`, like the Alerts tab.
+- Byte counts under 1 KB show as whole bytes, `455 B` instead of `455.0 B`, everywhere the app shows sizes. Table headers are all upper case.
 
 ## [0.26.0] - 2026-11-23
 

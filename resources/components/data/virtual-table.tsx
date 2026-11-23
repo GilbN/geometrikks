@@ -13,32 +13,41 @@ import {
   type ReactElement,
 } from "react"
 import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual"
+import { cn } from "@/lib/utils"
 import { Table, TableBody } from "@/components/ui/table"
+import type { RowDensity } from "@/lib/table-view"
 
 const HEADER_HEIGHT = 40
 const ScrollContext = createContext<{
   scrollElement: HTMLDivElement | null
   resetKey: string
   narrow: boolean
+  density: RowDensity
 } | null>(null)
+
+/** A compact row is 31 px with a badge or a 24 px IP control in it, a comfortable one 41 px. */
+const ROW_ESTIMATE: Record<RowDensity, number> = { comfortable: 48, compact: 32 }
 
 /**
  * Short fields take their natural width; text columns share the remaining space.
  * A narrow table has one cell per row and no header, and scrolls with the page
- * instead of in a box of its own.
+ * instead of in a box of its own. Density applies to the wide layout only.
+ * Narrow rows are for touch and keep their height.
  */
 export function VirtualTable({
   columns,
   rowCount,
   resetKey,
   narrow = false,
+  density = "comfortable",
   children,
   ...props
 }: ComponentProps<"table"> & {
-  columns: readonly { key: string; grow?: boolean }[]
+  columns: readonly { key: string; grow?: boolean; width?: string }[]
   rowCount: number
   resetKey: string
   narrow?: boolean
+  density?: RowDensity
 }) {
   const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null)
   // A narrow table reserves its rows' height in the commit that mounts it, and
@@ -60,8 +69,8 @@ export function VirtualTable({
     [narrow],
   )
   const context = useMemo(
-    () => ({ scrollElement, resetKey, narrow }),
-    [scrollElement, resetKey, narrow],
+    () => ({ scrollElement, resetKey, narrow, density }),
+    [scrollElement, resetKey, narrow, density],
   )
   return (
     <ScrollContext.Provider value={context}>
@@ -74,8 +83,12 @@ export function VirtualTable({
         className={
           narrow
             ? "table-fixed"
-            : "table-auto [&_thead]:sticky [&_thead]:top-0 [&_thead]:z-10 [&_thead]:bg-card"
+            : cn(
+                "table-auto [&_thead]:sticky [&_thead]:top-0 [&_thead]:z-10 [&_thead]:bg-card",
+                density === "compact" && "[&_tbody_td]:py-[3px]",
+              )
         }
+        data-density={narrow ? undefined : density}
         aria-rowcount={narrow ? rowCount : rowCount + 1}
       >
         {narrow ? (
@@ -87,7 +100,10 @@ export function VirtualTable({
             {/* In auto layout, 1% keeps short fields at their content width.
                 Unconstrained text columns get the remaining space. */}
             {columns.map((column) => (
-              <col key={column.key} style={{ width: column.grow ? undefined : "1%" }} />
+              <col
+                key={column.key}
+                style={{ width: column.width ?? (column.grow ? undefined : "1%") }}
+              />
             ))}
           </colgroup>
         )}
@@ -119,9 +135,9 @@ export function VirtualTableBody<T>({
 }) {
   const context = useContext(ScrollContext)
   if (!context) throw new Error("VirtualTableBody requires VirtualTable")
-  const { scrollElement, resetKey, narrow } = context
+  const { scrollElement, resetKey, narrow, density } = context
   const headerHeight = narrow ? 0 : HEADER_HEIGHT
-  const rowEstimate = narrow ? 76 : 48
+  const rowEstimate = narrow ? 76 : ROW_ESTIMATE[density]
   // A narrow table scrolls with the page, so the virtualizer follows <main>
   // and needs the table's offset inside it.
   const pageScroller = useMemo(
@@ -203,6 +219,15 @@ export function VirtualTableBody<T>({
       [focusedIndex],
     ),
   })
+
+  // Rows measured at the other density would keep their old height until they
+  // scroll into view again. Narrow rows ignore density.
+  const measuredDensity = useRef(density)
+  useLayoutEffect(() => {
+    if (measuredDensity.current === density) return
+    measuredDensity.current = density
+    if (!narrow) virtualizer.measure()
+  }, [density, narrow, virtualizer])
 
   useLayoutEffect(() => {
     setFocusedKey(null)

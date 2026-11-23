@@ -26,7 +26,7 @@ export function SortableHead({
         type="button"
         onClick={onToggle}
         className={cn(
-          "inline-flex items-center gap-1 hover:text-foreground pointer-coarse:h-10 pointer-coarse:w-full",
+          "inline-flex items-center gap-1 uppercase hover:text-foreground pointer-coarse:h-10 pointer-coarse:w-full",
           alignRight && "flex-row-reverse",
           active ? "text-foreground" : "text-muted-foreground",
         )}

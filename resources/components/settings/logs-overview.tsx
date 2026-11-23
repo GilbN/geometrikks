@@ -60,6 +60,14 @@ import { logStream, type LogRecord, type LogStreamStatus } from "@/lib/logstream
 import { apiV1LogsRotateRotate } from "@/generated/api/sdk.gen"
 import type { LogFileView } from "@/generated/api/types.gen"
 import { useNarrowLayout } from "@/components/data/narrow-layout"
+import { TableViewMenu } from "@/components/data/table-view-menu"
+import {
+  formatClockTime,
+  fullTimestamp,
+  useTableView,
+  useTimeFormat,
+  type TimeFormat,
+} from "@/lib/table-view"
 import { SideDrawerClose } from "@/components/map/SideDrawer"
 import { usePhoneDrawer } from "@/hooks/use-phone-drawer"
 import { rowActivation, stopRowActivation } from "@/components/data/row-activation"
@@ -205,12 +213,14 @@ function TracebackButton({
 function LogRow({
   entry,
   narrow,
+  timeFormat,
   onOpenRecord,
   onOpenTraceback,
   ...rowProps
 }: ComponentProps<"tr"> & {
   entry: Entry
   narrow: boolean
+  timeFormat: TimeFormat
   onOpenRecord: (record: LogRecord) => void
   onOpenTraceback: (record: LogRecord) => void
 }) {
@@ -219,7 +229,8 @@ function LogRow({
     ...rowActivation<HTMLTableRowElement>(() => onOpenRecord(record)),
     ...rowProps,
   }
-  const time = record.timestamp ? new Date(record.timestamp) : null
+  const fullTime = record.timestamp ? fullTimestamp(record.timestamp) : undefined
+  const clockTime = record.timestamp ? formatClockTime(record.timestamp, timeFormat) : "-"
   if (narrow) {
     return (
       <TableRow {...activation}>
@@ -229,9 +240,9 @@ function LogRow({
             <MonoChip className="min-w-0 truncate">{component(record)}</MonoChip>
             <span
               className="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground"
-              title={time?.toLocaleString()}
+              title={fullTime}
             >
-              {time ? time.toLocaleTimeString() : "-"}
+              {clockTime}
             </span>
             <TracebackButton record={record} onOpen={onOpenTraceback} />
           </div>
@@ -243,7 +254,7 @@ function LogRow({
   return (
     <TableRow {...activation}>
       <TableCell className="w-24 py-1.5 text-xs tabular-nums text-muted-foreground">
-        <span title={time?.toLocaleString()}>{time ? time.toLocaleTimeString() : "-"}</span>
+        <span title={fullTime}>{clockTime}</span>
       </TableCell>
       <TableCell className="w-24 py-1.5">
         <LevelBadge level={record.level} />
@@ -307,6 +318,8 @@ export function LogsOverview() {
   const [shownRecord, clearShownRecord] = useClosingRecord(selected)
   const [shownTraceback, clearShownTraceback] = useClosingRecord(tracebackRecord)
   const [layoutRef, narrow] = useNarrowLayout<HTMLDivElement>(LOG_NARROW_WIDTH)
+  const { density, setDensity, resetView, hasViewOverrides } = useTableView("system-log")
+  const [timeFormat] = useTimeFormat()
   const listRef = useRef<HTMLDivElement | null>(null)
   const wrapperRef = useCallback(
     (element: HTMLDivElement | null) => {
@@ -667,6 +680,14 @@ export function LogsOverview() {
                   className="h-8 pl-7 text-xs"
                 />
               </div>
+              {!narrow && (
+                <TableViewMenu
+                  density={density}
+                  onDensityChange={setDensity}
+                  canReset={hasViewOverrides}
+                  onReset={resetView}
+                />
+              )}
             </div>
 
             <div ref={wrapperRef} className="min-w-0">
@@ -701,6 +722,7 @@ export function LogsOverview() {
                   </div>
                   <VirtualTable
                     narrow={narrow}
+                    density={density}
                     columns={LOG_COLUMNS}
                     rowCount={filtered.length}
                     resetKey={JSON.stringify([activeTab, levelFilters, componentFilters, search])}
@@ -727,6 +749,7 @@ export function LogsOverview() {
                         <LogRow
                           entry={entry}
                           narrow={narrow}
+                          timeFormat={timeFormat}
                           onOpenRecord={openRecord}
                           onOpenTraceback={openTraceback}
                         />

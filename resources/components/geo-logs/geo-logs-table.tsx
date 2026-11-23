@@ -7,7 +7,6 @@
  * opens GeoLogDetailSheet.
  */
 import { memo, useEffect, useMemo, useState } from "react"
-import { Columns3 } from "lucide-react"
 import { CountryFlag, CountryLabel } from "@/components/country-flag"
 import { TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useNarrowLayout } from "@/components/data/narrow-layout"
@@ -19,16 +18,8 @@ import { formatRowTime } from "@/lib/row-time"
 import { VirtualTable, VirtualTableBody } from "@/components/data/virtual-table"
 import { useTimeRange } from "@/lib/time-range-context"
 import { useGeoLogFilters } from "@/lib/geo-log-filters-context"
-import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuItem,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { TableTime } from "@/components/data/table-time"
+import { TableViewMenu } from "@/components/data/table-view-menu"
 import { PaginationFooter } from "@/components/ui/pagination-footer"
 import { DataTableFrame } from "@/components/data/data-table-frame"
 import { rowActivation } from "@/components/data/row-activation"
@@ -48,10 +39,11 @@ import { useGeoLogs } from "@/lib/queries"
 import { pageToClamp } from "@/lib/use-muted-page"
 import { cn } from "@/lib/utils"
 import { useColumnVisibility } from "@/lib/column-visibility"
+import { useTableView, useTimeFormat, type TimeFormat } from "@/lib/table-view"
 
 export const GEO_LOGS_PAGE_SIZES = [10, 20, 50, 100, 200, 500] as const
 
-function renderCell(column: GeoLogColumn, r: GeoLogEntry): React.ReactNode {
+function renderCell(column: GeoLogColumn, r: GeoLogEntry, timeFormat: TimeFormat): React.ReactNode {
   switch (column.key) {
     case "city":
       return <span className="whitespace-nowrap">{r.city ?? "-"}</span>
@@ -77,10 +69,10 @@ function renderCell(column: GeoLogColumn, r: GeoLogEntry): React.ReactNode {
       return <span className="font-medium tabular-nums">{formatNumber(r.eventCount)}</span>
     case "lastSeen":
       // Day-floored on ranges over 24h (daily CAGG buckets), exact otherwise.
-      return (
-        <span className="whitespace-nowrap text-muted-foreground">
-          {r.lastSeen ? new Date(r.lastSeen).toLocaleString() : "-"}
-        </span>
+      return r.lastSeen ? (
+        <TableTime value={r.lastSeen} format={timeFormat} />
+      ) : (
+        <span className="text-muted-foreground">-</span>
       )
     case "servers":
       return (
@@ -119,7 +111,7 @@ function GeoLogIpActions({ row }: { row: GeoLogEntry }) {
 }
 
 /** A narrow row: where and how much on top, who and when below. */
-function GeoLogNarrowCell({ row }: { row: GeoLogEntry }) {
+function GeoLogNarrowCell({ row, timeFormat }: { row: GeoLogEntry; timeFormat: TimeFormat }) {
   return (
     <TableCell className="py-2.5">
       <div className="flex min-w-0 items-center gap-2">
@@ -138,7 +130,7 @@ function GeoLogNarrowCell({ row }: { row: GeoLogEntry }) {
           <GeoLogIpActions row={row} />
         </span>
         <span className="ml-auto shrink-0 whitespace-nowrap text-muted-foreground">
-          {row.lastSeen ? formatRowTime(row.lastSeen) : "-"}
+          {row.lastSeen ? formatRowTime(row.lastSeen, { format: timeFormat }) : "-"}
         </span>
       </div>
     </TableCell>
@@ -149,11 +141,13 @@ const GeoLogTableBody = memo(function GeoLogTableBody({
   rows,
   shownColumns,
   narrow,
+  timeFormat,
   onSelect,
 }: {
   rows: GeoLogEntry[]
   shownColumns: GeoLogColumn[]
   narrow: boolean
+  timeFormat: TimeFormat
   onSelect: (row: GeoLogEntry) => void
 }) {
   return (
@@ -169,14 +163,14 @@ const GeoLogTableBody = memo(function GeoLogTableBody({
           {...rowActivation<HTMLTableRowElement>(() => onSelect(row))}
         >
           {narrow ? (
-            <GeoLogNarrowCell row={row} />
+            <GeoLogNarrowCell row={row} timeFormat={timeFormat} />
           ) : (
             shownColumns.map((c) => (
               <TableCell
                 key={c.key}
                 className={cn(c.grow && "max-w-0 truncate", c.align === "right" && "text-right")}
               >
-                {renderCell(c, row)}
+                {renderCell(c, row, timeFormat)}
                 {c.key === "ipAddress" && <GeoLogIpActions row={row} />}
               </TableCell>
             ))
@@ -218,6 +212,8 @@ export function GeoLogsTable({
     GEO_LOG_COLUMNS,
     GEO_LOG_RENAMED_COLUMN_KEYS,
   )
+  const { density, setDensity, resetView, hasViewOverrides } = useTableView("geo-logs")
+  const [timeFormat] = useTimeFormat()
 
   const { data, isLoading, isError, isPlaceholderData } = useGeoLogs({
     currentPage: page,
@@ -249,33 +245,19 @@ export function GeoLogsTable({
     }
   }
 
-  const columnsMenu = (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="h-8">
-          <Columns3 className="mr-1 h-3.5 w-3.5" /> Columns
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" collisionPadding={8} className="w-auto min-w-44">
-        <DropdownMenuLabel>Visible columns</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        {GEO_LOG_COLUMNS.map((c) => (
-          <DropdownMenuCheckboxItem
-            key={c.key}
-            checked={visible.has(c.key)}
-            onCheckedChange={() => toggleColumn(c.key)}
-            onSelect={(e) => e.preventDefault()}
-            disabled={visible.has(c.key) && visible.size === 1}
-          >
-            {c.label}
-          </DropdownMenuCheckboxItem>
-        ))}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem disabled={!hasOverrides} onSelect={resetColumns}>
-          Reset to defaults
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+  const viewMenu = (
+    <TableViewMenu
+      density={density}
+      onDensityChange={setDensity}
+      fields={GEO_LOG_COLUMNS}
+      visible={visible}
+      onToggleField={toggleColumn}
+      canReset={hasOverrides || hasViewOverrides}
+      onReset={() => {
+        resetColumns()
+        resetView()
+      }}
+    />
   )
 
   return (
@@ -296,7 +278,7 @@ export function GeoLogsTable({
                 onSortChange={onSortChange}
               />
             ) : (
-              columnsMenu
+              viewMenu
             )
           }
           state={state}
@@ -317,6 +299,7 @@ export function GeoLogsTable({
         >
           <VirtualTable
             narrow={narrow}
+            density={density}
             columns={shownColumns}
             rowCount={rows.length}
             resetKey={JSON.stringify([
@@ -362,6 +345,7 @@ export function GeoLogsTable({
               rows={rows}
               shownColumns={shownColumns}
               narrow={narrow}
+              timeFormat={timeFormat}
               onSelect={setSelected}
             />
           </VirtualTable>

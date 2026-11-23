@@ -16,6 +16,7 @@ import { useLiveEvents, useLiveFeedStatus } from "@/lib/live-feed-context"
 import { formatBytes } from "@/lib/api"
 import { statusBadgeClass } from "@/lib/status-badge"
 import { formatDurationOrNa } from "@/lib/timing"
+import { formatClockTime, fullTimestamp, useTimeFormat } from "@/lib/table-view"
 import { cn } from "@/lib/utils"
 import type { AccessLogData } from "@/lib/websocket"
 
@@ -25,6 +26,7 @@ const MAX_ROWS = 500
 const COLS = "flex items-center gap-2 px-3 min-w-max"
 
 export function LiveTail({ enabled }: { enabled: boolean }) {
+  const [timeFormat] = useTimeFormat()
   const [rows, setRows] = useState<AccessLogData[]>([])
   const [dropped, setDropped] = useState(0)
   // Two pause sources: the explicit button (all devices) and hover (devices
@@ -178,8 +180,11 @@ export function LiveTail({ enabled }: { enabled: boolean }) {
                   )}
                   style={{ height: item.size }}
                 >
-                  <span className="w-20 shrink-0 text-muted-foreground">
-                    {new Date(row.timestamp).toLocaleTimeString()}
+                  <span
+                    className="w-20 shrink-0 tabular-nums text-muted-foreground"
+                    title={fullTimestamp(row.timestamp)}
+                  >
+                    {formatClockTime(row.timestamp, timeFormat)}
                   </span>
                   <span className="w-14 shrink-0">
                     <Badge

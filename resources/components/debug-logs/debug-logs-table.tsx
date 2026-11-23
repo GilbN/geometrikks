@@ -7,7 +7,7 @@
 import { memo, useCallback, useEffect, useId, useState } from "react"
 import { useSearch } from "@tanstack/react-router"
 import { CountryFlag, CountryLabel } from "@/components/country-flag"
-import { Columns3, Search } from "lucide-react"
+import { Search } from "lucide-react"
 import { TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useNarrowLayout } from "@/components/data/narrow-layout"
 import { sortOptions, type SortKind } from "@/components/data/sort-options"
@@ -17,17 +17,7 @@ import { formatRowTime } from "@/lib/row-time"
 import { VirtualTable, VirtualTableBody } from "@/components/data/virtual-table"
 import { useTimeRange } from "@/lib/time-range-context"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuItem,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import {
   Select,
   SelectContent,
@@ -61,6 +51,9 @@ import type { AccessLogDebugEntry, AccessLogDebugSortField, SortOrder } from "@/
 import { cn } from "@/lib/utils"
 import { statusBadgeClass } from "@/lib/status-badge"
 import { useColumnVisibility } from "@/lib/column-visibility"
+import { TableTime } from "@/components/data/table-time"
+import { TableViewMenu } from "@/components/data/table-view-menu"
+import { defaultPageSize, useTableView, useTimeFormat, type TimeFormat } from "@/lib/table-view"
 
 const PAGE_SIZES = [10, 20, 50, 100, 200, 500, 1000] as const
 
@@ -78,9 +71,9 @@ interface ColumnDef {
   sortField?: AccessLogDebugSortField
   sortKind?: SortKind
   defaultVisible: boolean
-  /** Start hidden on mobile viewports (still selectable via the Columns menu). */
+  /** Start hidden on mobile viewports (still selectable from the View menu). */
   mobileHidden?: boolean
-  render: (row: AccessLogDebugEntry) => React.ReactNode
+  render: (row: AccessLogDebugEntry, timeFormat: TimeFormat) => React.ReactNode
 }
 
 const COLUMNS: ColumnDef[] = [
@@ -90,11 +83,7 @@ const COLUMNS: ColumnDef[] = [
     sortField: "createdAt",
     sortKind: "time",
     defaultVisible: true,
-    render: (r) => (
-      <span className="whitespace-nowrap text-muted-foreground">
-        {new Date(r.createdAt).toLocaleString()}
-      </span>
-    ),
+    render: (r, timeFormat) => <TableTime value={r.createdAt} format={timeFormat} />,
   },
   {
     key: "isMalformed",
@@ -204,11 +193,12 @@ const COLUMNS: ColumnDef[] = [
     sortField: "timestamp",
     sortKind: "time",
     defaultVisible: false,
-    render: (r) => (
-      <span className="whitespace-nowrap text-muted-foreground">
-        {r.timestamp ? new Date(r.timestamp).toLocaleString() : "-"}
-      </span>
-    ),
+    render: (r, timeFormat) =>
+      r.timestamp ? (
+        <TableTime value={r.timestamp} format={timeFormat} />
+      ) : (
+        <span className="text-muted-foreground">-</span>
+      ),
   },
   {
     key: "country",
@@ -265,7 +255,13 @@ function DebugLogIpActions({ row }: { row: AccessLogDebugEntry }) {
 }
 
 /** A narrow row: the raw line and whether it parsed on top, when and from where below. */
-function DebugLogNarrowCell({ row }: { row: AccessLogDebugEntry }) {
+function DebugLogNarrowCell({
+  row,
+  timeFormat,
+}: {
+  row: AccessLogDebugEntry
+  timeFormat: TimeFormat
+}) {
   return (
     <TableCell className="py-2.5">
       <div className="flex min-w-0 items-center gap-2">
@@ -280,7 +276,7 @@ function DebugLogNarrowCell({ row }: { row: AccessLogDebugEntry }) {
       </div>
       <div className="mt-1 flex min-w-0 items-center gap-2 text-xs">
         <span className="shrink-0 whitespace-nowrap text-muted-foreground">
-          {formatRowTime(row.createdAt)}
+          {formatRowTime(row.createdAt, { format: timeFormat })}
         </span>
         {row.parseError && (
           <span className="min-w-0 truncate text-muted-foreground" title={row.parseError}>
@@ -302,11 +298,13 @@ const DebugLogTableBody = memo(function DebugLogTableBody({
   rows,
   shownColumns,
   narrow,
+  timeFormat,
   onSelect,
 }: {
   rows: AccessLogDebugEntry[]
   shownColumns: ColumnDef[]
   narrow: boolean
+  timeFormat: TimeFormat
   onSelect: (row: AccessLogDebugEntry) => void
 }) {
   return (
@@ -322,11 +320,11 @@ const DebugLogTableBody = memo(function DebugLogTableBody({
           {...rowActivation<HTMLTableRowElement>(() => onSelect(row))}
         >
           {narrow ? (
-            <DebugLogNarrowCell row={row} />
+            <DebugLogNarrowCell row={row} timeFormat={timeFormat} />
           ) : (
             shownColumns.map((c) => (
               <TableCell key={c.key} className={cn(c.grow && "max-w-0 truncate")}>
-                {c.render(row)}
+                {c.render(row, timeFormat)}
                 {c.key === "ipAddress" && <DebugLogIpActions row={row} />}
               </TableCell>
             ))
@@ -342,7 +340,11 @@ export function DebugLogsTable() {
   const isMobile = useIsMobile()
   const phone = usePhoneLayout()
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(20)
+  const { density, setDensity, resetView, hasViewOverrides } = useTableView("debug-logs")
+  const [timeFormat] = useTimeFormat()
+  // Follows the density until the user picks a size.
+  const [pickedPageSize, setPageSize] = useState<number | null>(null)
+  const pageSize = pickedPageSize ?? defaultPageSize(density)
 
   // Filters (raw input; text inputs are debounced before hitting the query).
   const initial = useSearch({
@@ -591,33 +593,19 @@ export function DebugLogsTable() {
     )
   }
 
-  const columnsMenu = (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="h-8">
-          <Columns3 className="mr-1 h-3.5 w-3.5" /> Columns
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" collisionPadding={8} className="w-auto min-w-44">
-        <DropdownMenuLabel>Visible columns</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        {COLUMNS.map((c) => (
-          <DropdownMenuCheckboxItem
-            key={c.key}
-            checked={visible.has(c.key)}
-            onCheckedChange={() => toggleColumn(c.key)}
-            onSelect={(e) => e.preventDefault()}
-            disabled={visible.has(c.key) && visible.size === 1}
-          >
-            {c.label}
-          </DropdownMenuCheckboxItem>
-        ))}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem disabled={!hasOverrides} onSelect={resetColumns}>
-          Reset to defaults
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+  const viewMenu = (
+    <TableViewMenu
+      density={density}
+      onDensityChange={setDensity}
+      fields={COLUMNS}
+      visible={visible}
+      onToggleField={toggleColumn}
+      canReset={hasOverrides || hasViewOverrides}
+      onReset={() => {
+        resetColumns()
+        resetView()
+      }}
+    />
   )
 
   return (
@@ -654,7 +642,7 @@ export function DebugLogsTable() {
                   }}
                 />
               ) : (
-                columnsMenu
+                viewMenu
               )
             }
             state={state}
@@ -675,6 +663,7 @@ export function DebugLogsTable() {
           >
             <VirtualTable
               narrow={narrow}
+              density={density}
               columns={shownColumns}
               rowCount={rows.length}
               resetKey={JSON.stringify([
@@ -717,6 +706,7 @@ export function DebugLogsTable() {
                 rows={rows}
                 shownColumns={shownColumns}
                 narrow={narrow}
+                timeFormat={timeFormat}
                 onSelect={setSelected}
               />
             </VirtualTable>
