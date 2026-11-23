@@ -876,6 +876,22 @@ export const AlertContextViewSchema = {
   type: "object",
 } as const;
 
+export const AlertDayCountSchema = {
+  description: "How many alerts started on one day.",
+  properties: {
+    count: {
+      type: "integer",
+    },
+    date: {
+      description: "The day in the requested timezone, as `YYYY-MM-DD`.",
+      type: "string",
+    },
+  },
+  required: ["count", "date"],
+  title: "AlertDayCount",
+  type: "object",
+} as const;
+
 export const AlertDecisionViewSchema = {
   description: "A decision an alert made, still in force or expired.",
   properties: {
@@ -1320,6 +1336,30 @@ export const AlertViewSchema = {
     "value",
   ],
   title: "AlertView",
+  type: "object",
+} as const;
+
+export const AlertsPerDayViewSchema = {
+  description: "Alerts per day over the last days, oldest day first.",
+  properties: {
+    capped: {
+      description:
+        "True when the LAPI returned more than 2000 alerts. The counts then cover the 2000 it stored last, and any day can count short, the oldest days most.",
+      type: "boolean",
+    },
+    days: {
+      items: {
+        $ref: "#/components/schemas/AlertDayCount",
+      },
+      type: "array",
+    },
+    total: {
+      description: "The sum of `days`.",
+      type: "integer",
+    },
+  },
+  required: ["capped", "days", "total"],
+  title: "AlertsPerDayView",
   type: "object",
 } as const;
 
@@ -2342,6 +2382,16 @@ export const CrowdSecStatsResponseSchema = {
       },
       type: "array",
     },
+    expiringSoon: {
+      description: "Decisions with `expiringSoonHours` hours or less left.",
+      type: "integer",
+    },
+    expiringSoonHours: {
+      type: "integer",
+    },
+    split: {
+      $ref: "#/components/schemas/DecisionSplit",
+    },
     topScenarios: {
       description: "The ten scenarios with the most decisions, the most first.",
       items: {
@@ -2353,7 +2403,14 @@ export const CrowdSecStatsResponseSchema = {
       type: "integer",
     },
   },
-  required: ["byOrigin", "topScenarios", "total"],
+  required: [
+    "byOrigin",
+    "expiringSoon",
+    "expiringSoonHours",
+    "split",
+    "topScenarios",
+    "total",
+  ],
   title: "CrowdSecStatsResponse",
   type: "object",
 } as const;
@@ -2745,6 +2802,33 @@ export const DecisionGroupViewSchema = {
     "type",
   ],
   title: "DecisionGroupView",
+  type: "object",
+} as const;
+
+export const DecisionSplitSchema = {
+  description:
+    "The active decisions by what they do. Each decision counts once.",
+  properties: {
+    bans: {
+      description: "Bans on anything but a range.",
+      type: "integer",
+    },
+    captchas: {
+      description: "Captchas on anything but a range.",
+      type: "integer",
+    },
+    other: {
+      description:
+        "Every other type, such as `throttle`, on anything but a range.",
+      type: "integer",
+    },
+    ranges: {
+      description: "Decisions on a range, of any type.",
+      type: "integer",
+    },
+  },
+  required: ["bans", "captchas", "other", "ranges"],
+  title: "DecisionSplit",
   type: "object",
 } as const;
 

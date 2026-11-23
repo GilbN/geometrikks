@@ -405,6 +405,19 @@ export type AlertContextView = {
 };
 
 /**
+ * AlertDayCount
+ *
+ * How many alerts started on one day.
+ */
+export type AlertDayCount = {
+  count: number;
+  /**
+   * The day in the requested timezone, as `YYYY-MM-DD`.
+   */
+  date: string;
+};
+
+/**
  * AlertDecisionView
  *
  * A decision an alert made, still in force or expired.
@@ -609,6 +622,23 @@ export type AlertView = {
    * The source the alert is about, such as an IP.
    */
   value: string;
+};
+
+/**
+ * AlertsPerDayView
+ *
+ * Alerts per day over the last days, oldest day first.
+ */
+export type AlertsPerDayView = {
+  /**
+   * True when the LAPI returned more than 2000 alerts. The counts then cover the 2000 it stored last, and any day can count short, the oldest days most.
+   */
+  capped: boolean;
+  days: Array<AlertDayCount>;
+  /**
+   * The sum of `days`.
+   */
+  total: number;
 };
 
 /**
@@ -1204,6 +1234,12 @@ export type CrowdSecStatsResponse = {
    */
   byOrigin: Array<OriginCount>;
   /**
+   * Decisions with `expiringSoonHours` hours or less left.
+   */
+  expiringSoon: number;
+  expiringSoonHours: number;
+  split: DecisionSplit;
+  /**
    * The ten scenarios with the most decisions, the most first.
    */
   topScenarios: Array<ScenarioCount>;
@@ -1411,6 +1447,30 @@ export type DecisionGroupView = {
    * The strongest remediation among the decisions. `ban` beats `captcha`, which beats the rest.
    */
   type: string;
+};
+
+/**
+ * DecisionSplit
+ *
+ * The active decisions by what they do. Each decision counts once.
+ */
+export type DecisionSplit = {
+  /**
+   * Bans on anything but a range.
+   */
+  bans: number;
+  /**
+   * Captchas on anything but a range.
+   */
+  captchas: number;
+  /**
+   * Every other type, such as `throttle`, on anything but a range.
+   */
+  other: number;
+  /**
+   * Decisions on a range, of any type.
+   */
+  ranges: number;
 };
 
 /**
@@ -6426,6 +6486,55 @@ export type ApiV1CrowdsecAlertsListAlertsResponses = {
 
 export type ApiV1CrowdsecAlertsListAlertsResponse =
   ApiV1CrowdsecAlertsListAlertsResponses[keyof ApiV1CrowdsecAlertsListAlertsResponses];
+
+export type ApiV1CrowdsecAlertsDailyCountAlertsPerDayData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Days to count, from 1 to 31. Defaults to 7.
+     */
+    days?: number;
+    /**
+     * An IANA timezone such as `Europe/Oslo`. Days start at midnight in it. An unknown zone gets a 400. Defaults to UTC.
+     */
+    tz?: string;
+  };
+  url: "/api/v1/crowdsec/alerts/daily";
+};
+
+export type ApiV1CrowdsecAlertsDailyCountAlertsPerDayErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1CrowdsecAlertsDailyCountAlertsPerDayError =
+  ApiV1CrowdsecAlertsDailyCountAlertsPerDayErrors[keyof ApiV1CrowdsecAlertsDailyCountAlertsPerDayErrors];
+
+export type ApiV1CrowdsecAlertsDailyCountAlertsPerDayResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: AlertsPerDayView;
+};
+
+export type ApiV1CrowdsecAlertsDailyCountAlertsPerDayResponse =
+  ApiV1CrowdsecAlertsDailyCountAlertsPerDayResponses[keyof ApiV1CrowdsecAlertsDailyCountAlertsPerDayResponses];
 
 export type ApiV1CrowdsecAlertsScenariosListAlertScenariosData = {
   body?: never;

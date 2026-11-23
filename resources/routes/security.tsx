@@ -9,7 +9,7 @@ import { AlertHistoryUnavailable, AlertsTable } from "@/components/security/aler
 import { CrowdsecUnreachableBanner } from "@/components/security/crowdsec-unreachable-banner"
 import { DecisionsTable } from "@/components/security/decisions-table"
 import { DropNetworksCard } from "@/components/security/drop-networks-card"
-import { SecurityStatCards } from "@/components/security/security-stat-cards"
+import { LapiPill, SecuritySummary } from "@/components/security/security-summary"
 import { ErrorBanner } from "@/components/error-banner"
 import { PageHeader } from "@/components/page-header"
 import { CROWDSEC_DOCS_URL } from "@/lib/docs-links"
@@ -70,11 +70,21 @@ function SecurityPage() {
   if (settled && activeTab !== null && !openedTabs.includes(activeTab))
     setOpenedTabs([...openedTabs, activeTab])
 
-  const header = (
+  // With CrowdSec on, the summary says what the page holds, and the phone
+  // shows the LAPI pill on the decisions instead.
+  const header = crowdsec ? (
+    <PageHeader
+      title="Security"
+      className="items-center phone:sr-only"
+      actions={
+        <LapiPill status={status} detail className="h-[30px] gap-2 px-3 text-[13px] phone:hidden" />
+      }
+    />
+  ) : (
     <PageHeader
       title="Security"
       subtitle={
-        tabs.length > 0 && !crowdsec
+        tabs.length > 0
           ? "IPs GeoMetrikks has reported to AbuseIPDB."
           : "CrowdSec decisions and alerts, cross-referenced with your traffic."
       }
@@ -141,7 +151,7 @@ function SecurityPage() {
       {header}
       {statusFailed && statusError}
       {crowdsec && <CrowdsecUnreachableBanner />}
-      {crowdsec && <SecurityStatCards />}
+      {crowdsec && <SecuritySummary />}
       <Tabs
         value={activeTab}
         onValueChange={(value) =>

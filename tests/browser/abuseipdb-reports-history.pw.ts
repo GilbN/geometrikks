@@ -77,7 +77,16 @@ async function setup(
     }),
   )
   await page.route("**/api/v1/crowdsec/stats**", (route) =>
-    route.fulfill({ json: { total: 0, byOrigin: [], topScenarios: [] } }),
+    route.fulfill({
+      json: {
+        total: 0,
+        byOrigin: [],
+        topScenarios: [],
+        split: { bans: 0, ranges: 0, captchas: 0, other: 0 },
+        expiringSoon: 0,
+        expiringSoonHours: 4,
+      },
+    }),
   )
   await page.route("**/api/v1/crowdsec/banned-ips", (route) => route.fulfill({ json: [] }))
   await page.route("**/api/v1/crowdsec/decisions**", (route) =>

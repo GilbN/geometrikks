@@ -101,6 +101,9 @@ import type {
   ApiV1CrowdsecAlertsAlertIdGetAlertData,
   ApiV1CrowdsecAlertsAlertIdGetAlertErrors,
   ApiV1CrowdsecAlertsAlertIdGetAlertResponses,
+  ApiV1CrowdsecAlertsDailyCountAlertsPerDayData,
+  ApiV1CrowdsecAlertsDailyCountAlertsPerDayErrors,
+  ApiV1CrowdsecAlertsDailyCountAlertsPerDayResponses,
   ApiV1CrowdsecAlertsListAlertsData,
   ApiV1CrowdsecAlertsListAlertsErrors,
   ApiV1CrowdsecAlertsListAlertsResponses,
@@ -267,6 +270,7 @@ export type OperationName =
   | 'ban_networks'
   | 'check_ip'
   | 'connection'
+  | 'count_alerts_per_day'
   | 'create_api_key'
   | 'create_muted_ip'
   | 'create_reports'
@@ -362,6 +366,7 @@ export interface OperationDataTypes {
   'ban_networks': ApiV1CrowdsecBanNetworksBanNetworksData
   'check_ip': ApiV1AbuseipdbCheckCheckIpData
   'connection': ApiV1AuthConnectionConnectionData
+  'count_alerts_per_day': ApiV1CrowdsecAlertsDailyCountAlertsPerDayData
   'create_api_key': ApiV1AuthApiKeysCreateApiKeyData
   'create_muted_ip': ApiV1MutedIpsCreateMutedIpData
   'create_reports': ApiV1AbuseipdbReportsCreateReportsData
@@ -458,6 +463,7 @@ export interface OperationResponseTypes {
   'ban_networks': ApiV1CrowdsecBanNetworksBanNetworksResponses
   'check_ip': ApiV1AbuseipdbCheckCheckIpResponses
   'connection': ApiV1AuthConnectionConnectionResponses
+  'count_alerts_per_day': ApiV1CrowdsecAlertsDailyCountAlertsPerDayResponses
   'create_api_key': ApiV1AuthApiKeysCreateApiKeyResponses
   'create_muted_ip': ApiV1MutedIpsCreateMutedIpResponses
   'create_reports': ApiV1AbuseipdbReportsCreateReportsResponses
@@ -554,6 +560,7 @@ export interface OperationErrorTypes {
   'ban_networks': ApiV1CrowdsecBanNetworksBanNetworksErrors
   'check_ip': ApiV1AbuseipdbCheckCheckIpErrors
   'connection': ApiV1AuthConnectionConnectionErrors
+  'count_alerts_per_day': ApiV1CrowdsecAlertsDailyCountAlertsPerDayErrors
   'create_api_key': ApiV1AuthApiKeysCreateApiKeyErrors
   'create_muted_ip': ApiV1MutedIpsCreateMutedIpErrors
   'create_reports': ApiV1AbuseipdbReportsCreateReportsErrors

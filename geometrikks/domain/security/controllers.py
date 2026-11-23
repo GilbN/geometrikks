@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from functools import reduce
 from typing import Annotated, Literal
+from zoneinfo import ZoneInfo
 
 import msgspec
 from advanced_alchemy.extensions.litestar import filters
@@ -37,6 +38,11 @@ from geometrikks.config.settings import Settings
 from geometrikks.domain.drop.dependencies import provide_drop_snapshot
 from geometrikks.domain.drop.snapshot import DropSnapshot
 from geometrikks.domain.exceptions import DomainValidationError
+from geometrikks.domain.security.alert_days import (
+    count_by_day,
+    day_window,
+    since_duration,
+)
 from geometrikks.domain.security.alert_history import (
     BOT_KIND_GROUP,
     AlertFilters,
@@ -86,7 +92,7 @@ from geometrikks.lib.parameters import (
     range_end_examples,
     range_start_examples,
 )
-from geometrikks.lib.validation import validate_ip_address
+from geometrikks.lib.validation import validate_ip_address, validate_timezone
 from geometrikks.server.api_key_auth import ApiKeyPrincipal
 from geometrikks.server.auth import AdminUser
 from geometrikks.server.exceptions import ErrorEnvelope
@@ -111,6 +117,9 @@ from geometrikks.services.geoip.locator import GeoIpLocator
 DEFAULT_ORIGINS = "crowdsec,cscli,geometrikks"
 
 TOP_SCENARIO_LIMIT = 10
+EXPIRING_SOON = timedelta(hours=4)
+# One LAPI request for the per-day counts, and the most alerts it reads.
+DAILY_ALERT_LIMIT = 2000
 
 # Alert origins the engine stamps on ``kind`` (pkg/types/alert_kind.go).
 ALERT_KINDS = frozenset({"crowdsec", "waf", "bot-detection", "capi", "papi", "cscli"})
@@ -312,10 +321,22 @@ class ScenarioCount(msgspec.Struct, rename="camel"):
     count: int
 
 
+class DecisionSplit(msgspec.Struct, rename="camel"):
+    """The active decisions by what they do. Each decision counts once."""
+
+    bans: Annotated[int, msgspec.Meta(description="Bans on anything but a range.")]
+    ranges: Annotated[int, msgspec.Meta(description="Decisions on a range, of any type.")]
+    captchas: Annotated[int, msgspec.Meta(description="Captchas on anything but a range.")]
+    other: Annotated[int, msgspec.Meta(description="Every other type, such as `throttle`, on anything but a range.")]
+
+
 class CrowdSecStatsResponse(msgspec.Struct, rename="camel"):
     """Counts of the active CrowdSec decisions across every origin."""
 
     total: int
+    split: DecisionSplit
+    expiring_soon: Annotated[int, msgspec.Meta(description="Decisions with `expiringSoonHours` hours or less left.")]
+    expiring_soon_hours: int
     by_origin: Annotated[list[OriginCount], msgspec.Meta(description="Every origin, the most decisions first.")]
     top_scenarios: Annotated[
         list[ScenarioCount], msgspec.Meta(description="The ten scenarios with the most decisions, the most first.")
@@ -367,6 +388,29 @@ class AlertPageView(msgspec.Struct, rename="camel"):
     next_cursor: Annotated[
         str | None,
         msgspec.Meta(description="Pass it as `before` to get the next, older page. Null on the last page."),
+    ]
+
+
+class AlertDayCount(msgspec.Struct, rename="camel"):
+    """How many alerts started on one day."""
+
+    date: Annotated[str, msgspec.Meta(description="The day in the requested timezone, as `YYYY-MM-DD`.")]
+    count: int
+
+
+class AlertsPerDayView(msgspec.Struct, rename="camel"):
+    """Alerts per day over the last days, oldest day first."""
+
+    days: list[AlertDayCount]
+    total: Annotated[int, msgspec.Meta(description="The sum of `days`.")]
+    capped: Annotated[
+        bool,
+        msgspec.Meta(
+            description=(
+                f"True when the LAPI returned more than {DAILY_ALERT_LIMIT} alerts. The counts then cover the "
+                f"{DAILY_ALERT_LIMIT} it stored last, and any day can count short, the oldest days most."
+            )
+        ),
     ]
 
 
@@ -610,6 +654,17 @@ def _require_write(crowdsec: CrowdSecService | None, settings: Settings) -> Crow
             detail="Ban/unban requires CROWDSEC_MACHINE_ID and CROWDSEC_MACHINE_PASSWORD"
         )
     return service
+
+
+def _decision_split(decisions: list[Decision]) -> DecisionSplit:
+    ranges = sum(d.scope == "Range" for d in decisions)
+    types = Counter(d.type for d in decisions if d.scope != "Range")
+    return DecisionSplit(
+        bans=types["ban"],
+        ranges=ranges,
+        captchas=types["captcha"],
+        other=len(decisions) - ranges - types["ban"] - types["captcha"],
+    )
 
 
 def _validate_duration(value: str) -> str:
@@ -1301,6 +1356,49 @@ class CrowdSecController(Controller):
         ]
 
     @get(
+        "/alerts/daily",
+        summary="Count CrowdSec alerts per day",
+        description=(
+            "Returns how many alerts started on each of the last `days` days, today included, without the "
+            "community blocklist pulls. An alert counts on the day of its first event, or of when the LAPI "
+            f"stored it when it has no first event. One LAPI request reads at most {DAILY_ALERT_LIMIT} alerts. "
+            f"{MACHINE_CREDENTIALS_NOTE}"
+        ),
+    )
+    async def count_alerts_per_day(
+        self,
+        crowdsec: NamedDependency[CrowdSecService | None],
+        settings: NamedDependency[SkipValidation[Settings]],
+        days: Annotated[
+            int,
+            QueryParameter(ge=1, le=31, required=False, description="Days to count, from 1 to 31. Defaults to 7."),
+        ] = 7,
+        tz: Annotated[
+            str,
+            QueryParameter(
+                required=False,
+                description=(
+                    "An IANA timezone such as `Europe/Oslo`. Days start at midnight in it. An unknown zone gets a "
+                    "400. Defaults to UTC."
+                ),
+            ),
+        ] = "UTC",
+    ) -> AlertsPerDayView:
+        """Alerts per local day by first event, oldest first. Needs machine credentials."""
+        service = _require_write(crowdsec, settings)
+        validate_timezone(tz)
+        zone = ZoneInfo(tz)
+        now = datetime.now(UTC)
+        dates, start = day_window(now, zone, days)
+        alerts = await service.get_alerts(limit=DAILY_ALERT_LIMIT + 1, since=since_duration(now, start))
+        counts = count_by_day(alerts[:DAILY_ALERT_LIMIT], dates, zone)
+        return AlertsPerDayView(
+            days=[AlertDayCount(date=day.isoformat(), count=count) for day, count in zip(dates, counts, strict=True)],
+            total=sum(counts),
+            capped=len(alerts) > DAILY_ALERT_LIMIT,
+        )
+
+    @get(
         "/alerts/{alert_id:int}",
         summary="Get one CrowdSec alert",
         description=(
@@ -1615,8 +1713,10 @@ class CrowdSecController(Controller):
         summary="Count the active CrowdSec decisions by origin and scenario",
         description=(
             "Returns how many decisions are active across every origin, blocklists included, with the count per "
-            "origin and the ten scenarios with the most decisions. The counts come from the decision stream the "
-            "server polls, so a change can take up to `CROWDSEC_STREAM_POLL_INTERVAL` seconds to show."
+            "origin, the split into bans, ranges, captchas and other types, how many expire within "
+            "`expiringSoonHours` hours and the ten scenarios with the most decisions. The counts come from the "
+            "decision stream the server polls, so a change can take up to `CROWDSEC_STREAM_POLL_INTERVAL` seconds "
+            "to show."
         ),
     )
     async def get_stats(
@@ -1629,8 +1729,12 @@ class CrowdSecController(Controller):
         decisions = await _current_decisions(service, crowdsec_poller)
         origin_counts = Counter(d.origin for d in decisions)
         scenario_counts = Counter(d.scenario for d in decisions)
+        soon_seconds = EXPIRING_SOON.total_seconds()
         return CrowdSecStatsResponse(
             total=len(decisions),
+            split=_decision_split(decisions),
+            expiring_soon=sum(0 < go_duration_seconds(d.duration) <= soon_seconds for d in decisions),
+            expiring_soon_hours=int(soon_seconds // 3600),
             by_origin=[
                 OriginCount(origin=origin, count=count)
                 for origin, count in origin_counts.most_common()

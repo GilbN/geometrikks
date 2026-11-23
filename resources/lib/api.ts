@@ -62,6 +62,7 @@ import type {
   CrowdSecStatsResponse,
   AlertView,
   AlertPageView,
+  AlertsPerDayView,
   AlertDetailView,
   ScenarioCount,
   DecisionView,
@@ -93,6 +94,7 @@ export type {
   CrowdSecStatsResponse,
   AlertView,
   AlertPageView,
+  AlertsPerDayView,
   AlertDetailView,
   ScenarioCount,
   DecisionView,
@@ -521,6 +523,19 @@ export async function fetchCrowdsecBannedLocations(
 /** Decision counts grouped by origin plus the most frequent scenarios. */
 export async function fetchCrowdsecStats(): Promise<CrowdSecStatsResponse> {
   const { data } = await api.get<CrowdSecStatsResponse>("/crowdsec/stats")
+  return data
+}
+
+/** Alerts per day in the browser's timezone, by first event, oldest day
+ *  first; requires writeEnabled. */
+export async function fetchCrowdsecAlertsPerDay(
+  days: number,
+  signal?: AbortSignal,
+): Promise<AlertsPerDayView> {
+  const { data } = await api.get<AlertsPerDayView>("/crowdsec/alerts/daily", {
+    params: { days, tz: BROWSER_TZ },
+    signal,
+  })
   return data
 }
 

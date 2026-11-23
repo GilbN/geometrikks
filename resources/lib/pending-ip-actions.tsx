@@ -18,6 +18,7 @@
 import { useCallback, useSyncExternalStore } from "react"
 import { useQueryClient, type QueryClient } from "@tanstack/react-query"
 import { ShieldBan, ShieldOff, Undo2 } from "lucide-react"
+import { AWAITED_CROWDSEC_QUERIES, refreshCrowdsecAfterWrite } from "@/lib/crowdsec-refresh"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -103,14 +104,14 @@ async function settle(ip: string) {
   const deadline = Date.now() + 10_000
   try {
     await Promise.race([
-      queryClient?.invalidateQueries({ queryKey: ["crowdsec"] }),
+      queryClient && refreshCrowdsecAfterWrite(queryClient),
       new Promise((resolve) => window.setTimeout(resolve, 10_000)),
     ])
     // Another action settling meanwhile cancels and restarts this refetch,
     // so wait until no CrowdSec query is still fetching.
     while (
       queryClient &&
-      queryClient.isFetching({ queryKey: ["crowdsec"] }) > 0 &&
+      queryClient.isFetching(AWAITED_CROWDSEC_QUERIES) > 0 &&
       Date.now() < deadline
     ) {
       await new Promise((resolve) => window.setTimeout(resolve, 100))
