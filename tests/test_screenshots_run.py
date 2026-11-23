@@ -5,9 +5,11 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shlex
 import shutil
 import signal
 import subprocess
+import time
 from collections.abc import Callable, Generator, Iterator, Sequence
 from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass, field, replace
@@ -584,22 +586,59 @@ def stub_node(tmp_path: Path, script: str) -> run.Runner:
     node = bin_dir / "node"
     node.write_text(f"#!/bin/sh\n{script}\n")
     node.chmod(0o755)
-    return run.Runner(ledger=Ledger(tmp_path / "ledger.json"), env={"PATH": str(bin_dir)}, log_dir=tmp_path)
+    logs = tmp_path / "run" / "logs"
+    logs.mkdir(parents=True)
+    return run.Runner(ledger=Ledger(tmp_path / "ledger.json"), env={"PATH": str(bin_dir)}, log_dir=logs)
 
 
 def test_preflight_refuses_when_chromium_does_not_start(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    runner = stub_node(tmp_path, 'echo "Executable doesn\'t exist at /x/chrome" >&2; exit 1')
+    runner = stub_node(tmp_path, 'printf "Host system is missing dependencies\\nrun install-deps\\n" >&2; exit 1')
     facts = run.gather_facts(run_args(own_db=True), runner, ledger_exists=False)
     assert facts.browser_starts is False
-    assert "Executable doesn't exist at /x/chrome" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "Host system is missing dependencies" in out and "run install-deps" in out
     assert any("npx playwright install chromium" in problem for problem in preflight_problems(facts))
 
 
 def test_preflight_takes_a_chromium_that_starts(tmp_path: Path) -> None:
-    script = tmp_path / "script"
-    facts = run.gather_facts(run_args(own_db=True), stub_node(tmp_path, f'printf %s "$3" > {script}'), ledger_exists=False)
+    node_args = tmp_path / "node-args"
+    runner = stub_node(tmp_path, f"printf '%s\\0' \"$@\" > {shlex.quote(str(node_args))}")
+    facts = run.gather_facts(run_args(own_db=True), runner, ledger_exists=False)
     assert facts.browser_starts is True
-    assert script.read_text() == run.BROWSER_PROBE
+    assert node_args.read_text().split("\0")[:-1] == ["--input-type=module", "-e", run.BROWSER_PROBE]
+
+
+def test_preflight_names_the_exit_code_of_a_silent_probe(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    assert run._browser_starts(stub_node(tmp_path, "exit 3")) is False
+    assert "the probe exited 3 without a message" in capsys.readouterr().out
+
+
+def test_preflight_refuses_when_chromium_hangs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(run, "BROWSER_SECONDS", 0.5)
+    assert run._browser_starts(stub_node(tmp_path, f"exec {shutil.which('sleep')} 300")) is False
+    assert "did not start within 0.5 s" in capsys.readouterr().out
+
+
+def test_the_browser_probe_keeps_playwright_temp_files_in_the_run_folder(tmp_path: Path) -> None:
+    seen = tmp_path / "seen"
+    runner = stub_node(tmp_path, f'printf %s "$TMPDIR" > {shlex.quote(str(seen))}')
+    assert run._browser_starts(runner) is True
+    temp_dir = Path(seen.read_text())
+    assert temp_dir.is_dir() and temp_dir.is_relative_to(runner.log_dir)
+
+
+def test_the_browser_probe_stops_a_browser_its_node_left_running(tmp_path: Path) -> None:
+    pid_file = tmp_path / "pid"
+    # Playwright starts the browser in a process group of its own, as setsid does here.
+    detached = f"{shutil.which('setsid')} {shutil.which('sleep')} 300 & echo $! > {shlex.quote(str(pid_file))}"
+    assert run._browser_starts(stub_node(tmp_path, f"{detached}; exit 1")) is False
+    browser = Path("/proc") / pid_file.read_text().strip()
+    deadline = time.monotonic() + 5
+    while browser.exists() and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert not browser.exists()
 
 
 def test_preflight_refuses_without_node(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -612,13 +651,15 @@ def test_preflight_refuses_without_node(tmp_path: Path, capsys: pytest.CaptureFi
     shutil.which("node") is None or not (run.REPO_ROOT / "node_modules").is_dir(),
     reason="needs node and the root node_modules",
 )
-def test_the_browser_probe_looks_where_playwright_keeps_its_browsers(
+def test_the_browser_probe_reports_a_missing_chromium_build(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     browsers = tmp_path / "browsers"
     browsers.mkdir()
     env = {"PATH": os.environ["PATH"], "HOME": str(tmp_path), "PLAYWRIGHT_BROWSERS_PATH": str(browsers)}
-    runner = run.Runner(ledger=Ledger(tmp_path / "ledger.json"), env=env, log_dir=tmp_path)
+    logs = tmp_path / "run" / "logs"
+    logs.mkdir(parents=True)
+    runner = run.Runner(ledger=Ledger(tmp_path / "ledger.json"), env=env, log_dir=logs)
     assert run._browser_starts(runner) is False
     assert str(browsers) in capsys.readouterr().out
 

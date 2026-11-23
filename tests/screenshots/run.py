@@ -374,10 +374,10 @@ def _mem_available() -> int:
 BROWSER_PROBE: Final = """
 try {
   const { chromium } = await import("@playwright/test");
-  const browser = await chromium.launch();
+  const browser = await chromium.launch({ timeout: 30_000 });
   await browser.close();
 } catch (error) {
-  console.error(String(error?.message ?? error).split("\\n")[0]);
+  console.error(String(error?.message ?? error));
   process.exit(1);
 }
 """
@@ -389,11 +389,30 @@ def _browser_starts(runner: Runner) -> bool:
         say(f"could not start Playwright's Chromium: node is not on the run's PATH ({runner.path})")
         return False
     log = "browser-probe.log"
-    code = runner.run(
-        [node, "--input-type=module", "-e", BROWSER_PROBE], label="browser probe", log=log, timeout=BROWSER_SECONDS
-    )
+    # Playwright makes its profile and artifacts folders before it looks for the browser, and leaves them
+    # behind when the browser is missing.
+    temp_dir = runner.log_dir / "browser-probe-tmp"
+    temp_dir.mkdir(exist_ok=True)
+    # The run's teardown and --cleanup kill stray browsers that carry this variable.
+    plan = str(runner.log_dir.parent / "plan.json")
+    plan_marker = f"SHOTS_PLAN={plan}".encode()
+    try:
+        code = runner.run(
+            [node, "--input-type=module", "-e", BROWSER_PROBE],
+            label="browser probe",
+            log=log,
+            env={**runner.env, "SHOTS_PLAN": plan, "TMPDIR": str(temp_dir)},
+            timeout=BROWSER_SECONDS,
+        )
+    except TimeoutError:
+        say(f"could not start Playwright's Chromium: it did not start within {BROWSER_SECONDS} s")
+        return False
+    finally:
+        for line in sweep_marked(lambda pair: pair == plan_marker)[0]:
+            say(f"preflight: {line}")
     if code != 0:
-        say(f"could not start Playwright's Chromium: {_tail(runner.log_dir / log, lines=1)}")
+        reason = _tail(runner.log_dir / log) or f"the probe exited {code} without a message"
+        say(f"could not start Playwright's Chromium:\n{reason}")
     return code == 0
 
 
