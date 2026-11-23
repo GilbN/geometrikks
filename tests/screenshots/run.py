@@ -860,12 +860,12 @@ class FullRun:
         say("building the frontend bundle (logs/build.log)")
         env_dir = self.run_dir / "vite-env"
         env_dir.mkdir()
-        argv = bun_argv(self.runner.which("bun"), "run", "vite", "build", f"--config={SCREENSHOT_VITE_CONFIG}")
+        argv = bun_argv(self.runner.which("bun"), "run", "vp", "build", f"--config={SCREENSHOT_VITE_CONFIG}")
         code = self.runner.run(
-            argv, label="vite build", log="build.log", env={**self.env, VITE_ENV_DIR_VAR: str(env_dir)}
+            argv, label="vp build", log="build.log", env={**self.env, VITE_ENV_DIR_VAR: str(env_dir)}
         )
         if code != 0:
-            raise RunFailed(f"vite build exited {code}", log=self.logs / "build.log")
+            raise RunFailed(f"vp build exited {code}", log=self.logs / "build.log")
         code, out = self.runner.capture(
             [self.runner.which("git"), "status", "--porcelain", "resources/generated"], label="git status"
         )
