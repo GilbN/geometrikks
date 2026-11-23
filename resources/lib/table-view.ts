@@ -19,28 +19,27 @@ const TABLE_KEY_PREFIX = "geometrikks-table-view-"
 const TIME_FORMAT_KEY = "geometrikks-time-format"
 
 const listeners = new Set<() => void>()
-const cache = new Map<string, string | null>()
+/** Choices that storage refused, kept for this session. */
+const unsaved = new Map<string, string | null>()
 
+// Read storage on every snapshot instead of caching it. Another tab can write
+// while no table here is mounted to hear its storage event.
 function read(key: string): string | null {
-  if (!cache.has(key)) {
-    let value: string | null = null
-    try {
-      value = localStorage.getItem(key)
-    } catch {
-      // Blocked storage: the defaults apply.
-    }
-    cache.set(key, value)
+  if (unsaved.has(key)) return unsaved.get(key) ?? null
+  try {
+    return localStorage.getItem(key)
+  } catch {
+    return null
   }
-  return cache.get(key) ?? null
 }
 
 function write(key: string, value: string | null): void {
-  cache.set(key, value)
   try {
     if (value === null) localStorage.removeItem(key)
     else localStorage.setItem(key, value)
+    unsaved.delete(key)
   } catch {
-    // Keep the in-memory choice for this session.
+    unsaved.set(key, value)
   }
   for (const listener of listeners) listener()
 }
@@ -53,8 +52,6 @@ function subscribe(listener: () => void): () => void {
       event.key === TIME_FORMAT_KEY ||
       event.key.startsWith(TABLE_KEY_PREFIX)
     ) {
-      if (event.key === null) cache.clear()
-      else cache.delete(event.key)
       listener()
     }
   }

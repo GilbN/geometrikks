@@ -12,7 +12,8 @@ const IP_PILL_CLASS = "relative -ml-1.5 rounded-md px-1.5 py-0.5"
 
 /** Keeps the head and tail of a long IPv6 address, about the width of an IPv4 one. */
 export function shortIp(ip: string): string {
-  return ip.length > 21 ? `${ip.slice(0, 12)}…${ip.slice(-7)}` : ip
+  // A mapped IPv4 address such as ::ffff:203.0.113.9 reads wrong when cut.
+  return ip.length > 21 && !ip.includes(".") ? `${ip.slice(0, 12)}…${ip.slice(-7)}` : ip
 }
 
 /** The address as shown, with the whole one for screen readers when it is shortened. */

@@ -253,19 +253,19 @@ function LogRow({
   }
   return (
     <TableRow {...activation}>
-      <TableCell className="w-24 text-xs tabular-nums text-muted-foreground">
+      <TableCell className="w-24 py-1.5 text-xs tabular-nums text-muted-foreground">
         <span title={fullTime}>{clockTime}</span>
       </TableCell>
-      <TableCell className="w-24">
+      <TableCell className="w-24 py-1.5">
         <LevelBadge level={record.level} />
       </TableCell>
-      <TableCell className="w-28">
+      <TableCell className="w-28 py-1.5">
         <MonoChip>{component(record)}</MonoChip>
       </TableCell>
-      <TableCell className="w-full max-w-0">
+      <TableCell className="w-full max-w-0 py-1.5">
         <LogMessage record={record} className="block truncate" />
       </TableCell>
-      <TableCell className="w-10">
+      <TableCell className="w-10 py-1.5">
         <TracebackButton record={record} onOpen={onOpenTraceback} />
       </TableCell>
     </TableRow>

@@ -530,6 +530,71 @@ for (const fixture of [
   })
 }
 
+test.describe("access-logs view choices", () => {
+  test.use({ viewport: { width: 1440, height: 900 } })
+  let requests: URLSearchParams[] = []
+  test.beforeEach(async ({ page }) => {
+    requests = []
+    await page.route(
+      (url) => url.pathname.replace(/\/$/, "") === "/api/v1/access-logs",
+      async (route) => {
+        const params = new URL(route.request().url()).searchParams
+        requests.push(params)
+        const limit = Number(params.get("pageSize") ?? 20)
+        await route.fulfill({
+          json: { items: accessRows.slice(0, limit), total: accessRows.length, limit, offset: 0 },
+        })
+      },
+    )
+  })
+  const lastRequest = () => requests.at(-1)!
+  const pickView = async (page: Page, choice: RegExp) => {
+    await page.getByRole("button", { name: "View", exact: true }).click()
+    await page.getByRole("menuitemradio", { name: choice }).click()
+    await page.keyboard.press("Escape")
+  }
+
+  test("density sets the row height and the default page size until one is picked", async ({
+    page,
+  }) => {
+    await page.goto("/access-logs")
+    const firstRow = page.locator('table[aria-rowcount] tr[data-index="0"]')
+    const rowHeight = async () => Math.round((await firstRow.boundingBox())?.height ?? 0)
+    await expect.poll(rowHeight).toBe(31)
+    expect(lastRequest().get("pageSize")).toBe("50")
+
+    await pickView(page, /^Comfortable/)
+    await expect.poll(rowHeight).toBe(41)
+    await expect.poll(() => lastRequest().get("pageSize")).toBe("20")
+
+    // A picked size stays, even one that equals a density's default.
+    await page.getByRole("combobox", { name: "Rows per page" }).click()
+    await page.getByRole("option", { name: "50", exact: true }).click()
+    await expect(page).toHaveURL(/pageSize=50/)
+    await pickView(page, /^Compact/)
+    await pickView(page, /^Comfortable/)
+    await expect.poll(rowHeight).toBe(41)
+    await expect(page).toHaveURL(/pageSize=50/)
+    await expect(page.getByRole("combobox", { name: "Rows per page" })).toHaveText("50")
+  })
+
+  test("the Request header sorts by path, and its menu picks host", async ({ page }) => {
+    await page.goto("/access-logs")
+    const header = page.getByRole("columnheader", { name: /Request/ })
+    await header.getByRole("button", { name: /^Request/ }).click()
+    await expect.poll(() => lastRequest().get("orderBy")).toBe("url")
+    expect(lastRequest().get("sortOrder")).toBe("desc")
+    await header.getByRole("button", { name: /^Request/ }).click()
+    await expect.poll(() => lastRequest().get("sortOrder")).toBe("asc")
+
+    await page.getByRole("button", { name: "Sort request by" }).click()
+    await page.getByRole("menuitemradio", { name: "Host", exact: true }).click()
+    await expect.poll(() => lastRequest().get("orderBy")).toBe("host")
+    expect(lastRequest().get("sortOrder")).toBe("asc")
+    await expect(header).toContainText("by host")
+  })
+})
+
 // A laptop, and a phone held sideways, which also gets the wide table.
 for (const device of [
   { name: "a laptop", use: { viewport: { width: 1280, height: 720 } } },

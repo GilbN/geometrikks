@@ -221,10 +221,10 @@ export function VirtualTableBody<T>({
   })
 
   // Rows measured at the other density would keep their old height until they
-  // scroll into view again.
+  // scroll into view again. Narrow rows ignore density.
   useLayoutEffect(() => {
-    virtualizer.measure()
-  }, [density, virtualizer])
+    if (!narrow) virtualizer.measure()
+  }, [density, narrow, virtualizer])
 
   useLayoutEffect(() => {
     setFocusedKey(null)

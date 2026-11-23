@@ -153,6 +153,8 @@ function renderCombinedCell(
   column: AccessLogCombinedColumn,
   r: AccessLog,
   timeFormat: TimeFormat,
+  /** The Client flag follows the Country field, which sits in Location. */
+  showFlag: boolean,
 ): React.ReactNode {
   const has = (key: string) => column.fields.some((field) => field.key === key)
   switch (column.key) {
@@ -183,18 +185,28 @@ function renderCombinedCell(
     case "client":
       return (
         <span className="flex items-center gap-1.5">
-          <CountryFlag code={r.countryCode} name={r.countryName} standalone />
+          {showFlag && <CountryFlag code={r.countryCode} name={r.countryName} standalone />}
           <IpLabel ip={r.ipAddress} short />
           <AccessLogIpActions row={r} />
         </span>
       )
     case "location": {
-      const place = [has("city") ? r.city : null, has("country") ? r.countryCode : null]
+      const city = has("city") ? r.city : null
+      const code = has("country") ? r.countryCode : null
+      const title = [city, has("country") ? (r.countryName ?? r.countryCode) : null]
         .filter(Boolean)
         .join(", ")
+      if (!city && !code) return <span className="text-muted-foreground">-</span>
+      // The country code stays whole when a long city name is cut.
       return (
-        <span className="block truncate text-muted-foreground" title={r.countryName ?? undefined}>
-          {place || "-"}
+        <span className="flex min-w-0 text-muted-foreground" title={title || undefined}>
+          {city && <span className="min-w-0 truncate">{city}</span>}
+          {code && (
+            <span className="shrink-0 whitespace-pre">
+              {city ? ", " : ""}
+              {code}
+            </span>
+          )}
         </span>
       )
     }
@@ -287,6 +299,7 @@ const AccessLogTableBody = memo(function AccessLogTableBody({
   timeFormat: TimeFormat
   onSelect: (row: AccessLog) => void
 }) {
+  const showFlag = shownColumns.some((column) => column.key === "country")
   return (
     <VirtualTableBody
       rows={rows}
@@ -313,7 +326,7 @@ const AccessLogTableBody = memo(function AccessLogTableBody({
                 )}
                 style={c.minWidth ? { minWidth: c.minWidth } : undefined}
               >
-                {renderCombinedCell(c, row, timeFormat)}
+                {renderCombinedCell(c, row, timeFormat, showFlag)}
               </TableCell>
             ))
           ) : (

@@ -11,7 +11,7 @@
  * per-device preference, not part of the shared view.
  */
 import { defaultPageSize, useTableView } from "@/lib/table-view"
-import { useCallback, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { createFileRoute } from "@tanstack/react-router"
 import { History, Radio } from "lucide-react"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -66,6 +66,13 @@ function AccessLogsPage() {
   const defaultSize = defaultPageSize(density)
   const page = search.page ?? 1
   const pageSize = search.pageSize ?? defaultSize
+  // A page number means other rows once the default size changes with density.
+  const followedSize = useRef(defaultSize)
+  useEffect(() => {
+    if (followedSize.current === defaultSize) return
+    followedSize.current = defaultSize
+    if (search.pageSize === undefined && search.page !== undefined) patchSearch({ page: undefined })
+  }, [defaultSize, search.pageSize, search.page, patchSearch])
   const sortField = search.sort ?? DEFAULT_SORT
   const sortOrder = search.order ?? DEFAULT_ORDER
 
@@ -74,8 +81,9 @@ function AccessLogsPage() {
     [patchSearch],
   )
   const onPageSizeChange = useCallback(
-    (next: number) => patchSearch({ pageSize: dropDefault(next, defaultSize), page: undefined }),
-    [patchSearch, defaultSize],
+    // Kept in the URL even when it matches the default, which follows density.
+    (next: number) => patchSearch({ pageSize: next, page: undefined }),
+    [patchSearch],
   )
   const onSortChange = useCallback(
     (field: AccessLogSortField, order: SortOrder) =>
