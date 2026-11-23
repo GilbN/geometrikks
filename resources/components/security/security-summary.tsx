@@ -17,6 +17,7 @@ import {
   barLabel,
   expiryPhrase,
   scenarioRow,
+  localDateKey,
   originPhrases,
   splitPhrases,
   weekday,
@@ -82,14 +83,15 @@ function DecisionsPart({ status }: { status: CrowdSecStatusResponse | undefined 
   const { data: stats, isPending } = useCrowdsecStats()
   const lines = stats
     ? [
-        { icon: ShieldBan, tint: "text-red-500", phrases: splitPhrases(stats.split) },
+        { id: "split", icon: ShieldBan, tint: "text-red-500", phrases: splitPhrases(stats.split) },
         {
+          id: "expiry",
           icon: Timer,
           tint: "text-amber-500",
           phrases: [expiryPhrase(stats.expiringSoon, stats.expiringSoonHours)],
         },
-        { icon: Hand, tint: "text-primary", phrases: originPhrases(stats.byOrigin) },
-      ]
+        { id: "origin", icon: Hand, tint: "text-primary", phrases: originPhrases(stats.byOrigin) },
+      ].filter((line) => line.phrases.length > 0)
     : []
 
   return (
@@ -110,9 +112,12 @@ function DecisionsPart({ status }: { status: CrowdSecStatusResponse | undefined 
             <span className="text-xs text-muted-foreground">active</span>
           </div>
           {stats.total > 0 ? (
-            <ul className="mt-[9px] flex flex-col gap-[7px] text-[13px] phone:mt-2 phone:gap-1.5 phone:text-[12.5px]">
-              {lines.map(({ icon: Icon, tint, phrases }) => (
-                <li key={tint} className="flex min-w-0 items-center gap-2">
+            <ul
+              role="list"
+              className="mt-[9px] flex flex-col gap-[7px] text-[13px] phone:mt-2 phone:gap-1.5 phone:text-[12.5px]"
+            >
+              {lines.map(({ id, icon: Icon, tint, phrases }) => (
+                <li key={id} className="flex min-w-0 items-center gap-2">
                   <Icon aria-hidden className={cn("size-[15px] shrink-0", tint)} />
                   <span className="min-w-0">
                     {phrases.map((part, index) => (
@@ -154,6 +159,7 @@ function AlertsPart({ writeEnabled }: { writeEnabled: boolean }) {
   const { data, isPending, isError } = useCrowdsecAlertsPerDay(ALERT_DAYS)
   // A failed refresh keeps the last week in the cache, which would read as current.
   const counts = writeEnabled && !isError ? data : undefined
+  const todayKey = localDateKey(new Date())
   const topDay = Math.max(...(counts?.days.map((day) => day.count) ?? []), 1)
 
   return (
@@ -177,25 +183,24 @@ function AlertsPart({ writeEnabled }: { writeEnabled: boolean }) {
         <Unavailable>Alert history needs CrowdSec machine credentials.</Unavailable>
       ) : counts ? (
         <ol
+          role="list"
           className="mt-3 grid grid-cols-7 phone:mt-2.5"
           title={counts.capped ? CAPPED_NOTE : undefined}
         >
-          {counts.days.map((day, index) => {
-            const today = index === counts.days.length - 1
+          {counts.days.map((day) => {
+            const today = day.date === todayKey
             const names = weekday(day.date)
             return (
               <li
                 key={day.date}
-                aria-label={`${today ? "Today" : names.short}: ${formatNumber(day.count)}`}
                 className="flex flex-col items-center gap-1 text-[11px] phone:text-[10px]"
               >
+                <span className="sr-only">
+                  {today ? "Today" : names.short}: {formatNumber(day.count)}
+                </span>
                 <span
                   aria-hidden
-                  className={cn(
-                    "tabular-nums",
-                    today ? "font-semibold" : "text-muted-foreground",
-                    !day.count && "opacity-50",
-                  )}
+                  className={cn("tabular-nums", today ? "font-semibold" : "text-muted-foreground")}
                 >
                   {barLabel(day.count)}
                 </span>
@@ -206,6 +211,7 @@ function AlertsPart({ writeEnabled }: { writeEnabled: boolean }) {
                   <span
                     className={cn(
                       "absolute inset-x-0 bottom-0 rounded-full bg-chart-5",
+                      day.count > 0 && "min-h-0.5",
                       !today && "opacity-60",
                     )}
                     style={{ height: `${(day.count / topDay) * 100}%` }}
@@ -284,7 +290,7 @@ function ScenariosPart() {
                     className="mt-1 h-1 rounded-full bg-[color-mix(in_oklab,var(--muted-foreground)_14%,transparent)]"
                   >
                     <div
-                      className="h-full rounded-full bg-chart-5"
+                      className="h-full min-w-1 rounded-full bg-chart-5"
                       style={{ width: `${(scenario.count / top) * 100}%` }}
                     />
                   </div>

@@ -29,22 +29,33 @@ export function expiryPhrase(expiringSoon: number, hours: number): CountPhrase {
   return phrase(expiringSoon, `expires ${within}`, `expire ${within}`)
 }
 
-const MANUAL_ORIGINS = new Set(["geometrikks", "cscli"])
-const COMMUNITY_ORIGINS = new Set(["CAPI", "lists"])
+// The same split as DETECTION_ORIGINS in the reports API: these origins come
+// from a detection or a blocklist, and every other one is a person's decision.
+const DETECTED_ORIGINS = new Set(["crowdsec", "appsec"])
+const BLOCKLIST_ORIGINS = new Set(["CAPI", "lists"])
 
-const originTotal = (byOrigin: readonly OriginCount[], origins: ReadonlySet<string>) =>
-  byOrigin
-    .filter((origin) => origins.has(origin.origin))
-    .reduce((sum, origin) => sum + origin.count, 0)
-
-/** Who made the decisions: someone by hand (GeoMetrikks or cscli), CrowdSec's
- *  own scenarios, or the community blocklists. */
+/** Who made the decisions: CrowdSec's own detection, the community
+ *  blocklists, or a person (GeoMetrikks, cscli, the Console or an import). */
 export function originPhrases(byOrigin: readonly OriginCount[]): CountPhrase[] {
+  let detected = 0
+  let blocklists = 0
+  let byHand = 0
+  for (const origin of byOrigin) {
+    if (DETECTED_ORIGINS.has(origin.origin)) detected += origin.count
+    else if (BLOCKLIST_ORIGINS.has(origin.origin)) blocklists += origin.count
+    else byHand += origin.count
+  }
   return [
-    { count: originTotal(byOrigin, MANUAL_ORIGINS), words: "set by hand" },
-    { count: originTotal(byOrigin, new Set(["crowdsec"])), words: "detected by CrowdSec" },
-    { count: originTotal(byOrigin, COMMUNITY_ORIGINS), words: "from blocklists" },
+    { count: byHand, words: "set by hand" },
+    { count: detected, words: "detected by CrowdSec" },
+    { count: blocklists, words: "from blocklists" },
   ].filter((part) => part.count > 0)
+}
+
+/** Today's date in the browser's timezone, as `YYYY-MM-DD`. */
+export function localDateKey(now: Date): string {
+  const pad = (value: number) => String(value).padStart(2, "0")
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
 }
 
 const WEEKDAY = new Intl.DateTimeFormat(undefined, { weekday: "short" })

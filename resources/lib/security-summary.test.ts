@@ -5,6 +5,7 @@ import {
   weekday,
   expiryPhrase,
   scenarioRow,
+  localDateKey,
   originPhrases,
   splitPhrases,
 } from "./security-summary"
@@ -37,19 +38,28 @@ describe("originPhrases", () => {
     expect(
       originPhrases([
         { origin: "crowdsec", count: 9 },
+        { origin: "appsec", count: 6 },
         { origin: "geometrikks", count: 2 },
         { origin: "cscli", count: 1 },
+        { origin: "console", count: 1 },
+        { origin: "cscli-import", count: 3 },
         { origin: "CAPI", count: 400 },
         { origin: "lists", count: 20 },
       ]),
     ).toEqual([
-      { count: 3, words: "set by hand" },
-      { count: 9, words: "detected by CrowdSec" },
+      { count: 7, words: "set by hand" },
+      { count: 15, words: "detected by CrowdSec" },
       { count: 420, words: "from blocklists" },
     ])
     expect(originPhrases([{ origin: "crowdsec", count: 4 }])).toEqual([
       { count: 4, words: "detected by CrowdSec" },
     ])
+  })
+})
+
+describe("localDateKey", () => {
+  it("writes the local date with zero padding", () => {
+    expect(localDateKey(new Date(2026, 0, 5, 23, 59))).toBe("2026-01-05")
   })
 })
 
