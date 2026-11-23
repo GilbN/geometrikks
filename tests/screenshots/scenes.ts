@@ -83,6 +83,23 @@ const badge = (scope: Locator, text: RegExp) =>
     .locator('[data-slot="badge"], [data-slot="tooltip-trigger"], [data-badge-hint]')
     .filter({ hasText: text })
 
+/** The Muted IPs fixture's notes, in MUTED_ENTRIES order in muted.py. */
+export const MUTED_NOTES = ["This laptop", "Uptime monitor", "Home network"]
+const MUTED_ENTRIES = MUTED_NOTES.length
+
+/**
+ * The muted list loads after the page, and the page then reloads its rows without the muted
+ * addresses. The switch shows once the list is in: on the filter bar on a desktop, as a count on
+ * the phone's Filters button.
+ */
+async function mutedSwitch(page: Page, shot: PlannedShot): Promise<void> {
+  const control =
+    shot.viewport.name === "desktop"
+      ? page.getByRole("button", { name: `Muted IPs hidden · ${MUTED_ENTRIES}`, exact: true })
+      : page.getByRole("button", { name: /^Filters\b.*\(\d+\)$/ })
+  await expect(control).toBeVisible({ timeout: LOAD_TIMEOUT })
+}
+
 /** The inspector for the documentation visitor, with its ban, DROP, AbuseIPDB blacklist and score badges, its ASN and every block loaded. */
 async function inspector(page: Page): Promise<Locator> {
   const sheet = inspectorSheet(page)
@@ -248,22 +265,33 @@ export const STAGES: Record<string, Stage> = {
   },
   dashboard: charts,
   map: mapDetail,
-  "access-logs": tableRows,
-  "filter-drawer": async (page) => {
+  "access-logs": async (page, shot) => {
+    await mutedSwitch(page, shot)
+    await tableRows(page)
+  },
+  "filter-drawer": async (page, shot) => {
+    await mutedSwitch(page, shot)
     await tableRows(page)
     await page.getByRole("button", { name: /^Filters/ }).click()
     const drawer = page.locator('[data-slot="drawer-content"]')
     await expect(drawer.getByRole("heading", { name: "Filters" })).toBeVisible({
       timeout: LOAD_TIMEOUT,
     })
+    await expect(drawer.getByText(`${MUTED_ENTRIES} hidden`, { exact: true })).toBeVisible({
+      timeout: LOAD_TIMEOUT,
+    })
     await animationsDone(drawer)
   },
-  "geo-logs": async (page) => {
+  "geo-logs": async (page, shot) => {
+    await mutedSwitch(page, shot)
     await tableRows(page)
     await charts(page)
   },
   "debug-logs": tableRows,
-  analytics: charts,
+  analytics: async (page, shot) => {
+    await mutedSwitch(page, shot)
+    await charts(page)
+  },
   "ip-inspector": async (page) => {
     await inspector(page)
   },
@@ -413,6 +441,16 @@ export const STAGES: Record<string, Stage> = {
     await expect(page.getByRole("heading", { name: "Appearance" }).first()).toBeVisible({
       timeout: LOAD_TIMEOUT,
     })
+  },
+  "muted-ips": async (page) => {
+    const list = page.locator('[aria-label="Muted IPs"]')
+    await expect(list.getByText(`${MUTED_ENTRIES} of 20`, { exact: true })).toBeVisible({
+      timeout: LOAD_TIMEOUT,
+    })
+    for (const note of MUTED_NOTES) {
+      await expect(list.getByText(note, { exact: true })).toBeVisible({ timeout: LOAD_TIMEOUT })
+    }
+    await noSkeletons(page)
   },
   live: liveRequests,
   "live-tail": async (page) => {
