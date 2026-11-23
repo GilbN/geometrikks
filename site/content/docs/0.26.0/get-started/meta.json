@@ -1,0 +1,5 @@
+{
+  "title": "Get started",
+  "defaultOpen": true,
+  "pages": ["quickstart", "geolite2", "upgrading"]
+}

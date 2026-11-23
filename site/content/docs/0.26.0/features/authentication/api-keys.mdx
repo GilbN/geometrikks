@@ -1,0 +1,65 @@
+---
+title: API keys
+description: Create API keys for scripts and dashboards, pick a Read or Read/write scope, and know what a key can't do.
+---
+
+An API key lets a script or a dashboard call the API without logging in. Create one under Settings > API keys. Give it a name, pick a scope and choose when it expires: never, in 30 days, 90 days, a year, or on a date you pick. GeoMetrikks shows the key once, right after you create it. If you lose it, revoke it and create a new one.
+
+## Using a key
+
+Keys start with `gmk_`. Send one as a bearer token in the `Authorization` header:
+
+```bash
+curl -H "Authorization: Bearer gmk_..." https://geo.example.com/api/v1/stats
+```
+
+To test a key, call `GET /api/v1/auth/connection`. With a working key it answers with the key's name, scope and expiry, the app and API versions, and the features the server has set up, such as CrowdSec and ASN data. A bad key gets a 401.
+
+`/schema` lists every endpoint in an interactive API reference. To try one with a key, switch the auth type in the Authentication box at the top to `apiKey`, paste the key and click Test Request on an endpoint. While you're logged in, the browser also sends its session cookie, so a request without a key still works there. Log out or use a private window to see what a request without credentials gets.
+
+The WebSocket feeds take the same header, so a script can open `/ws/live`, `/ws/crowdsec` or `/ws/logs` with a key. Browsers can't set headers on a WebSocket, so the web app keeps using its session cookie.
+
+## Scopes
+
+A key has one of two scopes.
+
+- **Read** can make `GET` and `HEAD` requests and open the WebSocket feeds. Any other method gets a 403.
+- **Read/write** can also change things: ban and unban IPs, ban DROP networks, send reports to AbuseIPDB, run a scheduler job now, rotate the log files, and delete a server location or a retired agent instance.
+
+Some endpoints only take a browser session, and answer every key with a 403, Read/write included. A key can't list, create or revoke keys, log out, ask who is logged in, or read the OpenID Connect status. Managing keys takes a browser login.
+
+The login endpoints and `OPTIONS` requests never check a key, so sending one there changes nothing.
+
+## When a key fails
+
+A request gets a 401 when:
+
+- the key is unknown, or was revoked, which deletes it (error code `api_key_invalid`);
+- the token starts with `gmk_` but has the wrong length or characters, or the request carries more than one `gmk_` token (`api_key_invalid`);
+- the key has expired (`api_key_expired`). An expired key stays in the list until you revoke it.
+
+GeoMetrikks ignores a bearer token that doesn't start with `gmk_`, such as a JWT your proxy adds, and the session cookie still works.
+
+## Last used
+
+The list under Settings > API keys shows each key's scope, expiry, and when and from which IP it was last used. The last-used time updates at most once every 60 seconds while the IP stays the same.
+
+The IP is the client address resolved through `APP_TRUSTED_PROXIES`. Behind a reverse proxy that isn't listed there, every key shows the proxy's address. [Real client IP behind a proxy](../../sources/proxy-setup.mdx) explains the setting.
+
+## Before you hand a key to a script
+
+- With `APP_AUTH_DISABLED=true` keys do nothing, because the API is already open to anyone who can reach it. You can't create keys in that mode.
+- An authenticating proxy such as Authelia checks every request before GeoMetrikks sees it, so it blocks a script's bearer request unless a rule lets it through, for example a bypass for the network the script runs on. Past the proxy, GeoMetrikks still requires a key or a login.
+- Changing the admin user or password, or who may sign in with OpenID Connect, ends every session on the next start but doesn't revoke keys. If a key may have leaked, revoke it in Settings > API keys.
+
+## Log lines
+
+Creating and revoking a key writes `api_key_created` and `api_key_revoked` lines to `login.log`. A request with a bad key writes an `api_key_rejected` line, at most once a minute for each key prefix and IP:
+
+```text
+2026-11-02T14:03:11Z api_key_rejected user="gmk_Ab12" ip=203.0.113.7
+```
+
+The `user` field holds the first eight characters of the key, never the whole key. For an expired key the line ends with the key's name as `key="..."`. The IP follows `APP_TRUSTED_PROXIES` here too.
+
+These lines aren't `login_failed`, so CrowdSec or fail2ban filters written for failed logins ignore them. Add `api_key_rejected` to your filter if you want guessed keys to lead to a ban. [Login and sessions](./index.mdx#the-login-log) describes the file.

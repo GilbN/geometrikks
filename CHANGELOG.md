@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-11-23
+
 ### Added
 
 - Each entry on Settings > Muted IPs has a Show in Access Logs button that opens Access Logs History filtered to that address or range. Filtering by an IP turns muting off for that view, so the muted rows show there without changing the Muted IPs switch.
@@ -1363,7 +1365,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings endpoint no longer exposes the full settings tree (database credentials leaked via `model_dump()`); response is now an explicit whitelist.
 - Timestamps in `CALL refresh_continuous_aggregate` are bound as asyncpg parameters instead of interpolated into SQL.
 
-[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.25.0...develop
+[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.26.0...develop
+[0.26.0]: https://github.com/GilbN/geometrikks/compare/v0.25.0...v0.26.0
 [0.25.0]: https://github.com/GilbN/geometrikks/compare/v0.24.0...v0.25.0
 [0.24.0]: https://github.com/GilbN/geometrikks/compare/v0.23.0...v0.24.0
 [0.23.0]: https://github.com/GilbN/geometrikks/compare/v0.22.1...v0.23.0

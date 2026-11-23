@@ -1,0 +1,403 @@
+---
+title: Multiple sources
+description: Run one full instance plus agents next to each proxy, or read several proxies from one instance, all into one database.
+---
+
+When traffic comes in through more than one reverse proxy or host, you have three ways to get it all into one GeoMetrikks:
+
+- One full instance tails several log files that already reach its machine, through a shared mount, rsyslog or log shipping. See [One instance, several files](#one-instance-several-files).
+- One full instance reads every proxy's lines from Grafana Loki. See [Loki as the alternative](#loki-as-the-alternative).
+- One full instance plus an agent on each proxy host, all writing into one database. The rest of this page is about this setup.
+
+## How it works
+
+The full instance, which Settings > Agents calls the head, does everything a single install does. It serves the UI and the API, runs [database migrations](../operate/deployment.mdx#migrations) and the background jobs, and is the only process that talks to CrowdSec, AbuseIPDB and Spamhaus. An agent is the same image started with `APP_MODE=agent`. It runs next to the access logs it reads, on the proxy's host or Docker network, and does the ingestion there: tail, parse, geolocate, write and publish. Every agent and the head share one TimescaleDB.
+
+Live traffic reaches the map whichever process ingested it. Every process publishes the requests it writes through Postgres LISTEN/NOTIFY, and the head's `/ws/live` feed relays all of them.
+
+An agent:
+
+- needs `LOGPARSER_ENABLED=true`, the default. An agent with `LOGPARSER_ENABLED=false` fails startup, because it would do nothing.
+- skips session auth and the OpenAPI schema, so it needs no `APP_ADMIN_PASSWORD`. It serves only `/health` and `/health/ready`, with no UI, API or WebSocket feeds.
+- downloads and refreshes its own GeoLite2 databases, so it needs MaxMind credentials and a geoip volume of its own.
+- never migrates the database or creates TimescaleDB objects. At startup it waits up to 120 seconds for the head to bring the schema to the revision the agent was built against. See [Health during the schema wait](#health-during-the-schema-wait).
+- writes the events it ingests, its own `server_locations` row and a heartbeat every 30 seconds. Nothing else.
+
+## Deploy an agent
+
+An agent needs `APP_MODE=agent`, credentials for the shared database, MaxMind credentials and its own log mount. Run the same image tag as the head.
+
+```yaml
+services:
+  agent:
+    image: ghcr.io/gilbn/geometrikks:0.26.0   # the same tag as the head
+    restart: unless-stopped
+    stop_grace_period: 20s
+    environment:
+      APP_MODE: agent
+      APP_INSTANCE_NAME: edge-01
+      DB_HOST: timescale.example.internal
+      DB_PORT: "5432"
+      DB_USER: geouser
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_DATABASE: geometrikks
+      MAXMINDDB_USER_ID: ${MAXMINDDB_USER_ID}
+      MAXMINDDB_LICENSE_KEY: ${MAXMINDDB_LICENSE_KEY}
+      LOGPARSER_LOG_PATHS: '["/var/log/access/access.log"]'
+      LOGPARSER_SERVER_NAME: edge-01
+    volumes:
+      - geoip_data:/app/data/geoip
+      - /var/log/nginx:/var/log/access:ro
+    healthcheck:
+      # Nothing answers during the GeoLite2 download or the schema wait,
+      # so start_period covers both.
+      # After a timed-out wait, /health answers 200 and /health/ready 503.
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready', timeout=5).read()\" || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 150s
+
+volumes:
+  geoip_data:
+```
+
+The agent has to reach the head's database. The shipped compose file publishes no port for `timescale_db`, so an agent on another host can't connect until you add a `ports:` entry for 5432 on the head. Bind it to the head's VPN or tailnet address:
+
+```yaml
+services:
+  timescale_db:
+    ports:
+      - "100.64.0.10:5432:5432"
+```
+
+A bare `5432:5432` listens on every interface of the head, the public one included. See [Trust model](#trust-model) for why that matters.
+
+Upgrade the head and every agent to the same release together. [Upgrading](../get-started/upgrading.mdx#several-instances) has what an agent does while the head runs a newer schema.
+
+### Health during the schema wait
+
+The schema wait runs inside the app's startup, before it serves any request. For those up to 120 seconds nothing answers on port 8000, `/health` included. The agent keeps writing its heartbeat meanwhile, so Settings > Agents on the head shows it waiting instead of missing.
+
+Before the schema wait, the agent downloads GeoLite2 if its files are missing or due for a refresh, as on a first start, and looks up its public IP for the map. Nothing answers during that either, and the heartbeat hasn't started yet. A download usually takes seconds, but on a slow link it can take minutes.
+
+- When the schema reaches the agent's revision, the agent starts ingesting and both routes answer 200.
+- When the database runs a revision the agent doesn't know, as it does while the head runs a newer release, the agent logs a warning and starts anyway.
+- When the 120 seconds run out, the agent stays up without ingesting. `/health` answers 200 and `/health/ready` answers 503 until the agent restarts. The agent never retries by itself.
+
+The image's own healthcheck probes `/health`, so after a timed-out wait it reports a stuck agent as healthy. [Health checks](../operate/deployment.mdx#health-checks) describes both routes. The compose example above probes `/health/ready` instead. Its `start_period` of 150 seconds covers the schema wait and a normal download. Failed probes inside it don't count. On a slow link, raise it so a first start doesn't show the agent as `unhealthy` while it is still downloading.
+
+Compose doesn't act on health status. On plain Docker, `docker ps` shows a stuck agent as `unhealthy`, and a service with `depends_on: condition: service_healthy` on it keeps waiting, but nothing restarts it. `restart: unless-stopped` reacts to a container exiting, and a stuck agent stays up. Turning `unhealthy` into a restart takes Docker Swarm, an autoheal sidecar, or a Kubernetes liveness probe on `/health/ready`. Without one, run `docker compose restart agent` once the head has finished migrating.
+
+## Settings > Agents
+
+The head and every agent write a heartbeat to the shared database every 30 seconds. Settings > Agents on the head lists them, the head first. Each row shows the version, the server names, the lines and failures of the last 5 minutes, and when it last checked in. Click a row for the rest of what that process reports: ingestion counters, GeoIP databases, scheduled jobs, each log source with its own light, server locations and the last error. A lock on each row, and a Connection row under Database in the details, show whether that instance's database connection is encrypted, as [The lock and the Connection row](#the-lock-and-the-connection-row) explains.
+
+An agent that hasn't checked in for 180 seconds is marked not checking in, and only then does its row get a Remove button. If the agent is in fact still running, its next heartbeat brings the row back.
+
+Each agent that needs attention also gets a card at the top of Settings > Status, red or amber by its worst problem, linking to its row. An Agents card further down sums them up, worst problem first, for example "3 agents, 1 not checking in, 1 out of date", and the sidebar status dot turns amber. With no agents, Settings > Status shows none of these cards.
+
+### Instance names
+
+Set `APP_INSTANCE_NAME` on every agent. The heartbeat row is keyed by that name. Without it, an agent goes by `agent` and the head by `head`, so two unnamed agents write to the same `agent` row and overwrite each other's status. The page then shows whichever wrote last. The head flags an agent running under the default name, and a name that more than one process uses. A unique name per agent fixes both.
+
+`APP_INSTANCE_NAME` names the process. `LOGPARSER_SERVER_NAME` names the server on each request it records, so one agent tailing two servers' logs is still one row.
+
+## Server names and locations
+
+Every request records the server that ingested it, and Access Logs, Geo Logs and the map filter by server. `LOGPARSER_SERVER_NAME` sets that name. It is a name you choose, not your nginx `server_name`. Unset, it is the machine's hostname, and in Docker that is the container's hostname. The shipped compose file pins `hostname: geometrikks`, but the shipped `.env.example` sets `LOGPARSER_SERVER_NAME=my-server`, so a stock install records `my-server`. Give each agent its own name.
+
+Live map routes fly to the location of the server that recorded them, one beacon per server. Each ingesting process detects its public-IP location at startup and re-checks it every `MAP_SERVER_LOCATION_REFRESH_HOURS`, 24 by default.
+
+Detection goes wrong behind CGNAT, a VPN egress, or for logs shipped from another machine. Pin those servers on the head with `MAP_SERVER_LOCATIONS`, a JSON object keyed by server name:
+
+```dotenv
+MAP_SERVER_LOCATIONS={"edge-01": [60.39, 5.32]}
+```
+
+An override wins over detection, and an agent's detection never replaces it. Removing an entry deletes its row at the head's next start, and the server's own detection fills it in again at its next check. The Server locations card on Settings > Status lists each server's location and whether it came from detection or an override. See [Map settings](../reference/configuration.mdx#map).
+
+### CDN advisories
+
+While `APP_PROXY_ADVISORY` is on, as it is by default, the head scans the last hour of access-log rows every 5 minutes for requests that come from CDN addresses, so CDN advisories for an agent's sources reach the head's Settings > Status. The scan covers only sources with `LOGPARSER_SEND_LOGS=true`. Private-peer lines are never stored, so each agent checks its own and sends the advisory in its heartbeat. [Real client IP behind a proxy](./proxy-setup.mdx#limits) has the details.
+
+## A head that tails nothing
+
+To keep the UI and API on a machine that ingests nothing itself, with all traffic coming from agents, set this on the head:
+
+```dotenv
+LOGPARSER_ENABLED=false
+```
+
+Everything else a full instance does keeps running.
+
+## CrowdSec
+
+Point `CROWDSEC_LAPI_URL` and the CrowdSec credentials at the central LAPI on the head only. Agents ignore every `CROWDSEC_*` setting, and bans stay with the head. CrowdSec's own agents on each machine keep reporting to that LAPI as usual. [CrowdSec](../features/crowdsec.mdx) covers the setup.
+
+## Encrypt the database link
+
+The bundled database ships with TLS off, so the connection itself is plain text and any VPN or tailnet around it is its only encryption. You can add TLS on the connection as well. GeoMetrikks has no TLS settings of its own. The database driver reads the standard PostgreSQL variables `PGSSLMODE`, `PGSSLROOTCERT`, `PGSSLCERT` and `PGSSLKEY` from the environment. With none of them set, an instance uses TLS whenever the database offers it, without checking the database's certificate.
+
+The steps below start from the shipped `docker-compose.yml` on the head.
+
+### Make the certificates
+
+Make a CA, a certificate authority of your own, and a server certificate it signs. Run this in a `certs` directory next to the head's `docker-compose.yml`:
+
+```bash
+openssl req -x509 -new -nodes -newkey rsa:4096 -days 3650 \
+  -keyout ca.key -out ca.crt -subj "/CN=GeoMetrikks database CA"
+openssl req -new -nodes -newkey rsa:2048 \
+  -keyout server.key -out server.csr -subj "/CN=timescale.example.internal"
+printf 'subjectAltName=DNS:timescale.example.internal,IP:100.64.0.10\n' > server.ext
+openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial \
+  -days 825 -extfile server.ext -out server.crt
+```
+
+The server certificate must name what your agents put in `DB_HOST`. A host name goes in a `DNS:` entry and an address in an `IP:` entry. An address in a `DNS:` entry fails `verify-full` with `IP address mismatch`. The example names `timescale.example.internal` from [Deploy an agent](#deploy-an-agent) and `100.64.0.10`, the address the head publishes its port on. List every name and address your agents use, separated by commas.
+
+`ca.key` signs certificates and stays in this directory, and nothing mounts it. `ca.crt` goes to every agent. The server certificate is good for 825 days. After that, agents that check the certificate can't connect until you sign a new one with the last command and run `docker compose restart timescale_db`.
+
+### Turn TLS on in the database
+
+The database checks its key file before it starts. The file must be owned by uid 1000, the `postgres` user in the `timescale/timescaledb-ha` image, with mode 600:
+
+```bash
+chmod 600 server.key
+sudo chown 1000:1000 server.key
+```
+
+If other users can read the key, the database doesn't start, and its log says `private key file "/certs/server.key" has group or world access`.
+
+In the head's `docker-compose.yml`, add three flags to the end of the `command:` list of `timescale_db`, and mount the certificate and the key:
+
+```yaml
+services:
+  timescale_db:
+    command:
+      - -c
+      - timescaledb.max_background_workers=40
+      - -c
+      - max_parallel_workers=8
+      - -c
+      - max_worker_processes=51
+      - -c
+      - ssl=on
+      - -c
+      - ssl_cert_file=/certs/server.crt
+      - -c
+      - ssl_key_file=/certs/server.key
+    volumes:
+      - timescale_data:/home/postgres/pgdata/data
+      - ./certs/server.crt:/certs/server.crt:ro
+      - ./certs/server.key:/certs/server.key:ro
+```
+
+Keep the entries already in the list. Without them, TimescaleDB loses its background-worker tuning and logs `out of background workers` when its jobs fire together. See [TimescaleDB background workers](../operate/timescaledb-workers.mdx).
+
+Recreate the container and check that TLS is on:
+
+```bash
+docker compose up -d timescale_db
+docker compose exec timescale_db psql -U geouser -d geometrikks -c 'SHOW ssl'
+```
+
+It answers `on`.
+
+### Point each agent at the CA
+
+Copy `ca.crt` next to the agent's `docker-compose.yml`, and add these entries to the agent from [Deploy an agent](#deploy-an-agent), next to the ones already there:
+
+```yaml
+services:
+  agent:
+    environment:
+      DB_HOST: timescale.example.internal
+      PGSSLMODE: verify-full
+      PGSSLROOTCERT: /certs/ca.crt
+    volumes:
+      - ./ca.crt:/certs/ca.crt:ro
+```
+
+`verify-full` checks that your CA signed the database's certificate and that the certificate names `DB_HOST`. Against a database whose certificate your CA didn't sign, the agent can't connect and logs `certificate verify failed`.
+
+The `PGSSL*` variables are environment variables of the process, read by the database driver rather than by GeoMetrikks. Put them under `environment:` or in a file named by `env_file:`. In a `.env` that compose only uses to fill in `${...}` values, or that only the app reads, they do nothing. Leave out the ones you don't use, because an empty `PGSSLMODE` fails every connection.
+
+`ca.crt` must be readable by the user the app runs as, `PUID`, 1000 by default. It holds no secret, so mode 644 is fine. Apply the change with `docker compose up -d agent`.
+
+### Refuse connections without TLS
+
+The database still takes a plain connection from a client that doesn't ask for TLS, such as an agent with `PGSSLMODE=disable`. To refuse those, change the last rule in `pg_hba.conf` from `host` to `hostssl` and reload the database's configuration:
+
+```bash
+docker compose exec timescale_db sed -i 's/^host all all all scram-sha-256$/hostssl all all all scram-sha-256/' /home/postgres/pgdata/data/pg_hba.conf
+docker compose exec timescale_db psql -U geouser -d geometrikks -c 'SELECT pg_reload_conf()'
+```
+
+Check that the rule changed. The `sed` command changes nothing when the line isn't exactly the image's default, and the reload answers `t` either way:
+
+```bash
+docker compose exec timescale_db psql -U geouser -d geometrikks -Atc "SELECT type, options, error FROM pg_hba_file_rules ORDER BY rule_number DESC LIMIT 1"
+```
+
+It answers `hostssl||`. A third field that isn't empty is an error in the file, and the database keeps its old rules until you fix it.
+
+`pg_hba.conf` lives in the `timescale_data` volume, so the change stays through restarts and recreated containers. A client without TLS now gets `no pg_hba.conf entry for host ..., no encryption`. The head needs no change. With no `PGSSL*` variables it asks for TLS first and gets it.
+
+### Restart after a change
+
+Restart every instance after a TLS change, whether on the database or on an instance. Each instance keeps a pool of open connections, and each one keeps the state it was opened with for up to `DB_POOL_RECYCLE`, an hour by default. Until then the lock on Settings > Agents can flip between heartbeats. After a change on the database side, run `docker compose restart app` on the head and `docker compose restart agent` on each agent.
+
+### Client certificates
+
+A client certificate is a second factor beside the password. The database then turns away a connection that has the password but no certificate signed by your CA. It's optional, but once the rule is on, every instance needs one, the head included.
+
+Sign one per instance in the `certs` directory. The CN must be the database user, `geouser` in the shipped compose file:
+
+```bash
+openssl req -new -nodes -newkey rsa:2048 \
+  -keyout edge-01.key -out edge-01.csr -subj "/CN=geouser"
+openssl x509 -req -in edge-01.csr -CA ca.crt -CAkey ca.key -CAcreateserial \
+  -days 825 -out edge-01.crt
+```
+
+Run it again with `head` in place of `edge-01` for the head. These certificates are good for 825 days as well, and once the rule is on, an instance with an expired one can't connect.
+
+Give the database the CA first, so it can check client certificates. Add `ssl_ca_file` to the `command:` list of `timescale_db` and mount `ca.crt`:
+
+```yaml
+services:
+  timescale_db:
+    command:
+      - -c
+      - timescaledb.max_background_workers=40
+      - -c
+      - max_parallel_workers=8
+      - -c
+      - max_worker_processes=51
+      - -c
+      - ssl=on
+      - -c
+      - ssl_cert_file=/certs/server.crt
+      - -c
+      - ssl_key_file=/certs/server.key
+      - -c
+      - ssl_ca_file=/certs/ca.crt
+    volumes:
+      - timescale_data:/home/postgres/pgdata/data
+      - ./certs/server.crt:/certs/server.crt:ro
+      - ./certs/server.key:/certs/server.key:ro
+      - ./certs/ca.crt:/certs/ca.crt:ro
+```
+
+Run `docker compose up -d timescale_db`.
+
+Copy each agent's certificate and key next to its `docker-compose.yml`. Each instance needs them mounted, with `PGSSLCERT` and `PGSSLKEY` pointing at them. The key must be readable by `PUID`, so give it to that user with mode 600. Use your `PUID` in place of 1000 if you changed it:
+
+```bash
+chmod 600 edge-01.key
+sudo chown 1000:1000 edge-01.key
+```
+
+Do the same for `head.key` on the head.
+
+On an agent:
+
+```yaml
+services:
+  agent:
+    environment:
+      PGSSLMODE: verify-full
+      PGSSLROOTCERT: /certs/ca.crt
+      PGSSLCERT: /certs/edge-01.crt
+      PGSSLKEY: /certs/edge-01.key
+    volumes:
+      - ./ca.crt:/certs/ca.crt:ro
+      - ./edge-01.crt:/certs/edge-01.crt:ro
+      - ./edge-01.key:/certs/edge-01.key:ro
+```
+
+On the head, in the `app` service, next to its existing entries:
+
+```yaml
+services:
+  app:
+    environment:
+      PGSSLCERT: /certs/head.crt
+      PGSSLKEY: /certs/head.key
+    volumes:
+      - ./certs/head.crt:/certs/head.crt:ro
+      - ./certs/head.key:/certs/head.key:ro
+```
+
+Apply it with `docker compose up -d agent` on each agent and `docker compose up -d app` on the head. A restart alone doesn't pick up new variables or mounts.
+
+Before the rule goes on, check that every instance sends its certificate:
+
+```bash
+docker compose exec timescale_db psql -U geouser -d geometrikks -Atc "SELECT client_addr, client_dn FROM pg_stat_ssl JOIN pg_stat_activity USING (pid) WHERE client_addr IS NOT NULL"
+```
+
+Each line is one open connection, with the address it comes from and then the name in its certificate. Every line should end in `/CN=geouser`. A line that ends after the `|` comes from an instance without a certificate, and the rule will refuse it. Behind Docker or NAT several instances can share one address, and an instance that is stopped doesn't show at all, so start every instance before you check.
+
+Then add `clientcert=verify-full` to the rule and reload. This builds on the `hostssl` rule from [Refuse connections without TLS](#refuse-connections-without-tls):
+
+```bash
+docker compose exec timescale_db sed -i 's/^hostssl all all all scram-sha-256$/hostssl all all all scram-sha-256 clientcert=verify-full/' /home/postgres/pgdata/data/pg_hba.conf
+docker compose exec timescale_db psql -U geouser -d geometrikks -c 'SELECT pg_reload_conf()'
+```
+
+Run the check from [Refuse connections without TLS](#refuse-connections-without-tls) again. It answers `hostssl|{clientcert=verify-full}|`.
+
+Keep that order. A `clientcert` rule on a database without `ssl_ca_file` refuses every connection with `client certificates can only be checked if a root certificate store is available`, and a rule that is on before an instance has its certificate locks that instance out.
+
+To take the rule off again, run the `sed` command with its two halves swapped and reload:
+
+```bash
+docker compose exec timescale_db sed -i 's/^hostssl all all all scram-sha-256 clientcert=verify-full$/hostssl all all all scram-sha-256/' /home/postgres/pgdata/data/pg_hba.conf
+docker compose exec timescale_db psql -U geouser -d geometrikks -c 'SELECT pg_reload_conf()'
+```
+
+Run the check from [Refuse connections without TLS](#refuse-connections-without-tls) again. It answers `hostssl||`. `docker compose exec` keeps working whatever the rule says, because it connects inside the container.
+
+An instance without a certificate can't connect. On `verify-full` it logs `connection requires a valid client certificate`. With no `PGSSLMODE`, as on the head, it tries again without TLS and logs `no pg_hba.conf entry ... no encryption` instead. A certificate whose CN isn't the database user fails with `password authentication failed`, and the database's own log says `CN mismatch`.
+
+### The lock and the Connection row
+
+Each instance reports its own connection, from itself to the address in `DB_HOST`. Behind a connection pooler such as PgBouncer, that is the link to the pooler.
+
+| Lock | Connection row | When |
+|---|---|---|
+| Closed, green | `encrypted, server verified` | `PGSSLMODE=verify-full` |
+| Closed, in the normal text color | `encrypted` | TLS without a check of the server's name: no `PGSSL*` variables, `require` or `verify-ca` |
+| Open, gray | `not encrypted` | `PGSSLMODE=disable`, or a database with TLS off |
+
+`verify-ca` checks that your CA signed the certificate but not the name in it, so it reads `encrypted`. So does `require` with `PGSSLROOTCERT`.
+
+In the list, the lock follows the instance name. When a row is too narrow for both, the lock moves to the start of the row's second line. The Connection row sits under Database in the instance's details. On a desktop, click the row. On a phone, tap it and open the Instance section. The phone drawer also shows the lock after the name in its title, and the line under the title says the same in words, such as `database connection encrypted, server verified`. An instance on an older release sends no report and gets no lock. `/health` doesn't report the link state.
+
+Each instance logs `database_link_state` at info level, with `encrypted` and `server_verified`, when it first learns the state and whenever it changes.
+
+### Errors that name no file
+
+`[Errno 2] No such file or directory`, `[Errno 13] Permission denied` and `[Errno 21] Is a directory` in a `heartbeat_write_failed` warning mean a `PGSSL*` path is wrong, or the app's user can't read the file. None of them says which file. When a file is missing at `docker compose up`, compose makes a directory in its place, and the driver then fails with Errno 21. Remove the directory, copy the file, and run `docker compose up -d --force-recreate agent`, or `app` on the head. At startup, the `database_tls_file_unusable` warning names it, with `variable`, `path` and `reason`.
+
+## Trust model
+
+Agents connect with ordinary database credentials, and GeoMetrikks accepts whatever reaches the database. Anyone who can run an agent has full read and write access to the whole database: every source's traffic history, every server, with no per-agent identity and no tenant separation. Revoking one agent means changing the shared password on every instance. Sharing one database between parties works as long as everyone knows they share everything. Run agent connections over a VPN or tailnet, not the open internet. To encrypt the link itself and check the database's identity as well, see [Encrypt the database link](#encrypt-the-database-link).
+
+## One instance, several files
+
+When the log files already reach one machine, a single full instance can tail them all and keep them apart. Give `LOGPARSER_SERVER_NAME` a JSON list in the order of `LOGPARSER_LOG_PATHS`:
+
+```dotenv
+LOGPARSER_LOG_PATHS=["/var/log/access/edge-01.log", "/var/log/access/edge-02.log"]
+LOGPARSER_SERVER_NAME=["edge-01", "edge-02"]
+```
+
+Each file is then its own server in the Server filters and gets its own server location on the map, like traffic from separate agents.
+
+## Loki as the alternative
+
+If the logs already go to Grafana Loki, one full instance can read every proxy's lines from there, with one LogQL selector and one server name per proxy. That needs no agents and no database port open to other hosts. See [Grafana Loki](./loki.mdx).

@@ -1,0 +1,58 @@
+---
+title: Polling for recent records
+description: Poll recent access logs and CrowdSec alerts, deduplicate results, and know where polling can miss records.
+---
+
+A script that wants the requests of the last few minutes asks `/api/v1/access-logs` for a relative window, reads every page of it, and drops records it has already seen. For a live view instead of a timer, open the [WebSocket feed](#live-feed-instead-of-polling).
+
+## Access log lines
+
+`GET /api/v1/access-logs?window=10m` selects the lines logged in the last ten minutes, by log timestamp. The window uses the same grammar and 365-day cap as the analytics endpoints: a positive whole number followed by `m`, `h` or `d`. Both bounds are inclusive. Sending `window` together with `fromTimestamp` or `toTimestamp` answers 400 with `code: invalid_range`.
+
+The response is a normal page: `items`, `total`, `limit` and `offset`. Two headers echo the bounds the server resolved or you sent, as ISO 8601:
+
+- `X-Range-Start`, the lower bound.
+- `X-Range-End`, the upper bound.
+
+UTC bounds end in `Z`. Other offsets keep their sign and offset. A side with no bound gets no header. Responses carry `Cache-Control: no-store`.
+
+For a script polling every 30 seconds, a ten-minute overlap is a reasonable start:
+
+1. Request page 1 with `window=10m`, `orderBy=id`, `sortOrder=asc` and `pageSize=1000`. 1000 is the largest page the endpoint allows.
+2. Read the two range headers. For later pages, drop `window` and send those exact values as `fromTimestamp` and `toTimestamp`, URL-encoded. A raw `+` in a query string turns into a space, so the offset breaks. Use your HTTP client's query parameters or curl's `--data-urlencode`. Keep the sort, the page size and any filters the same.
+3. Process `items`, skipping any `id` you have already seen. Fetch `currentPage=2`, then 3, until `offset` plus the number of items reaches `total` or a page comes back empty. `total` can change while you page.
+4. Start the next poll with a fresh `window`. Remember each seen `id` for at least the overlap after you last saw it. Store the seen IDs on disk if repeats after a restart matter to you. Keep them when a request fails, or the retry counts the same lines twice.
+
+The first request, with the key in the shell variable `api_key` and the server URL in `server`:
+
+```bash
+curl --fail-with-body --silent --show-error \
+  --dump-header poll.headers \
+  --header "Authorization: Bearer $api_key" \
+  --get "$server/api/v1/access-logs" \
+  --data-urlencode window=10m \
+  --data-urlencode pageSize=1000 \
+  --data-urlencode orderBy=id \
+  --data-urlencode sortOrder=asc
+```
+
+`poll.headers` then holds `X-Range-Start` and `X-Range-End` for the later pages.
+
+This is best-effort polling, so know where it can miss or repeat:
+
+- Pages are not a snapshot. New lines and retention can change what a page holds between requests. The `id` check catches repeats; it cannot bring back a line that moved to an earlier page.
+- Pick an overlap longer than the polling interval plus the delay between a request and its line reaching the database. A line that arrives after its log time has left the window is missed.
+- Imports and backfills write old timestamps, so polling does not pick them up.
+- An `id` higher than the last one you saw is not a cursor. Agents commit out of order, so a lower `id` can show up later.
+
+## CrowdSec alerts
+
+`GET /api/v1/crowdsec/alerts?since=10m&limit=500` returns the alerts that started in the last ten minutes, newest first. `since` is a Go duration such as `10m`, `24h` or `1h30m`. `limit` is the page size, from 1 to 500, 50 by default. The endpoint needs CrowdSec machine credentials on the server; see [CrowdSec](../../features/crowdsec.mdx).
+
+Skip alerts whose `id` you have already seen. When a response has a `nextCursor`, pass it as `before` to get the next, older page.
+
+`since` filters on the time an alert started, which can be earlier than the time the LAPI created it. An alert created late can start before your window and never show up in a poll. When more alerts share one second than a single LAPI request can page past, the endpoint answers 409; narrow the filters.
+
+## Live feed instead of polling
+
+`/ws/live` pushes each request as it is committed. A Read key can open it with an `Authorization: Bearer` header in the WebSocket handshake. Use a client that can set that header; the browser WebSocket API cannot, and sends the session cookie instead. [WebSocket messages](./websockets.mdx) lists the frames it sends.
