@@ -800,6 +800,9 @@ class RecordingRunner:
         return 0, ""
 
 
+ROOT_PACKAGE = run.REPO_ROOT / "package.json"
+
+
 def bare_run(tmp_path: Path) -> tuple[run.FullRun, RecordingRunner]:
     full = object.__new__(run.FullRun)
     full.run_dir = tmp_path / "run"
@@ -813,16 +816,25 @@ def bare_run(tmp_path: Path) -> tuple[run.FullRun, RecordingRunner]:
     return full, runner
 
 
-def test_the_build_runs_vite_through_the_wrapper_config_with_an_empty_env_dir(tmp_path: Path) -> None:
+def test_the_build_runs_vp_build_through_the_wrapper_config_with_an_empty_env_dir(tmp_path: Path) -> None:
     full, runner = bare_run(tmp_path)
     full.build()
     [(argv, env)] = runner.calls
-    assert argv == ["/usr/bin/bun", "--no-env-file", "run", "vite", "build", f"--config={run.SCREENSHOT_VITE_CONFIG}"]
+    assert argv == ["/usr/bin/bun", "--no-env-file", "run", "vp", "build", f"--config={run.SCREENSHOT_VITE_CONFIG}"]
     assert run.SCREENSHOT_VITE_CONFIG.is_file()
     assert env is not None
     env_dir = Path(env[run.VITE_ENV_DIR_VAR])
     assert env_dir.is_relative_to(full.run_dir) and env_dir.is_dir() and not list(env_dir.iterdir())
     assert {name: value for name, value in env.items() if name != run.VITE_ENV_DIR_VAR} == full.env
+
+
+def test_the_build_runs_the_builder_the_repo_build_script_runs(tmp_path: Path) -> None:
+    full, runner = bare_run(tmp_path)
+    full.build()
+    [(argv, _)] = runner.calls
+    # Bun resolves the binary from node_modules/.bin, where a dependency swap can remove the old one.
+    build_script = json.loads(ROOT_PACKAGE.read_text())["scripts"]["build"]
+    assert argv[3:5] in [step.split()[:2] for step in build_script.split("&&")]
 
 
 def test_the_encoder_runs_without_dotenv(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -866,20 +878,23 @@ def test_bun_children_never_see_a_dotenv_file(tmp_path: Path) -> None:
     assert SENTINEL not in child_output(run.bun_argv(BUN, "run", "show"), folder)
 
 
-VITE_ENTRY = run.REPO_ROOT / "node_modules" / "vite" / "dist" / "node" / "index.js"
+NODE_MODULES_INSTALLED = (run.REPO_ROOT / "node_modules").is_dir()
 RESOLVE_ENV = """
-const { resolveConfig } = await import(process.argv[1]);
+import { createRequire } from "node:module";
+import { pathToFileURL } from "node:url";
+const entry = createRequire(process.argv[1]).resolve("vite");
+const { resolveConfig } = await import(pathToFileURL(entry).href);
 const config = await resolveConfig({ configFile: process.argv[2], logLevel: "silent" }, "build", "production");
 console.log(JSON.stringify({ envDir: config.envDir, env: config.env }));
 """
 
 
 def resolved_vite_env(config: Path, cwd: Path, **extra: str) -> dict[str, Any]:
-    out = child_output([str(NODE), "--input-type=module", "-e", RESOLVE_ENV, str(VITE_ENTRY), str(config)], cwd, **extra)
+    out = child_output([str(NODE), "--input-type=module", "-e", RESOLVE_ENV, str(ROOT_PACKAGE), str(config)], cwd, **extra)
     return json.loads(out.strip().splitlines()[-1])
 
 
-@pytest.mark.skipif(NODE is None or not VITE_ENTRY.is_file(), reason="needs node and the root node_modules")
+@pytest.mark.skipif(NODE is None or not NODE_MODULES_INSTALLED, reason="needs node and the root node_modules")
 def test_the_screenshot_vite_config_reads_no_dotenv_file(tmp_path: Path) -> None:
     folder = dotenv_folder(tmp_path)
     empty = tmp_path / "vite-env"
@@ -892,7 +907,7 @@ def test_the_screenshot_vite_config_reads_no_dotenv_file(tmp_path: Path) -> None
     assert SENTINEL not in json.dumps(wrapped["env"])
 
 
-@pytest.mark.skipif(NODE is None or not VITE_ENTRY.is_file(), reason="needs node and the root node_modules")
+@pytest.mark.skipif(NODE is None or not NODE_MODULES_INSTALLED, reason="needs node and the root node_modules")
 def test_the_screenshot_vite_config_refuses_to_load_without_its_env_dir(tmp_path: Path) -> None:
     with pytest.raises(subprocess.CalledProcessError) as failure:
         resolved_vite_env(run.SCREENSHOT_VITE_CONFIG, dotenv_folder(tmp_path))
