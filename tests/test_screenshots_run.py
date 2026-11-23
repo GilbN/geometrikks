@@ -578,6 +578,51 @@ def test_preflight_skips_the_shared_server_with_own_db(tmp_path: Path, monkeypat
     assert facts.database_reachable is True
 
 
+def stub_node(tmp_path: Path, script: str) -> run.Runner:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    node = bin_dir / "node"
+    node.write_text(f"#!/bin/sh\n{script}\n")
+    node.chmod(0o755)
+    return run.Runner(ledger=Ledger(tmp_path / "ledger.json"), env={"PATH": str(bin_dir)}, log_dir=tmp_path)
+
+
+def test_preflight_refuses_when_chromium_does_not_start(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    runner = stub_node(tmp_path, 'echo "Executable doesn\'t exist at /x/chrome" >&2; exit 1')
+    facts = run.gather_facts(run_args(own_db=True), runner, ledger_exists=False)
+    assert facts.browser_starts is False
+    assert "Executable doesn't exist at /x/chrome" in capsys.readouterr().out
+    assert any("npx playwright install chromium" in problem for problem in preflight_problems(facts))
+
+
+def test_preflight_takes_a_chromium_that_starts(tmp_path: Path) -> None:
+    script = tmp_path / "script"
+    facts = run.gather_facts(run_args(own_db=True), stub_node(tmp_path, f'printf %s "$3" > {script}'), ledger_exists=False)
+    assert facts.browser_starts is True
+    assert script.read_text() == run.BROWSER_PROBE
+
+
+def test_preflight_refuses_without_node(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    facts = run.gather_facts(run_args(own_db=True), no_docker(tmp_path), ledger_exists=False)
+    assert facts.browser_starts is False
+    assert "node is not on the run's PATH" in capsys.readouterr().out
+
+
+@pytest.mark.skipif(
+    shutil.which("node") is None or not (run.REPO_ROOT / "node_modules").is_dir(),
+    reason="needs node and the root node_modules",
+)
+def test_the_browser_probe_looks_where_playwright_keeps_its_browsers(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    browsers = tmp_path / "browsers"
+    browsers.mkdir()
+    env = {"PATH": os.environ["PATH"], "HOME": str(tmp_path), "PLAYWRIGHT_BROWSERS_PATH": str(browsers)}
+    runner = run.Runner(ledger=Ledger(tmp_path / "ledger.json"), env=env, log_dir=tmp_path)
+    assert run._browser_starts(runner) is False
+    assert str(browsers) in capsys.readouterr().out
+
+
 ABUSEIPDB_OFF: dict[str, object] = {"enabled": False, "reportingEnabled": False, "blacklistEnabled": False}
 
 

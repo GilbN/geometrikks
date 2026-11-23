@@ -154,6 +154,7 @@ APP_STOP_SECONDS: Final = 30
 APP_GRACEFUL_SHUTDOWN_SECONDS: Final = 10
 DB_READY_SECONDS: Final = 180
 DOCKER_SECONDS: Final = 60
+BROWSER_SECONDS: Final = 60
 DOCKER_RUN_SECONDS: Final = 600
 LOG_TAIL_LINES: Final = 30
 
@@ -370,6 +371,32 @@ def _mem_available() -> int:
     return 0
 
 
+BROWSER_PROBE: Final = """
+try {
+  const { chromium } = await import("@playwright/test");
+  const browser = await chromium.launch();
+  await browser.close();
+} catch (error) {
+  console.error(String(error?.message ?? error).split("\\n")[0]);
+  process.exit(1);
+}
+"""
+
+
+def _browser_starts(runner: Runner) -> bool:
+    node = shutil.which("node", path=runner.path)
+    if node is None:
+        say(f"could not start Playwright's Chromium: node is not on the run's PATH ({runner.path})")
+        return False
+    log = "browser-probe.log"
+    code = runner.run(
+        [node, "--input-type=module", "-e", BROWSER_PROBE], label="browser probe", log=log, timeout=BROWSER_SECONDS
+    )
+    if code != 0:
+        say(f"could not start Playwright's Chromium: {_tail(runner.log_dir / log, lines=1)}")
+    return code == 0
+
+
 def gather_facts(args: argparse.Namespace, runner: Runner, *, ledger_exists: bool) -> Facts:
     docker_ok = shutil.which("docker", path=runner.path) is not None and (
         runner.run([runner.which("docker"), "info"], label="docker info", log="commands.log", timeout=30) == 0
@@ -393,6 +420,7 @@ def gather_facts(args: argparse.Namespace, runner: Runner, *, ledger_exists: boo
         esri_key_needed=not args.only or SATELLITE_SCENE in args.only,
         esri_key_set=bool(args.esri_key),
         site_deps_installed=SITE_SHARP.is_dir(),
+        browser_starts=_browser_starts(runner),
         vite_dev_running=VITE_HOT.exists(),
         ledger_exists=ledger_exists,
         database_exists=database_exists,
