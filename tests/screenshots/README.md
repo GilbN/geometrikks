@@ -45,7 +45,7 @@ The frontend build and the encoder don't read your dotenv files either. Both run
 In order:
 
 1. The scratch database `geometrikks_screenshots`, migrated and set up for TimescaleDB. That name is reserved for this script: a run creates and drops it, and `--cleanup` drops it whenever it exists.
-2. The seed: 150,000 requests over 30 days with seed 42 for the servers `edge` and `homelab`, plus seven documentation-range scanners, twelve documentation-range home browsers (see below), the DROP fixture lists and four AbuseIPDB reports.
+2. The seed: 150,000 requests over 30 days with seed 42 for the servers `edge` and `homelab`, plus seven documentation-range scanners, twelve documentation-range home browsers (see below), the DROP fixture lists, four AbuseIPDB reports and three Muted IPs entries.
 3. `geometrikks-shots-crowdsec`, a CrowdSec LAPI with 512 MB of memory, on the internal network `geometrikks-shots-net`. Both carry the label `geometrikks.screenshots.run=<run id>`. The run loads it with alerts and decisions for the fixture IPs.
 4. The app under uvicorn on a free port, bound to `0.0.0.0`, tailing two empty log files in the run folder.
 5. Playwright with one worker, in two passes. The live scenes come last, while the live feeder appends requests from the seeded visitors to those log files.
@@ -155,3 +155,11 @@ What the home browsers look like:
 The seed scanners keep every other CrowdSec fixture: active and expired bans, detections, the captcha and the range ban. Their alerts name probing scenarios only (`crowdsecurity/http-probing`, `http-sensitive-files`, `http-wordpress-scan`, `http-admin-interface-probing`). The captcha and the range ban go through the app's own ban call with the reason "Repeated probing".
 
 The live feeder never emits these visitors. Ingestion skips `2001:db8::/32`, so only the written history holds them.
+
+### Muted IPs
+
+The fixture step writes three entries straight into `muted_ips` for the `muted-ips` scene (Settings > Muted IPs on desktop and phone): 192.0.2.10/32 "This laptop" (the address the capture browser sends in `X-Forwarded-For`), 198.51.100.32/28 "Uptime monitor" and 2001:db8:cafe::/48 "Home network", backdated 12 days 3 hours, 4 days 6 hours and 5 hours from the fixture step. When changing them in `muted.py`:
+
+- Keep every entry inside the documentation ranges, with no host bits set, a note of at most 100 characters and no more than 20 entries. `entry_problems` refuses anything else before writing.
+- Stay clear of every stored address in `access_logs` and `geo_events`, IPv4-mapped forms such as `::ffff:192.0.2.10` included. After writing the list, the run checks both tables and fails with `Muted IPs entries cover stored requests from: ...` if an entry matches, so other scenes keep the rows they had before the list existed.
+- Update `MUTED_NOTES` in `scenes.ts` if you change the notes or entry count. Because the Muted IPs switch starts on in every browser, `access-logs`, `filter-drawer`, `geo-logs` and `analytics` show it and wait for it ("Muted IPs hidden · 3" on the desktop filter bar, a count on the phone's Filters button and a "Muted IPs" row reading "3 hidden" in the phone filter drawer), and `muted-ips` waits for "3 of 20" and every note.
