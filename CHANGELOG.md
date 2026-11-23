@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `GET /api/v1/crowdsec/alerts/daily` returns daily CrowdSec alert counts for scripts, and `GET /api/v1/crowdsec/stats` adds the active decision split and the count of decisions expiring soon.
-- Access Logs, Geo Logs and Debug Logs have a View menu in the table header in place of the Columns button, and Settings > Logs has one with Rows and Time. Compact rows, the default with a mouse, fit about a third more rows on screen and start Access Logs and Debug Logs at 50 rows a page until you pick a size. Comfortable keeps the earlier row height and is the default on a touch screen. On Access Logs, the default Combined layout puts method, host and path in one Request column, the flag and IP in Client, and city and country in Location, while Separate keeps one field per column. A click on the Request header sorts by path, and the arrow beside it picks host or method. Times read 24-hour by default (`Nov 14 16:41:40`) in every log table and the live tail, with the browser's format as the other choice, which a phone offers in the Sort and view drawer.
+- A View menu replaces the Columns button on Access Logs, Geo Logs and Debug Logs, and Settings > Logs has one with Rows and Time. Rows can be Compact, the default with a mouse, or Comfortable. The log tables share 24-hour time by default, and on Access Logs the Combined layout merges request, client and location fields.
 
 ### Changed
 
