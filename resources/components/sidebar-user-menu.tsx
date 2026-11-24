@@ -53,7 +53,7 @@ function AppearanceSubmenu() {
 
   return (
     <DropdownMenuSub>
-      <DropdownMenuSubTrigger className="text-[13px]">
+      <DropdownMenuSubTrigger className="text-[13px] [&>svg:last-child]:ml-0">
         <Palette className="text-muted-foreground" />
         Appearance
         <span className="ml-auto pl-2 text-xs whitespace-nowrap text-muted-foreground">
@@ -69,13 +69,13 @@ function AppearanceSubmenu() {
           onValueChange={(value) => setTheme(parseTheme(value))}
         >
           {SCHEMES.map((option) => (
-            <DropdownMenuRadioItem key={option.value} value={option.value}>
+            <DropdownMenuRadioItem key={option.value} value={option.value} className="text-[13px]">
               {option.label}
             </DropdownMenuRadioItem>
           ))}
         </DropdownMenuRadioGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
+        <DropdownMenuItem asChild className="text-[13px]">
           <Link to="/settings/appearance">Themes…</Link>
         </DropdownMenuItem>
       </DropdownMenuSubContent>
@@ -84,8 +84,16 @@ function AppearanceSubmenu() {
 }
 
 export function SidebarUserMenu() {
-  const { state, isMobile, tooltipsSuppressed, resetTooltipSuppression } = useSidebar()
+  const { state, isMobile, tooltipsSuppressed } = useSidebar()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [tooltipOpen, setTooltipOpen] = useState(false)
+  // Closing the menu returns focus to the row, which would reopen the tooltip and leave it up.
+  const [tooltipHeld, setTooltipHeld] = useState(false)
+
+  function onMenuOpenChange(open: boolean) {
+    setMenuOpen(open)
+    if (!open) setTooltipHeld(true)
+  }
   const collapsed = !isMobile && state === "collapsed"
   const { data: me } = useMe()
   const { data: settings } = useRuntimeSettings()
@@ -117,17 +125,21 @@ export function SidebarUserMenu() {
   return (
     <SidebarMenu>
       <SidebarMenuItem>
-        <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
-          <Tooltip>
+        <DropdownMenu open={menuOpen} onOpenChange={onMenuOpenChange}>
+          <Tooltip
+            open={tooltipOpen && collapsed && !menuOpen && !tooltipHeld && !tooltipsSuppressed}
+            onOpenChange={setTooltipOpen}
+          >
             <TooltipTrigger asChild>
               <DropdownMenuTrigger asChild>
                 <SidebarMenuButton
                   size="lg"
                   aria-label={rowLabel}
-                  onPointerLeave={resetTooltipSuppression}
+                  onPointerLeave={() => setTooltipHeld(false)}
+                  onBlur={() => setTooltipHeld(false)}
                   className={cn(
                     "h-11 gap-2.5 px-2 bg-sidebar-accent/55 ring-1 ring-inset ring-sidebar-border focus-visible:ring-2 focus-visible:ring-sidebar-ring",
-                    "data-[state=open]:bg-sidebar-accent group-data-[collapsible=icon]:justify-center",
+                    "aria-expanded:bg-sidebar-accent group-data-[collapsible=icon]:justify-center",
                   )}
                 >
                   <Avatar className="size-7 rounded-lg after:rounded-lg after:border-0">
@@ -155,7 +167,7 @@ export function SidebarUserMenu() {
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
             </TooltipTrigger>
-            {collapsed && !menuOpen && !tooltipsSuppressed && (
+            {collapsed && (
               <TooltipContent side="right">
                 <span>{rowLabel}</span>
               </TooltipContent>
@@ -165,9 +177,9 @@ export function SidebarUserMenu() {
             side={collapsed ? "right" : "top"}
             align={collapsed ? "end" : "start"}
             sideOffset={8}
-            className="max-w-72 min-w-58"
+            className="w-auto max-w-72 min-w-58"
           >
-            {(name || runtimeLabel) && (
+            {name && (
               <>
                 <DropdownMenuLabel className="flex flex-col gap-0.5 font-normal">
                   <span className="truncate font-semibold text-foreground">{name}</span>
@@ -191,7 +203,7 @@ export function SidebarUserMenu() {
                   <ScrollText className="text-muted-foreground" />
                   What's new
                   {changelogUnseen && (
-                    <span className="ml-auto">
+                    <span className="ml-auto flex items-center">
                       <GlowDot />
                       <span className="sr-only">, new changes to read</span>
                     </span>
@@ -203,7 +215,7 @@ export function SidebarUserMenu() {
                   <Link to="/settings/about">
                     <Sparkles className="text-muted-foreground" />
                     {releaseNote}
-                    <span className="ml-auto">
+                    <span className="ml-auto flex items-center">
                       <GlowDot />
                     </span>
                   </Link>

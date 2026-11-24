@@ -23,7 +23,7 @@ import { formatNumber } from "@/lib/api"
 import { BrandMark } from "@/components/brand/brand-mark"
 import { Wordmark } from "@/components/brand/wordmark"
 import { useServiceStatus } from "@/hooks/use-service-status"
-import { useCrowdsecStats, useSecurityNavStatus } from "@/lib/queries"
+import { useCrowdsecStats, useCrowdsecStatus, useSecurityNavStatus } from "@/lib/queries"
 import { formatNavCount, formatRequestRate, ingestionInFooter } from "@/lib/sidebar-status"
 import { ReloadNoticeCard, ReloadNoticeCollapsedButton } from "@/components/reload-notice"
 import { SidebarUserMenu } from "@/components/sidebar-user-menu"
@@ -134,7 +134,7 @@ function NavItem({
       {count && (
         <SidebarMenuBadge
           aria-hidden="true"
-          className="right-2 rounded-full px-[7px] text-[11px] font-semibold bg-red-500/15 text-red-600! dark:text-red-400!"
+          className="right-2 rounded-full px-[7px] text-[11px] font-semibold bg-red-500/15 text-red-700! dark:text-red-400!"
         >
           {formatNavCount(count.value)}
         </SidebarMenuBadge>
@@ -271,9 +271,14 @@ export function AppSidebar() {
 
   const { variant, crowdsecDown, healthKnown } = useServiceStatus()
   const statusInFooter = ingestionInFooter(variant)
+  const { data: crowdsecStatus } = useCrowdsecStatus()
   const { data: crowdsecStats, isError: crowdsecStatsError } = useCrowdsecStats()
   const activeDecisions =
-    !crowdsecDown && !crowdsecStatsError && crowdsecStats && crowdsecStats.total > 0
+    crowdsecStatus?.enabled === true &&
+    !crowdsecDown &&
+    !crowdsecStatsError &&
+    crowdsecStats &&
+    crowdsecStats.total > 0
       ? {
           value: crowdsecStats.total,
           label: crowdsecStats.total === 1 ? "active decision" : "active decisions",
@@ -295,7 +300,7 @@ export function AppSidebar() {
       <SidebarSeparator className="opacity-50" />
 
       <SidebarContent>
-        {healthKnown && (collapsed || !statusInFooter) && (
+        {(collapsed || (healthKnown && !statusInFooter)) && (
           <div className="mt-2">{collapsed ? <CollapsedStatus /> : <StatusProblem />}</div>
         )}
 

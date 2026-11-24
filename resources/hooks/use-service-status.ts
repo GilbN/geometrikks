@@ -80,7 +80,7 @@ export function useServiceStatus(): {
 
   const crowdsecDown = health?.crowdsec?.enabled === true && health.crowdsec.lapiReachable === false
 
-  const rate = instancesError ? null : requestsPerMinute(instances?.instances)
+  const rate = isError || instancesError ? null : requestsPerMinute(instances?.instances)
 
   return {
     variant,
