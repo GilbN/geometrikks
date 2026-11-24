@@ -86,15 +86,15 @@ function AppearanceSubmenu() {
 export function SidebarUserMenu() {
   const { state, isMobile, tooltipsSuppressed } = useSidebar()
   const [menuOpen, setMenuOpen] = useState(false)
-  const [tooltipOpen, setTooltipOpen] = useState(false)
   // Closing the menu returns focus to the row, which would reopen the tooltip and leave it up.
   const [tooltipHeld, setTooltipHeld] = useState(false)
+
+  const collapsed = !isMobile && state === "collapsed"
 
   function onMenuOpenChange(open: boolean) {
     setMenuOpen(open)
     if (!open) setTooltipHeld(true)
   }
-  const collapsed = !isMobile && state === "collapsed"
   const { data: me } = useMe()
   const { data: settings } = useRuntimeSettings()
   const changelogUnseen = useChangelogUnseen()
@@ -126,16 +126,12 @@ export function SidebarUserMenu() {
     <SidebarMenu>
       <SidebarMenuItem>
         <DropdownMenu open={menuOpen} onOpenChange={onMenuOpenChange}>
-          <Tooltip
-            open={tooltipOpen && collapsed && !menuOpen && !tooltipHeld && !tooltipsSuppressed}
-            onOpenChange={setTooltipOpen}
-          >
+          <Tooltip>
             <TooltipTrigger asChild>
               <DropdownMenuTrigger asChild>
                 <SidebarMenuButton
                   size="lg"
                   aria-label={rowLabel}
-                  onPointerLeave={() => setTooltipHeld(false)}
                   onBlur={() => setTooltipHeld(false)}
                   className={cn(
                     "h-11 gap-2.5 px-2 bg-sidebar-accent/55 ring-1 ring-inset ring-sidebar-border focus-visible:ring-2 focus-visible:ring-sidebar-ring",
@@ -145,7 +141,7 @@ export function SidebarUserMenu() {
                   <Avatar className="size-7 rounded-lg after:rounded-lg after:border-0">
                     <AvatarFallback className="rounded-lg bg-primary/20 text-xs font-semibold text-primary">
                       {session ? (
-                        session.username.charAt(0).toUpperCase()
+                        Array.from(session.username)[0]?.toUpperCase()
                       ) : (
                         <UserRound className="size-4!" aria-hidden="true" />
                       )}
@@ -167,11 +163,12 @@ export function SidebarUserMenu() {
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
             </TooltipTrigger>
-            {collapsed && (
-              <TooltipContent side="right">
-                <span>{rowLabel}</span>
-              </TooltipContent>
-            )}
+            <TooltipContent
+              side="right"
+              hidden={!collapsed || menuOpen || tooltipHeld || tooltipsSuppressed}
+            >
+              <span className="break-all">{rowLabel}</span>
+            </TooltipContent>
           </Tooltip>
           <DropdownMenuContent
             side={collapsed ? "right" : "top"}

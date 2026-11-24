@@ -45,7 +45,7 @@ export function useServiceStatus(): {
   attention: string[]
   statusRoute: "/settings/status" | "/settings/agents"
   crowdsecDown: boolean
-  /** Null until an instance reports a 5-minute count, or when the instances request fails. */
+  /** Null until an instance reports a 5-minute count, and while the health or instances request fails. */
   requestsPerMinute: number | null
   /** False before the first health response or error. Until then the variant is a placeholder. */
   healthKnown: boolean

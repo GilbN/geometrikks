@@ -235,11 +235,11 @@ function StatusFooterRow() {
   const running = variant === "running"
 
   return (
-    <StatusLink className="flex h-[30px] items-center gap-2 rounded-md px-2.5 text-xs text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent/50">
+    <StatusLink className="flex min-h-[30px] items-center gap-2 rounded-md px-2.5 text-xs text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent/50">
       <StatusDot color={color} pulse={running} />
       <span className="font-medium text-sidebar-foreground">{label}</span>
       {requestsPerMinute !== null && (
-        <span aria-hidden="true" className="ml-auto tabular-nums">
+        <span aria-hidden="true" className="ml-auto whitespace-nowrap tabular-nums">
           {formatRequestRate(requestsPerMinute)}
         </span>
       )}
@@ -275,6 +275,8 @@ export function AppSidebar() {
   const { data: crowdsecStats, isError: crowdsecStatsError } = useCrowdsecStats()
   const activeDecisions =
     crowdsecStatus?.enabled === true &&
+    crowdsecStatus.lapiReachable &&
+    variant !== "offline" &&
     !crowdsecDown &&
     !crowdsecStatsError &&
     crowdsecStats &&
