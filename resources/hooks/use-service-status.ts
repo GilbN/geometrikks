@@ -47,6 +47,8 @@ export function useServiceStatus(): {
   crowdsecDown: boolean
   /** Null until an instance reports a 5-minute count, or when the instances request fails. */
   requestsPerMinute: number | null
+  /** False before the first health response or error. Until then the variant is a placeholder. */
+  healthKnown: boolean
 } {
   const { data: health, isError } = useQuery({
     queryKey: ["health"],
@@ -89,5 +91,6 @@ export function useServiceStatus(): {
     statusRoute,
     crowdsecDown,
     requestsPerMinute: rate,
+    healthKnown: health !== undefined || isError,
   }
 }

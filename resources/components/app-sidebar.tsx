@@ -1,6 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router"
-import { useEffect } from "react"
-import { Fragment, type ReactNode } from "react"
+import { Fragment, useEffect, useId, type ReactNode } from "react"
 import {
   Sidebar,
   SidebarContent,
@@ -135,7 +134,7 @@ function NavItem({
       {count && (
         <SidebarMenuBadge
           aria-hidden="true"
-          className="right-2 rounded-full px-[7px] text-[11px] font-semibold bg-red-500/15 text-red-600 dark:text-red-400"
+          className="right-2 rounded-full px-[7px] text-[11px] font-semibold bg-red-500/15 text-red-600! dark:text-red-400!"
         >
           {formatNavCount(count.value)}
         </SidebarMenuBadge>
@@ -163,7 +162,9 @@ function StatusDot({ color, pulse }: { color: string; pulse: boolean }) {
 /** The smoke test finds the status by this link name, so every placement keeps it. */
 function StatusLink({ className, children }: { className: string; children: ReactNode }) {
   const { tooltipsSuppressed, resetTooltipSuppression } = useSidebar()
-  const { tooltip, statusRoute } = useServiceStatus()
+  const { tooltip, statusRoute, requestsPerMinute } = useServiceStatus()
+  const descriptionId = useId()
+  const rate = requestsPerMinute === null ? null : formatRequestRate(requestsPerMinute)
 
   return (
     <Tooltip>
@@ -171,10 +172,17 @@ function StatusLink({ className, children }: { className: string; children: Reac
         <Link
           to={statusRoute}
           aria-label="Service status"
-          className={className}
+          aria-describedby={descriptionId}
+          className={cn(
+            "outline-hidden focus-visible:ring-2 focus-visible:ring-sidebar-ring rounded-md",
+            className,
+          )}
           onPointerLeave={resetTooltipSuppression}
         >
           {children}
+          <span id={descriptionId} className="sr-only">
+            {[tooltip, rate].filter(Boolean).join(", ")}
+          </span>
         </Link>
       </TooltipTrigger>
       {!tooltipsSuppressed && (
@@ -230,8 +238,10 @@ function StatusFooterRow() {
     <StatusLink className="flex h-[30px] items-center gap-2 rounded-md px-2.5 text-xs text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent/50">
       <StatusDot color={color} pulse={running} />
       <span className="font-medium text-sidebar-foreground">{label}</span>
-      {running && requestsPerMinute !== null && (
-        <span className="ml-auto tabular-nums">{formatRequestRate(requestsPerMinute)}</span>
+      {requestsPerMinute !== null && (
+        <span aria-hidden="true" className="ml-auto tabular-nums">
+          {formatRequestRate(requestsPerMinute)}
+        </span>
       )}
     </StatusLink>
   )
@@ -259,12 +269,15 @@ export function AppSidebar() {
     (item) => !item.requiresSecurityFeature || securityStatus?.enabled === true,
   )
 
-  const { variant, crowdsecDown } = useServiceStatus()
+  const { variant, crowdsecDown, healthKnown } = useServiceStatus()
   const statusInFooter = ingestionInFooter(variant)
-  const { data: crowdsecStats } = useCrowdsecStats()
+  const { data: crowdsecStats, isError: crowdsecStatsError } = useCrowdsecStats()
   const activeDecisions =
-    !crowdsecDown && crowdsecStats && crowdsecStats.total > 0
-      ? { value: crowdsecStats.total, label: "active decisions" }
+    !crowdsecDown && !crowdsecStatsError && crowdsecStats && crowdsecStats.total > 0
+      ? {
+          value: crowdsecStats.total,
+          label: crowdsecStats.total === 1 ? "active decision" : "active decisions",
+        }
       : undefined
 
   // The mobile sidebar is a full-height sheet; leaving it open after a nav
@@ -282,7 +295,7 @@ export function AppSidebar() {
       <SidebarSeparator className="opacity-50" />
 
       <SidebarContent>
-        {(collapsed || !statusInFooter) && (
+        {healthKnown && (collapsed || !statusInFooter) && (
           <div className="mt-2">{collapsed ? <CollapsedStatus /> : <StatusProblem />}</div>
         )}
 
@@ -324,7 +337,7 @@ export function AppSidebar() {
 
       <SidebarFooter className="gap-1.5">
         {collapsed ? <ReloadNoticeCollapsedButton /> : <ReloadNoticeCard />}
-        {!collapsed && statusInFooter && <StatusFooterRow />}
+        {healthKnown && !collapsed && statusInFooter && <StatusFooterRow />}
         <SidebarUserMenu />
       </SidebarFooter>
 

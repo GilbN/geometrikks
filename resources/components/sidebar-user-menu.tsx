@@ -8,6 +8,7 @@ import {
   Sparkles,
   UserRound,
 } from "lucide-react"
+import { useState } from "react"
 import { SiDocker } from "react-icons/si"
 import {
   DropdownMenu,
@@ -30,6 +31,8 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import { GlowDot } from "@/components/reload-notice"
+import { Avatar, AvatarBadge, AvatarFallback } from "@/components/ui/avatar"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useTheme } from "@/components/theme-provider"
 import { DOCS_URL } from "@/lib/docs-links"
 import { logOut } from "@/lib/log-out"
@@ -50,7 +53,7 @@ function AppearanceSubmenu() {
 
   return (
     <DropdownMenuSub>
-      <DropdownMenuSubTrigger>
+      <DropdownMenuSubTrigger className="text-[13px]">
         <Palette className="text-muted-foreground" />
         Appearance
         <span className="ml-auto pl-2 text-xs whitespace-nowrap text-muted-foreground">
@@ -81,7 +84,8 @@ function AppearanceSubmenu() {
 }
 
 export function SidebarUserMenu() {
-  const { state, isMobile } = useSidebar()
+  const { state, isMobile, tooltipsSuppressed, resetTooltipSuppression } = useSidebar()
+  const [menuOpen, setMenuOpen] = useState(false)
   const collapsed = !isMobile && state === "collapsed"
   const { data: me } = useMe()
   const { data: settings } = useRuntimeSettings()
@@ -100,78 +104,102 @@ export function SidebarUserMenu() {
     ? containerRuntimeLabel(settings.runtime.imageTag)
     : null
   const releaseNote = unseenRelease ? `${unseenRelease.displayVersion} is available` : null
+  const rowLabel = [
+    name || "User menu",
+    version,
+    releaseNote,
+    changelogUnseen ? "new changes to read" : null,
+  ]
+    .filter(Boolean)
+    .join(", ")
+  const avatarDot = changelogUnseen || (collapsed && unseenRelease !== null)
 
   return (
     <SidebarMenu>
       <SidebarMenuItem>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <SidebarMenuButton
-              size="lg"
-              aria-label={[name || "User menu", version, releaseNote].filter(Boolean).join(", ")}
-              className={cn(
-                "h-11 gap-2.5 px-2 bg-sidebar-accent/55 ring-1 ring-inset ring-sidebar-border",
-                "data-[state=open]:bg-sidebar-accent",
-              )}
-            >
-              <span className="relative flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/20 text-xs font-semibold text-primary">
-                {session ? (
-                  session.username.charAt(0).toUpperCase()
-                ) : (
-                  <UserRound className="size-4!" aria-hidden="true" />
-                )}
-                {changelogUnseen && (
-                  <span className="absolute -top-0.5 -right-0.5">
-                    <GlowDot />
+        <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DropdownMenuTrigger asChild>
+                <SidebarMenuButton
+                  size="lg"
+                  aria-label={rowLabel}
+                  onPointerLeave={resetTooltipSuppression}
+                  className={cn(
+                    "h-11 gap-2.5 px-2 bg-sidebar-accent/55 ring-1 ring-inset ring-sidebar-border focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+                    "data-[state=open]:bg-sidebar-accent group-data-[collapsible=icon]:justify-center",
+                  )}
+                >
+                  <Avatar className="size-7 rounded-lg after:rounded-lg after:border-0">
+                    <AvatarFallback className="rounded-lg bg-primary/20 text-xs font-semibold text-primary">
+                      {session ? (
+                        session.username.charAt(0).toUpperCase()
+                      ) : (
+                        <UserRound className="size-4!" aria-hidden="true" />
+                      )}
+                    </AvatarFallback>
+                    {avatarDot && (
+                      <AvatarBadge className="top-0 right-0 bottom-auto size-2! shadow-[0_0_6px_var(--primary)] ring-0" />
+                    )}
+                  </Avatar>
+                  <span className="flex min-w-0 flex-1 flex-col group-data-[collapsible=icon]:hidden">
+                    <span className="truncate text-[13px] leading-tight font-medium">{name}</span>
+                    {version && (
+                      <span className="flex items-center gap-1.5 font-mono text-[10.5px] text-sidebar-foreground/45">
+                        <span className="truncate">{version}</span>
+                        {unseenRelease && <GlowDot />}
+                      </span>
+                    )}
                   </span>
-                )}
-              </span>
-              <span className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-[13px] leading-tight font-medium">{name}</span>
-                {version && (
-                  <span className="flex items-center gap-1.5 font-mono text-[10.5px] text-sidebar-foreground/45">
-                    <span className="truncate">{version}</span>
-                    {unseenRelease && <GlowDot />}
-                  </span>
-                )}
-              </span>
-              <ChevronsUpDown className="ml-auto text-[color:var(--nav-inactive-icon)]" />
-            </SidebarMenuButton>
-          </DropdownMenuTrigger>
+                  <ChevronsUpDown className="ml-auto text-[color:var(--nav-inactive-icon)] group-data-[collapsible=icon]:hidden" />
+                </SidebarMenuButton>
+              </DropdownMenuTrigger>
+            </TooltipTrigger>
+            {collapsed && !menuOpen && !tooltipsSuppressed && (
+              <TooltipContent side="right">
+                <span>{rowLabel}</span>
+              </TooltipContent>
+            )}
+          </Tooltip>
           <DropdownMenuContent
             side={collapsed ? "right" : "top"}
             align={collapsed ? "end" : "start"}
             sideOffset={8}
-            className="w-58"
+            className="max-w-72 min-w-58"
           >
-            <DropdownMenuLabel className="flex flex-col gap-0.5 font-normal">
-              <span className="font-semibold text-foreground">{name}</span>
-              {signedInWith && (
-                <span className="text-xs text-muted-foreground">{signedInWith}</span>
-              )}
-              {runtimeLabel && (
-                <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <SiDocker aria-hidden="true" className="size-3.5 text-[#2496ED]" />
-                  {runtimeLabel}
-                </span>
-              )}
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
+            {(name || runtimeLabel) && (
+              <>
+                <DropdownMenuLabel className="flex flex-col gap-0.5 font-normal">
+                  <span className="truncate font-semibold text-foreground">{name}</span>
+                  {signedInWith && (
+                    <span className="text-xs text-muted-foreground">{signedInWith}</span>
+                  )}
+                  {runtimeLabel && (
+                    <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <SiDocker aria-hidden="true" className="size-3.5 shrink-0 text-[#2496ED]" />
+                      {runtimeLabel}
+                    </span>
+                  )}
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+              </>
+            )}
             <DropdownMenuGroup>
               <AppearanceSubmenu />
-              <DropdownMenuItem asChild>
+              <DropdownMenuItem asChild className="text-[13px]">
                 <Link to="/settings/changelog">
                   <ScrollText className="text-muted-foreground" />
                   What's new
                   {changelogUnseen && (
                     <span className="ml-auto">
                       <GlowDot />
+                      <span className="sr-only">, new changes to read</span>
                     </span>
                   )}
                 </Link>
               </DropdownMenuItem>
               {unseenRelease && (
-                <DropdownMenuItem asChild>
+                <DropdownMenuItem asChild className="text-[13px]">
                   <Link to="/settings/about">
                     <Sparkles className="text-muted-foreground" />
                     {releaseNote}
@@ -181,7 +209,7 @@ export function SidebarUserMenu() {
                   </Link>
                 </DropdownMenuItem>
               )}
-              <DropdownMenuItem asChild>
+              <DropdownMenuItem asChild className="text-[13px]">
                 <a href={DOCS_URL} target="_blank" rel="noreferrer">
                   <ExternalLink className="text-muted-foreground" />
                   Documentation
@@ -191,7 +219,7 @@ export function SidebarUserMenu() {
             {session && (
               <>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={() => void logOut()}>
+                <DropdownMenuItem className="text-[13px]" onSelect={() => void logOut()}>
                   <LogOut className="text-muted-foreground" />
                   Log out
                 </DropdownMenuItem>
