@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `GET /api/v1/crowdsec/alerts/daily` returns daily CrowdSec alert counts for scripts, and `GET /api/v1/crowdsec/stats` adds the active decision split and the count of decisions expiring soon.
-- A View menu replaces the Columns button on Access Logs, Geo Logs and Debug Logs, and Settings > Logs has one with Rows and Time. Rows can be Compact, the default with a mouse, or Comfortable. The log tables share 24-hour time by default, and on Access Logs the Combined layout merges request, client and location fields.
+- A View menu replaces the Columns button on Access Logs, Geo Logs and Debug Logs, and Settings > Logs has one with Rows and Time. Rows can be Compact, the default with a mouse, or Comfortable. The log tables share 24-hour time by default, and Combined columns are the default on Access Logs (Request, Client, Location), Geo Logs (Location, Client, Coordinates) and Debug Logs (Result, Request, Client).
 
 ### Changed
 

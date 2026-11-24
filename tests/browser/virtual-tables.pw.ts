@@ -116,8 +116,9 @@ for (const fixture of truncationCases) {
       (route) => route.fulfill({ json: { items: [item], total: 1, limit: 20, offset: 0 } }),
     )
     // One field per column. The combined layout shares cells by design.
-    await page.addInitScript(() =>
-      localStorage.setItem("geometrikks-table-view-access-logs", '{"layout":"separate"}'),
+    await page.addInitScript(
+      (path) => localStorage.setItem(`geometrikks-table-view-${path}`, '{"layout":"separate"}'),
+      fixture.path,
     )
     await page.goto(`/${fixture.path}`)
     const table = page.locator("table[aria-rowcount]")
@@ -518,12 +519,18 @@ for (const fixture of [
     await expect.poll(() => table.evaluate((element) => element.parentElement!.scrollTop)).toBe(0)
 
     const columnCount = await table.locator("th").count()
+    // Pick a standalone column: hiding City alone keeps Geo Logs' Location column visible.
+    const toggleField = fixture.path === "geo-logs" ? "Count" : null
+    const fieldChoice = () =>
+      toggleField
+        ? page.getByRole("menuitemcheckbox", { name: toggleField, exact: true })
+        : page.getByRole("menuitemcheckbox").first()
     await openFields(page)
-    await page.getByRole("menuitemcheckbox").first().click()
+    await fieldChoice().click()
     await page.keyboard.press("Escape")
     await expect(table.locator("th")).toHaveCount(columnCount - 1)
     await openFields(page)
-    await page.getByRole("menuitemcheckbox").first().click()
+    await fieldChoice().click()
     await page.keyboard.press("Escape")
     await expect(table.locator("th")).toHaveCount(columnCount)
     expect(errors).toEqual([])
@@ -592,6 +599,206 @@ test.describe("access-logs view choices", () => {
     await expect.poll(() => lastRequest().get("orderBy")).toBe("host")
     expect(lastRequest().get("sortOrder")).toBe("asc")
     await expect(header).toContainText("by host")
+  })
+})
+
+const realisticGeoRows: GeoLogEntry[] = geoRows.slice(0, 20).map((row, index) => ({
+  ...row,
+  ipAddress: index % 2 ? "2c0e:2dca:a355:19f0:0000:0000:003b:efc0" : "144.6.12.90",
+  city: index === 0 ? null : "Vila Nova de Gaia",
+  state: index === 0 ? null : "Porto",
+  postalCode: index === 0 ? null : "4400-001",
+  countryCode: index === 0 ? "ZA" : "PT",
+  countryName: index === 0 ? "South Africa" : "Portugal",
+  latitude: -33.8252,
+  longitude: 151.0849,
+  eventCount: 2_750 - index * 100,
+}))
+
+test.describe("geo-logs view choices", () => {
+  test.use({ viewport: { width: 1440, height: 900 } })
+  let requests: URLSearchParams[] = []
+  test.beforeEach(async ({ page }) => {
+    requests = []
+    await page.route(
+      (url) => url.pathname.replace(/\/$/, "") === "/api/v1/geo-events/logs",
+      async (route) => {
+        const params = new URL(route.request().url()).searchParams
+        requests.push(params)
+        await route.fulfill({
+          json: {
+            items: realisticGeoRows,
+            total: realisticGeoRows.length,
+            limit: 50,
+            offset: 0,
+          },
+        })
+      },
+    )
+  })
+  const lastRequest = () => requests.at(-1)!
+  const pickView = async (page: Page, choice: RegExp) => {
+    await page.getByRole("button", { name: "View", exact: true }).click()
+    await page.getByRole("menuitemradio", { name: choice }).click()
+    await page.keyboard.press("Escape")
+  }
+
+  test("defaults to combined columns, switches to separate, and sorts via combined headers", async ({
+    page,
+  }) => {
+    await page.goto("/geo-logs")
+    const table = page.locator("table[aria-rowcount]")
+    await expect(table).toHaveAttribute("aria-rowcount", "21")
+    await expect(table.locator("th")).toHaveCount(5)
+
+    // Combined Location and Coordinates headers sort by city / latitude on click and open field menus.
+    const location = table.getByRole("columnheader", { name: /Location/ })
+    await location.getByRole("button", { name: /^Location/ }).click()
+    await expect.poll(() => lastRequest().get("orderBy")).toBe("city")
+    expect(lastRequest().get("sortOrder")).toBe("desc")
+
+    await page.getByRole("button", { name: "Sort location by" }).click()
+    await page.getByRole("menuitemradio", { name: "State", exact: true }).click()
+    await expect.poll(() => lastRequest().get("orderBy")).toBe("state")
+    await expect(location).toContainText("by state")
+
+    const coordinates = table.getByRole("columnheader", { name: /Coordinates/ })
+    await coordinates.getByRole("button", { name: /^Coordinates/ }).click()
+    await expect.poll(() => lastRequest().get("orderBy")).toBe("latitude")
+    await page.getByRole("button", { name: "Sort coordinates by" }).click()
+    await page.getByRole("menuitemradio", { name: "Longitude", exact: true }).click()
+    await expect.poll(() => lastRequest().get("orderBy")).toBe("longitude")
+    await expect(coordinates).toContainText("by longitude")
+
+    // Turning off Country Code hides the flag while keeping Country visible.
+    const firstLocation = table.locator('tr[data-index="0"] td').first()
+    await expect(firstLocation.locator("img")).toHaveCount(1)
+    await openFields(page)
+    await page.getByRole("menuitemcheckbox", { name: "Country Code", exact: true }).click()
+    await page.keyboard.press("Escape")
+    await expect(firstLocation.locator("img")).toHaveCount(0)
+    await expect(firstLocation).toContainText("South Africa")
+    await openFields(page)
+    await page.getByRole("menuitemcheckbox", { name: "Country Code", exact: true }).click()
+    await page.keyboard.press("Escape")
+
+    // Fits a 1280 px laptop with no horizontal scroll.
+    await page.setViewportSize({ width: 1280, height: 720 })
+    await expect
+      .poll(() =>
+        table.evaluate(
+          (element) => element.parentElement!.scrollWidth - element.parentElement!.clientWidth,
+        ),
+      )
+      .toBeLessThanOrEqual(1)
+
+    await pickView(page, /^Separate/)
+    await expect(table.locator("th")).toHaveCount(10)
+    await pickView(page, /^Combined/)
+    await expect(table.locator("th")).toHaveCount(5)
+  })
+})
+
+const realisticDebugRows: AccessLogDebugEntry[] = debugRows.slice(0, 20).map((row, index) => ({
+  ...row,
+  isMalformed: index === 1,
+  parseError: index === 1 ? "Line did not match expected nginx combined log format." : null,
+  statusCode: index === 1 ? null : index === 0 ? 207 : index % 3 === 0 ? 200 : 304,
+  method: index === 1 ? null : index === 0 ? "PROPPATCH" : index % 2 === 0 ? "GET" : "POST",
+  ipAddress:
+    index === 1 ? null : index % 2 ? "2601:d53:4c22:1f54:f98e:5faa:7129:28d" : "92.153.77.251",
+  host: index === 1 ? null : "nextcloud.very-long-internal-subdomain.example.com",
+  url: index === 1 ? null : "/remote.php/dav/files/alice/Documents/report.pdf",
+  rawLine:
+    index === 1
+      ? "<html><head><title>400 Bad Request</title></head>"
+      : `92.153.77.251 - - [23/Nov/2026:22:48:08 +0000] "GET /api/v1/health/${index} HTTP/2.0" 200`,
+}))
+
+test.describe("debug-logs view choices", () => {
+  test.use({ viewport: { width: 1440, height: 900 } })
+  let requests: URLSearchParams[] = []
+  test.beforeEach(async ({ page }) => {
+    requests = []
+    await page.route(
+      (url) => url.pathname.replace(/\/$/, "") === "/api/v1/access-log-debug",
+      async (route) => {
+        const params = new URL(route.request().url()).searchParams
+        requests.push(params)
+        await route.fulfill({
+          json: {
+            items: realisticDebugRows,
+            total: realisticDebugRows.length,
+            limit: 50,
+            offset: 0,
+          },
+        })
+      },
+    )
+  })
+  const lastRequest = () => requests.at(-1)!
+  const pickView = async (page: Page, choice: RegExp) => {
+    await page.getByRole("button", { name: "View", exact: true }).click()
+    await page.getByRole("menuitemradio", { name: choice }).click()
+    await page.keyboard.press("Escape")
+  }
+
+  test("defaults to combined columns, merges Result and Request, and sorts via combined headers", async ({
+    page,
+  }) => {
+    await page.goto("/debug-logs")
+    const table = page.locator("table[aria-rowcount]")
+    await expect(table).toHaveAttribute("aria-rowcount", "21")
+    await expect(table.locator("th")).toHaveCount(5)
+    await expect(table.locator('tr[data-index="0"]')).toContainText("Parsed")
+    await expect(table.locator('tr[data-index="1"]')).toContainText("Malformed")
+
+    const result = table.getByRole("columnheader", { name: /Result/ })
+    await result.getByRole("button", { name: /^Result/ }).click()
+    await expect.poll(() => lastRequest().get("orderBy")).toBe("is_malformed")
+    await page.getByRole("button", { name: "Sort result by" }).click()
+    await page.getByRole("menuitemradio", { name: "Parse error", exact: true }).click()
+    await expect.poll(() => lastRequest().get("orderBy")).toBe("parse_error")
+    await expect(result).toContainText("by parse error")
+
+    const request = table.getByRole("columnheader", { name: /Request/ })
+    await request.getByRole("button", { name: /^Request/ }).click()
+    await expect.poll(() => lastRequest().get("orderBy")).toBe("status_code")
+
+    // Enabling Host and URL folds both into Request without starving the URL, and opens its sort picker.
+    await openFields(page)
+    await page.getByRole("menuitemcheckbox", { name: "Host", exact: true }).click()
+    await page.getByRole("menuitemcheckbox", { name: "URL", exact: true }).click()
+    await page.keyboard.press("Escape")
+    const firstRow = table.locator('tr[data-index="0"]')
+    await expect(firstRow).toContainText("nextcloud.very-long-internal-subdomain.example.com")
+    const urlSpan = firstRow.getByText("/remote.php/dav/files/alice/Documents/report.pdf", {
+      exact: true,
+    })
+    expect((await urlSpan.boundingBox())!.width).toBeGreaterThan(20)
+    await page.getByRole("button", { name: "Sort request by" }).click()
+    await page.getByRole("menuitemradio", { name: "Host", exact: true }).click()
+    await expect.poll(() => lastRequest().get("orderBy")).toBe("host")
+    await expect(request).toContainText("by host")
+
+    // Fits a 1280 px laptop with default columns and no horizontal scroll.
+    await openFields(page)
+    await page.getByRole("menuitemcheckbox", { name: "Host", exact: true }).click()
+    await page.getByRole("menuitemcheckbox", { name: "URL", exact: true }).click()
+    await page.keyboard.press("Escape")
+    await page.setViewportSize({ width: 1280, height: 720 })
+    await expect
+      .poll(() =>
+        table.evaluate(
+          (element) => element.parentElement!.scrollWidth - element.parentElement!.clientWidth,
+        ),
+      )
+      .toBeLessThanOrEqual(1)
+
+    await pickView(page, /^Separate/)
+    await expect(table.locator("th")).toHaveCount(7)
+    await pickView(page, /^Combined/)
+    await expect(table.locator("th")).toHaveCount(5)
   })
 })
 
