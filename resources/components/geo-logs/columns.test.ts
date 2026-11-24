@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vite-plus/test"
 
 import { resolveVisibleColumns } from "@/lib/column-visibility"
-import { GEO_LOG_COLUMNS } from "./columns"
+import { GEO_LOG_COLUMNS, combinedGeoLogColumns } from "./columns"
 
 const defaults = (mobile: boolean) =>
   GEO_LOG_COLUMNS.filter((c) => resolveVisibleColumns(GEO_LOG_COLUMNS, {}, mobile).has(c.key)).map(
@@ -42,5 +42,38 @@ describe("geo log columns", () => {
   it("sorts by ASN number but not by organization", () => {
     expect(GEO_LOG_COLUMNS.find((c) => c.key === "asn")?.sortField).toBe("asn")
     expect(GEO_LOG_COLUMNS.find((c) => c.key === "asOrganization")?.sortField).toBeUndefined()
+  })
+})
+
+const shown = (...hidden: string[]) =>
+  GEO_LOG_COLUMNS.filter((c) => c.defaultVisible && !hidden.includes(c.key))
+
+describe("combined geo log columns", () => {
+  it("puts the default fields in the combined order", () => {
+    expect(combinedGeoLogColumns(shown()).map((c) => c.label)).toEqual([
+      "Location",
+      "Client",
+      "Coordinates",
+      "Count",
+      "Last seen",
+    ])
+  })
+
+  it("draws only the visible fields of a group", () => {
+    const location = combinedGeoLogColumns(shown("postalCode", "state")).find(
+      (c) => c.key === "location",
+    )
+    expect(location?.fields.map((c) => c.key)).toEqual(["city", "countryName", "countryCode"])
+  })
+
+  it("drops a group whose fields are all hidden", () => {
+    const keys = combinedGeoLogColumns(shown("latitude", "longitude")).map((c) => c.key)
+    expect(keys).not.toContain("coordinates")
+  })
+
+  it("keeps extra fields after the grouped ones, in column order", () => {
+    const extras = GEO_LOG_COLUMNS.filter((c) => ["servers", "asn"].includes(c.key))
+    const keys = combinedGeoLogColumns([...shown(), ...extras]).map((c) => c.key)
+    expect(keys.slice(-3)).toEqual(["lastSeen", "servers", "asn"])
   })
 })

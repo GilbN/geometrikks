@@ -4,14 +4,15 @@
  * city, malformed tri-state. Clicking a row opens the raw-line detail
  * dialog. Pairs with GET /api/v1/access-log-debug/.
  */
-import { memo, useCallback, useEffect, useId, useState } from "react"
+import { memo, useCallback, useEffect, useId, useMemo, useState } from "react"
 import { useSearch } from "@tanstack/react-router"
 import { CountryFlag, CountryLabel } from "@/components/country-flag"
 import { Search } from "lucide-react"
 import { TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useNarrowLayout } from "@/components/data/narrow-layout"
-import { sortOptions, type SortKind } from "@/components/data/sort-options"
+import { sortOptions } from "@/components/data/sort-options"
 import { SortableHead } from "@/components/data/sortable-head"
+import { CombinedSortHead } from "@/components/data/combined-sort-head"
 import { TableSortDrawer } from "@/components/data/table-sort-drawer"
 import { formatRowTime } from "@/lib/row-time"
 import { VirtualTable, VirtualTableBody } from "@/components/data/virtual-table"
@@ -31,6 +32,12 @@ import { FilterField, FilterRail, FilterRow } from "@/components/data/filter-rai
 import { FilterChoiceRow, FilterListRow, FilterSection } from "@/components/ui/filter-rows"
 import { FiltersDrawer } from "@/components/ui/filters-drawer"
 import { DebugLogDetailSheet } from "@/components/debug-logs/debug-log-detail-sheet"
+import {
+  DEBUG_LOG_COLUMNS,
+  combinedDebugLogColumns,
+  type DebugLogColumn,
+  type DebugLogCombinedColumn,
+} from "@/components/debug-logs/columns"
 import { DataTableFrame } from "@/components/data/data-table-frame"
 import { rowActivation } from "@/components/data/row-activation"
 import { dataState } from "@/components/data/types"
@@ -53,9 +60,16 @@ import { statusBadgeClass } from "@/lib/status-badge"
 import { useColumnVisibility } from "@/lib/column-visibility"
 import { TableTime } from "@/components/data/table-time"
 import { TableViewMenu } from "@/components/data/table-view-menu"
-import { defaultPageSize, useTableView, useTimeFormat, type TimeFormat } from "@/lib/table-view"
+import {
+  defaultPageSize,
+  useTableView,
+  useTimeFormat,
+  type ColumnLayout,
+  type TimeFormat,
+} from "@/lib/table-view"
 
 const PAGE_SIZES = [10, 20, 50, 100, 200, 500, 1000] as const
+export const DEBUG_LOGS_TABLE_ID = "debug-logs"
 
 type MalformedFilter = "all" | "malformed" | "wellformed"
 const MALFORMED_OPTIONS: { value: MalformedFilter; label: string }[] = [
@@ -64,183 +78,189 @@ const MALFORMED_OPTIONS: { value: MalformedFilter; label: string }[] = [
   { value: "wellformed", label: "Well-formed only" },
 ]
 
-interface ColumnDef {
-  key: string
-  grow?: boolean
-  label: string
-  sortField?: AccessLogDebugSortField
-  sortKind?: SortKind
-  defaultVisible: boolean
-  /** Start hidden on mobile viewports (still selectable from the View menu). */
-  mobileHidden?: boolean
-  render: (row: AccessLogDebugEntry, timeFormat: TimeFormat) => React.ReactNode
-}
-
-const COLUMNS: ColumnDef[] = [
-  {
-    key: "createdAt",
-    label: "Captured",
-    sortField: "createdAt",
-    sortKind: "time",
-    defaultVisible: true,
-    render: (r, timeFormat) => <TableTime value={r.createdAt} format={timeFormat} />,
-  },
-  {
-    key: "isMalformed",
-    label: "Malformed",
-    sortField: "isMalformed",
-    sortKind: "flag",
-    defaultVisible: true,
-    render: (r) =>
-      r.isMalformed ? (
+function renderCell(
+  column: DebugLogColumn,
+  r: AccessLogDebugEntry,
+  timeFormat: TimeFormat,
+): React.ReactNode {
+  switch (column.key) {
+    case "createdAt":
+      return <TableTime value={r.createdAt} format={timeFormat} />
+    case "isMalformed":
+      return r.isMalformed ? (
         <Badge className="border-transparent bg-amber-500/15 text-amber-600 dark:text-amber-400">
           Yes
         </Badge>
       ) : (
         <span className="text-muted-foreground">No</span>
-      ),
-  },
-  {
-    key: "parseError",
-    grow: true,
-    label: "Parse error",
-    sortField: "parseError",
-    defaultVisible: true,
-    mobileHidden: true,
-    render: (r) => (
-      <span className="block truncate" title={r.parseError ?? undefined}>
-        {r.parseError ?? "-"}
-      </span>
-    ),
-  },
-  {
-    key: "logFormat",
-    label: "Source format",
-    sortField: "logFormat",
-    defaultVisible: false,
-    mobileHidden: true,
-    render: (r) => <span className="whitespace-nowrap font-mono">{r.logFormat ?? "-"}</span>,
-  },
-  {
-    key: "rawLine",
-    grow: true,
-    label: "Raw line",
-    defaultVisible: true,
-    render: (r) => (
-      <span className="block truncate font-mono" title={r.rawLine}>
-        {r.rawLine}
-      </span>
-    ),
-  },
-  {
-    key: "statusCode",
-    label: "Status",
-    sortField: "statusCode",
-    sortKind: "number",
-    defaultVisible: true,
-    mobileHidden: true,
-    render: (r) =>
-      r.statusCode != null ? (
+      )
+    case "parseError":
+      return (
+        <span className="block truncate" title={r.parseError ?? undefined}>
+          {r.parseError ?? "-"}
+        </span>
+      )
+    case "logFormat":
+      return <span className="whitespace-nowrap font-mono">{r.logFormat ?? "-"}</span>
+    case "rawLine":
+      return (
+        <span className="block truncate font-mono" title={r.rawLine}>
+          {r.rawLine}
+        </span>
+      )
+    case "statusCode":
+      return r.statusCode != null ? (
         <Badge className={cn("tabular-nums border-transparent", statusBadgeClass(r.statusCode))}>
           {r.statusCode}
         </Badge>
       ) : (
         <span className="text-muted-foreground">-</span>
-      ),
-  },
-  {
-    key: "method",
-    label: "Method",
-    defaultVisible: true,
-    mobileHidden: true,
-    render: (r) => <span className="font-mono">{r.method ?? "-"}</span>,
-  },
-  {
-    key: "ipAddress",
-    label: "IP",
-    sortField: "ipAddress",
-    defaultVisible: true,
-    mobileHidden: true,
-    render: (r) =>
-      r.ipAddress ? <IpLabel ip={r.ipAddress} /> : <span className="font-mono">-</span>,
-  },
-  {
-    key: "url",
-    grow: true,
-    label: "URL",
-    defaultVisible: false,
-    render: (r) => (
-      <span className="block truncate font-mono" title={r.url ?? undefined}>
-        {r.url ?? "-"}
-      </span>
-    ),
-  },
-  {
-    key: "host",
-    grow: true,
-    label: "Host",
-    sortField: "host",
-    defaultVisible: false,
-    render: (r) => (
-      <span className="block truncate font-mono" title={r.host ?? undefined}>
-        {r.host ?? "-"}
-      </span>
-    ),
-  },
-  {
-    key: "timestamp",
-    label: "Log time",
-    sortField: "timestamp",
-    sortKind: "time",
-    defaultVisible: false,
-    render: (r, timeFormat) =>
-      r.timestamp ? (
+      )
+    case "method":
+      return <span className="font-mono">{r.method ?? "-"}</span>
+    case "ipAddress":
+      return r.ipAddress ? <IpLabel ip={r.ipAddress} /> : <span className="font-mono">-</span>
+    case "url":
+      return (
+        <span className="block truncate font-mono" title={r.url ?? undefined}>
+          {r.url ?? "-"}
+        </span>
+      )
+    case "host":
+      return (
+        <span className="block truncate font-mono" title={r.host ?? undefined}>
+          {r.host ?? "-"}
+        </span>
+      )
+    case "timestamp":
+      return r.timestamp ? (
         <TableTime value={r.timestamp} format={timeFormat} />
       ) : (
         <span className="text-muted-foreground">-</span>
-      ),
-  },
-  {
-    key: "country",
-    label: "Country",
-    sortField: "countryCode",
-    defaultVisible: false,
-    render: (r) => (
-      <span className="whitespace-nowrap" title={r.countryName ?? undefined}>
-        {r.countryCode ? (
-          <CountryLabel code={r.countryCode} name={r.countryName}>
-            {r.countryCode}
-          </CountryLabel>
+      )
+    case "country":
+      return (
+        <span className="whitespace-nowrap" title={r.countryName ?? undefined}>
+          {r.countryCode ? (
+            <CountryLabel code={r.countryCode} name={r.countryName}>
+              {r.countryCode}
+            </CountryLabel>
+          ) : (
+            "-"
+          )}
+        </span>
+      )
+    case "city":
+      return <span className="whitespace-nowrap">{r.city ?? "-"}</span>
+    case "userAgent":
+      return (
+        <span className="block truncate font-mono" title={r.userAgent ?? undefined}>
+          {r.userAgent ?? "-"}
+        </span>
+      )
+  }
+}
+
+function renderCombinedCell(
+  column: DebugLogCombinedColumn,
+  r: AccessLogDebugEntry,
+  timeFormat: TimeFormat,
+): React.ReactNode {
+  const has = (key: string) => column.fields.some((field) => field.key === key)
+  switch (column.key) {
+    case "result":
+      if (!has("isMalformed")) {
+        return r.parseError ? (
+          <span className="block truncate text-muted-foreground" title={r.parseError}>
+            {r.parseError}
+          </span>
         ) : (
-          "-"
-        )}
-      </span>
-    ),
-  },
-  {
-    key: "city",
-    grow: true,
-    label: "City",
-    sortField: "city",
-    defaultVisible: false,
-    render: (r) => <span className="whitespace-nowrap">{r.city ?? "-"}</span>,
-  },
-  {
-    key: "userAgent",
-    grow: true,
-    label: "User agent",
-    defaultVisible: false,
-    render: (r) => (
-      <span className="block truncate font-mono" title={r.userAgent ?? undefined}>
-        {r.userAgent ?? "-"}
-      </span>
-    ),
-  },
-]
+          <span className="text-muted-foreground">-</span>
+        )
+      }
+      if (!r.isMalformed) return <span className="text-muted-foreground">Parsed</span>
+      return (
+        <span className="flex min-w-0 items-center gap-2">
+          <Badge className="shrink-0 border-transparent bg-amber-500/15 text-amber-600 dark:text-amber-400">
+            Malformed
+          </Badge>
+          {has("parseError") && r.parseError && (
+            <span className="min-w-0 truncate text-muted-foreground" title={r.parseError}>
+              {r.parseError}
+            </span>
+          )}
+        </span>
+      )
+    case "rawLine":
+      return (
+        <span className="block truncate font-mono text-xs" title={r.rawLine}>
+          {r.rawLine}
+        </span>
+      )
+    case "request": {
+      const status = has("statusCode") ? r.statusCode : null
+      const method = has("method") ? r.method : null
+      const host = has("host") ? r.host : null
+      const url = has("url") ? r.url : null
+      if (status == null && !method && !host && !url) {
+        return <span className="text-muted-foreground">-</span>
+      }
+      const target = `${host ?? ""}${url ?? ""}`
+      const title = [status != null ? String(status) : null, method, target]
+        .filter(Boolean)
+        .join(" ")
+      return (
+        <span className="flex min-w-0 items-center gap-2" title={title || undefined}>
+          {status != null && (
+            <Badge
+              className={cn("shrink-0 tabular-nums border-transparent", statusBadgeClass(status))}
+            >
+              {status}
+            </Badge>
+          )}
+          {method && (
+            <span
+              className={cn(
+                "shrink-0 font-mono text-[11px] font-semibold",
+                (host || url) && "max-w-20 truncate",
+                method !== "GET" ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground",
+              )}
+            >
+              {method}
+            </span>
+          )}
+          {(host || url) && (
+            <span className="flex min-w-0 flex-1 items-baseline gap-2 font-mono">
+              {host && (
+                <span
+                  className={cn("min-w-0 truncate text-muted-foreground", url && "max-w-[50%]")}
+                >
+                  {host}
+                </span>
+              )}
+              {url && <span className="min-w-0 flex-1 truncate">{url}</span>}
+            </span>
+          )}
+        </span>
+      )
+    }
+    case "client":
+      return r.ipAddress ? (
+        <span className="flex items-center gap-1.5">
+          <IpLabel ip={r.ipAddress} short />
+          <DebugLogIpActions row={r} />
+        </span>
+      ) : (
+        <span className="text-muted-foreground">-</span>
+      )
+    default:
+      return renderCell(column.fields[0], r, timeFormat)
+  }
+}
 
 const getRowKey = (row: AccessLogDebugEntry) => row.id
 
-const SORT_OPTIONS = sortOptions(COLUMNS)
+const SORT_OPTIONS = sortOptions(DEBUG_LOG_COLUMNS)
 
 function DebugLogIpActions({ row }: { row: AccessLogDebugEntry }) {
   if (!row.ipAddress) return null
@@ -297,12 +317,16 @@ function DebugLogNarrowCell({
 const DebugLogTableBody = memo(function DebugLogTableBody({
   rows,
   shownColumns,
+  combinedColumns,
+  layout,
   narrow,
   timeFormat,
   onSelect,
 }: {
   rows: AccessLogDebugEntry[]
-  shownColumns: ColumnDef[]
+  shownColumns: DebugLogColumn[]
+  combinedColumns: DebugLogCombinedColumn[]
+  layout: ColumnLayout
   narrow: boolean
   timeFormat: TimeFormat
   onSelect: (row: AccessLogDebugEntry) => void
@@ -310,7 +334,9 @@ const DebugLogTableBody = memo(function DebugLogTableBody({
   return (
     <VirtualTableBody
       rows={rows}
-      columnCount={narrow ? 1 : shownColumns.length}
+      columnCount={
+        narrow ? 1 : layout === "combined" ? combinedColumns.length : shownColumns.length
+      }
       getRowKey={getRowKey}
     >
       {(row) => (
@@ -321,10 +347,20 @@ const DebugLogTableBody = memo(function DebugLogTableBody({
         >
           {narrow ? (
             <DebugLogNarrowCell row={row} timeFormat={timeFormat} />
+          ) : layout === "combined" ? (
+            combinedColumns.map((c) => (
+              <TableCell
+                key={c.key}
+                className={cn((c.grow || c.width) && "max-w-0 truncate")}
+                style={c.minWidth ? { minWidth: c.minWidth } : undefined}
+              >
+                {renderCombinedCell(c, row, timeFormat)}
+              </TableCell>
+            ))
           ) : (
             shownColumns.map((c) => (
               <TableCell key={c.key} className={cn(c.grow && "max-w-0 truncate")}>
-                {c.render(row, timeFormat)}
+                {renderCell(c, row, timeFormat)}
                 {c.key === "ipAddress" && <DebugLogIpActions row={row} />}
               </TableCell>
             ))
@@ -340,7 +376,8 @@ export function DebugLogsTable() {
   const isMobile = useIsMobile()
   const phone = usePhoneLayout()
   const [page, setPage] = useState(1)
-  const { density, setDensity, resetView, hasViewOverrides } = useTableView("debug-logs")
+  const { density, layout, setDensity, setLayout, resetView, hasViewOverrides } =
+    useTableView(DEBUG_LOGS_TABLE_ID)
   const [timeFormat] = useTimeFormat()
   // Follows the density until the user picks a size.
   const [pickedPageSize, setPageSize] = useState<number | null>(null)
@@ -400,8 +437,9 @@ export function DebugLogsTable() {
 
   const { visible, shownColumns, toggleColumn, resetColumns, hasOverrides } = useColumnVisibility(
     "geometrikks-columns-debug-logs",
-    COLUMNS,
+    DEBUG_LOG_COLUMNS,
   )
+  const combinedColumns = useMemo(() => combinedDebugLogColumns(shownColumns), [shownColumns])
 
   // Detail sheet.
   const [selected, setSelected] = useState<AccessLogDebugEntry | null>(null)
@@ -432,6 +470,11 @@ export function DebugLogsTable() {
   const total = data?.total ?? 0
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
   const state = dataState(isLoading, isError, rows.length)
+
+  function setSort(field: AccessLogDebugSortField, order: SortOrder) {
+    setSortField(field)
+    setSortOrder(order)
+  }
 
   function toggleSort(field: AccessLogDebugSortField) {
     if (sortField === field) {
@@ -597,7 +640,10 @@ export function DebugLogsTable() {
     <TableViewMenu
       density={density}
       onDensityChange={setDensity}
-      fields={COLUMNS}
+      layout={layout}
+      onLayoutChange={setLayout}
+      layoutHint="Result, Request, Client"
+      fields={DEBUG_LOG_COLUMNS}
       visible={visible}
       onToggleField={toggleColumn}
       canReset={hasOverrides || hasViewOverrides}
@@ -607,6 +653,51 @@ export function DebugLogsTable() {
       }}
     />
   )
+
+  const separateHeader = shownColumns.map((c) => {
+    if (!c.sortField) {
+      return <TableHead key={c.key}>{c.label}</TableHead>
+    }
+    const columnSortField = c.sortField
+    return (
+      <SortableHead
+        key={c.key}
+        label={c.label}
+        active={sortField === columnSortField}
+        sortOrder={sortOrder}
+        onToggle={() => toggleSort(columnSortField)}
+      />
+    )
+  })
+
+  const combinedHeader = combinedColumns.map((c) => {
+    const options = sortOptions(c.fields)
+    if (options.length > 1) {
+      return (
+        <CombinedSortHead
+          key={c.key}
+          label={c.label}
+          options={options}
+          sortField={sortField}
+          sortOrder={sortOrder}
+          onSortChange={setSort}
+        />
+      )
+    }
+    if (options.length === 1) {
+      const columnSortField = options[0].field
+      return (
+        <SortableHead
+          key={c.key}
+          label={c.label}
+          active={sortField === columnSortField}
+          sortOrder={sortOrder}
+          onToggle={() => toggleSort(columnSortField)}
+        />
+      )
+    }
+    return <TableHead key={c.key}>{c.label}</TableHead>
+  })
 
   return (
     <IpFilterTargetsProvider targetsFor={filterTargetsFor}>
@@ -636,10 +727,7 @@ export function DebugLogsTable() {
                   options={SORT_OPTIONS}
                   sortField={sortField}
                   sortOrder={sortOrder}
-                  onSortChange={(field, order) => {
-                    setSortField(field)
-                    setSortOrder(order)
-                  }}
+                  onSortChange={setSort}
                 />
               ) : (
                 viewMenu
@@ -664,7 +752,7 @@ export function DebugLogsTable() {
             <VirtualTable
               narrow={narrow}
               density={density}
-              columns={shownColumns}
+              columns={layout === "combined" ? combinedColumns : shownColumns}
               rowCount={rows.length}
               resetKey={JSON.stringify([
                 page,
@@ -682,29 +770,15 @@ export function DebugLogsTable() {
             >
               {!narrow && (
                 <TableHeader>
-                  <TableRow>
-                    {shownColumns.map((c) => {
-                      if (!c.sortField) {
-                        return <TableHead key={c.key}>{c.label}</TableHead>
-                      }
-                      const columnSortField = c.sortField
-                      return (
-                        <SortableHead
-                          key={c.key}
-                          label={c.label}
-                          active={sortField === columnSortField}
-                          sortOrder={sortOrder}
-                          onToggle={() => toggleSort(columnSortField)}
-                        />
-                      )
-                    })}
-                  </TableRow>
+                  <TableRow>{layout === "combined" ? combinedHeader : separateHeader}</TableRow>
                 </TableHeader>
               )}
               <DebugLogTableBody
                 key={narrow ? "narrow" : "wide"}
                 rows={rows}
                 shownColumns={shownColumns}
+                combinedColumns={combinedColumns}
+                layout={layout}
                 narrow={narrow}
                 timeFormat={timeFormat}
                 onSelect={setSelected}

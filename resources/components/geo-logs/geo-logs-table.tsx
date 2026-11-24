@@ -13,6 +13,7 @@ import { useNarrowLayout } from "@/components/data/narrow-layout"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { sortOptions } from "@/components/data/sort-options"
 import { SortableHead } from "@/components/data/sortable-head"
+import { CombinedSortHead } from "@/components/data/combined-sort-head"
 import { TableSortDrawer } from "@/components/data/table-sort-drawer"
 import { formatRowTime } from "@/lib/row-time"
 import { VirtualTable, VirtualTableBody } from "@/components/data/virtual-table"
@@ -27,7 +28,9 @@ import { dataState } from "@/components/data/types"
 import {
   GEO_LOG_COLUMNS,
   GEO_LOG_RENAMED_COLUMN_KEYS,
+  combinedGeoLogColumns,
   type GeoLogColumn,
+  type GeoLogCombinedColumn,
 } from "@/components/geo-logs/columns"
 import { GeoLogDetailSheet } from "@/components/geo-logs/geo-log-detail-sheet"
 import type { GeoLogEntry } from "@/generated/api/types.gen"
@@ -39,9 +42,10 @@ import { useGeoLogs } from "@/lib/queries"
 import { pageToClamp } from "@/lib/use-muted-page"
 import { cn } from "@/lib/utils"
 import { useColumnVisibility } from "@/lib/column-visibility"
-import { useTableView, useTimeFormat, type TimeFormat } from "@/lib/table-view"
+import { useTableView, useTimeFormat, type ColumnLayout, type TimeFormat } from "@/lib/table-view"
 
 export const GEO_LOGS_PAGE_SIZES = [10, 20, 50, 100, 200, 500] as const
+export const GEO_LOGS_TABLE_ID = "geo-logs"
 
 function renderCell(column: GeoLogColumn, r: GeoLogEntry, timeFormat: TimeFormat): React.ReactNode {
   switch (column.key) {
@@ -89,6 +93,78 @@ function renderCell(column: GeoLogColumn, r: GeoLogEntry, timeFormat: TimeFormat
         </span>
       )
   }
+}
+
+function renderCombinedCell(
+  column: GeoLogCombinedColumn,
+  r: GeoLogEntry,
+  timeFormat: TimeFormat,
+): React.ReactNode {
+  const has = (key: string) => column.fields.some((field) => field.key === key)
+  switch (column.key) {
+    case "location": {
+      const city = has("city") ? r.city : null
+      const state = has("state") ? r.state : null
+      const place = [city, state].filter(Boolean).join(", ")
+      // The flag follows Country Code, as in Separate; Country owns the full name.
+      const showFlag = has("countryCode")
+      const country = has("countryName")
+        ? r.countryName || (showFlag ? r.countryCode : null)
+        : showFlag
+          ? r.countryCode
+          : null
+      const postal = has("postalCode") ? r.postalCode : null
+      if (!place && !country && !postal) return <span className="text-muted-foreground">-</span>
+      const title = [[place, country].filter(Boolean).join(" · "), postal].filter(Boolean).join(" ")
+      return (
+        <span className="flex min-w-0 items-center gap-2" title={title || undefined}>
+          {showFlag && <CountryFlag code={r.countryCode} name={r.countryName} />}
+          {(place || country) && (
+            <span className="min-w-0 truncate">
+              {place ? (
+                <>
+                  {place}
+                  {country && <span className="text-muted-foreground"> · {country}</span>}
+                </>
+              ) : (
+                country
+              )}
+            </span>
+          )}
+          {postal && (
+            <span className="shrink-0 font-mono text-xs text-muted-foreground">{postal}</span>
+          )}
+        </span>
+      )
+    }
+    case "client":
+      return (
+        <span className="flex items-center gap-1.5">
+          <IpLabel ip={r.ipAddress} short />
+          <GeoLogIpActions row={r} />
+        </span>
+      )
+    case "coordinates": {
+      const parts = [
+        has("latitude") ? r.latitude.toFixed(4) : null,
+        has("longitude") ? r.longitude.toFixed(4) : null,
+      ].filter(Boolean)
+      return (
+        <span className="whitespace-nowrap tabular-nums text-muted-foreground">
+          {parts.join(", ")}
+        </span>
+      )
+    }
+    default:
+      return renderCell(column.fields[0], r, timeFormat)
+  }
+}
+
+const COMBINED_SORT_LABELS: Partial<Record<GeoLogSortField, string>> = {
+  postalCode: "Postal code",
+  countryCode: "Country code",
+  latitude: "Latitude",
+  longitude: "Longitude",
 }
 
 const getRowKey = (row: GeoLogEntry) => `${row.locationId}-${row.ipAddress}`
@@ -140,12 +216,16 @@ function GeoLogNarrowCell({ row, timeFormat }: { row: GeoLogEntry; timeFormat: T
 const GeoLogTableBody = memo(function GeoLogTableBody({
   rows,
   shownColumns,
+  combinedColumns,
+  layout,
   narrow,
   timeFormat,
   onSelect,
 }: {
   rows: GeoLogEntry[]
   shownColumns: GeoLogColumn[]
+  combinedColumns: GeoLogCombinedColumn[]
+  layout: ColumnLayout
   narrow: boolean
   timeFormat: TimeFormat
   onSelect: (row: GeoLogEntry) => void
@@ -153,7 +233,9 @@ const GeoLogTableBody = memo(function GeoLogTableBody({
   return (
     <VirtualTableBody
       rows={rows}
-      columnCount={narrow ? 1 : shownColumns.length}
+      columnCount={
+        narrow ? 1 : layout === "combined" ? combinedColumns.length : shownColumns.length
+      }
       getRowKey={getRowKey}
     >
       {(row) => (
@@ -164,6 +246,16 @@ const GeoLogTableBody = memo(function GeoLogTableBody({
         >
           {narrow ? (
             <GeoLogNarrowCell row={row} timeFormat={timeFormat} />
+          ) : layout === "combined" ? (
+            combinedColumns.map((c) => (
+              <TableCell
+                key={c.key}
+                className={cn(c.grow && "max-w-0 truncate", c.align === "right" && "text-right")}
+                style={c.minWidth ? { minWidth: c.minWidth } : undefined}
+              >
+                {renderCombinedCell(c, row, timeFormat)}
+              </TableCell>
+            ))
           ) : (
             shownColumns.map((c) => (
               <TableCell
@@ -212,8 +304,10 @@ export function GeoLogsTable({
     GEO_LOG_COLUMNS,
     GEO_LOG_RENAMED_COLUMN_KEYS,
   )
-  const { density, setDensity, resetView, hasViewOverrides } = useTableView("geo-logs")
+  const { density, layout, setDensity, setLayout, resetView, hasViewOverrides } =
+    useTableView(GEO_LOGS_TABLE_ID)
   const [timeFormat] = useTimeFormat()
+  const combinedColumns = useMemo(() => combinedGeoLogColumns(shownColumns), [shownColumns])
 
   const { data, isLoading, isError, isPlaceholderData } = useGeoLogs({
     currentPage: page,
@@ -249,6 +343,9 @@ export function GeoLogsTable({
     <TableViewMenu
       density={density}
       onDensityChange={setDensity}
+      layout={layout}
+      onLayoutChange={setLayout}
+      layoutHint="Location, Client, Coordinates"
       fields={GEO_LOG_COLUMNS}
       visible={visible}
       onToggleField={toggleColumn}
@@ -259,6 +356,64 @@ export function GeoLogsTable({
       }}
     />
   )
+
+  const separateHeader = shownColumns.map((c) => {
+    if (!c.sortField) {
+      return (
+        <TableHead key={c.key} className={cn(c.align === "right" && "text-right")}>
+          {c.label}
+        </TableHead>
+      )
+    }
+    const columnSortField = c.sortField
+    return (
+      <SortableHead
+        key={c.key}
+        label={c.label}
+        active={sortField === columnSortField}
+        sortOrder={sortOrder}
+        alignRight={c.align === "right"}
+        onToggle={() => toggleSort(columnSortField)}
+      />
+    )
+  })
+
+  const combinedHeader = combinedColumns.map((c) => {
+    const options = sortOptions(c.fields).map((option) => ({
+      ...option,
+      label: COMBINED_SORT_LABELS[option.field] ?? option.label,
+    }))
+    if (options.length > 1) {
+      return (
+        <CombinedSortHead
+          key={c.key}
+          label={c.label}
+          options={options}
+          sortField={sortField}
+          sortOrder={sortOrder}
+          onSortChange={onSortChange}
+        />
+      )
+    }
+    if (options.length === 1) {
+      const columnSortField = options[0].field
+      return (
+        <SortableHead
+          key={c.key}
+          label={c.label}
+          active={sortField === columnSortField}
+          sortOrder={sortOrder}
+          alignRight={c.align === "right"}
+          onToggle={() => toggleSort(columnSortField)}
+        />
+      )
+    }
+    return (
+      <TableHead key={c.key} className={cn(c.align === "right" && "text-right")}>
+        {c.label}
+      </TableHead>
+    )
+  })
 
   return (
     <IpFilterTargetsProvider targetsFor={filterTargetsFor}>
@@ -300,7 +455,7 @@ export function GeoLogsTable({
           <VirtualTable
             narrow={narrow}
             density={density}
-            columns={shownColumns}
+            columns={layout === "combined" ? combinedColumns : shownColumns}
             rowCount={rows.length}
             resetKey={JSON.stringify([
               page,
@@ -316,34 +471,15 @@ export function GeoLogsTable({
           >
             {!narrow && (
               <TableHeader>
-                <TableRow>
-                  {shownColumns.map((c) => {
-                    if (!c.sortField) {
-                      return (
-                        <TableHead key={c.key} className={cn(c.align === "right" && "text-right")}>
-                          {c.label}
-                        </TableHead>
-                      )
-                    }
-                    const columnSortField = c.sortField
-                    return (
-                      <SortableHead
-                        key={c.key}
-                        label={c.label}
-                        active={sortField === columnSortField}
-                        sortOrder={sortOrder}
-                        alignRight={c.align === "right"}
-                        onToggle={() => toggleSort(columnSortField)}
-                      />
-                    )
-                  })}
-                </TableRow>
+                <TableRow>{layout === "combined" ? combinedHeader : separateHeader}</TableRow>
               </TableHeader>
             )}
             <GeoLogTableBody
               key={narrow ? "narrow" : "wide"}
               rows={rows}
               shownColumns={shownColumns}
+              combinedColumns={combinedColumns}
+              layout={layout}
               narrow={narrow}
               timeFormat={timeFormat}
               onSelect={setSelected}
