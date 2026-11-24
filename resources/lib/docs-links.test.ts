@@ -2,13 +2,14 @@ import { describe, expect, it } from "vite-plus/test"
 import * as docsLinks from "./docs-links"
 
 const DOCS_URL =
-  /^https:\/\/geometrikks\.dev\/docs\/(?!next\/)(?!\d+\.\d+\.\d+\/)[a-z0-9-]+(\/[a-z0-9-]+)*\/$/
+  /^https:\/\/geometrikks\.dev\/docs\/(?!next\/)(?!\d+\.\d+\.\d+\/)([a-z0-9-]+(\/[a-z0-9-]+)*\/)?$/
 
 describe("docs links", () => {
   it("exports the docs links", () => {
     expect(Object.keys(docsLinks).sort()).toEqual([
       "AGENT_DOCS_URL",
       "CROWDSEC_DOCS_URL",
+      "DOCS_URL",
       "GEOLITE2_DOCS_URL",
       "MUTED_IPS_DOCS_URL",
     ])

@@ -50,6 +50,13 @@ export const NAV_ITEMS: NavItem[] = [
     description: "Geographic view",
   },
   {
+    id: "analytics",
+    title: "Analytics",
+    url: "/analytics",
+    icon: BarChart3,
+    description: "Statistics & trends",
+  },
+  {
     id: "access-logs",
     title: "Access Logs",
     barTitle: "Logs",
@@ -70,13 +77,6 @@ export const NAV_ITEMS: NavItem[] = [
     url: "/debug-logs",
     icon: Bug,
     description: "Raw & malformed lines",
-  },
-  {
-    id: "analytics",
-    title: "Analytics",
-    url: "/analytics",
-    icon: BarChart3,
-    description: "Statistics & trends",
   },
   {
     id: "security",

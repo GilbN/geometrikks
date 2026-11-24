@@ -1,14 +1,15 @@
 import { Link, useRouterState } from "@tanstack/react-router"
-import { useState, useEffect } from "react"
+import { useEffect } from "react"
+import { Fragment, type ReactNode } from "react"
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
@@ -16,24 +17,17 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { ChevronLeft, Activity, Globe2, AlertCircle, LogOut, PowerOff } from "lucide-react"
-import { NAV_ITEMS, SETTINGS_ITEM, type NavItem as NavItemData } from "@/lib/phone-nav"
-import { logOut } from "@/lib/log-out"
+import { AlertCircle } from "lucide-react"
+import { NAV_ITEMS, SETTINGS_ITEM, type NavId, type NavItem as NavItemData } from "@/lib/phone-nav"
 import { cn } from "@/lib/utils"
-import { containerRuntimeLabel, displayVersion, publicVersion } from "@/lib/version"
+import { formatNumber } from "@/lib/api"
 import { BrandMark } from "@/components/brand/brand-mark"
 import { Wordmark } from "@/components/brand/wordmark"
 import { useServiceStatus } from "@/hooks/use-service-status"
-import {
-  useChangelogUnseen,
-  useMe,
-  useRuntimeSettings,
-  useSecurityNavStatus,
-  useUnseenRelease,
-} from "@/lib/queries"
-import { SiDocker } from "react-icons/si"
-import { useReloadNotice } from "@/lib/reload-notice"
-import { GlowDot, ReloadNoticeCard, ReloadNoticeCollapsedButton } from "@/components/reload-notice"
+import { useCrowdsecStats, useSecurityNavStatus } from "@/lib/queries"
+import { formatNavCount, formatRequestRate, ingestionInFooter } from "@/lib/sidebar-status"
+import { ReloadNoticeCard, ReloadNoticeCollapsedButton } from "@/components/reload-notice"
+import { SidebarUserMenu } from "@/components/sidebar-user-menu"
 
 function GeoLogo({ collapsed }: { collapsed: boolean }) {
   return (
@@ -60,13 +54,12 @@ function NavItem({
   item,
   isActive,
   warning,
-  notice,
+  count,
 }: {
   item: NavItemData
   isActive: boolean
   warning?: string
-  /** Something new to look at, in the accent color rather than amber. */
-  notice?: string
+  count?: { value: number; label: string }
 }) {
   const Icon = item.icon
 
@@ -85,7 +78,11 @@ function NavItem({
               {warning && (
                 <span className="text-amber-700 dark:text-amber-400 text-xs">{warning}</span>
               )}
-              {notice && <span className="text-primary text-xs">{notice}</span>}
+              {count && (
+                <span className="text-xs">
+                  {formatNumber(count.value)} {count.label}
+                </span>
+              )}
             </span>
           ),
         }}
@@ -117,12 +114,6 @@ function NavItem({
                 aria-hidden="true"
               />
             )}
-            {!warning && notice && (
-              <span
-                className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_6px_var(--primary)]"
-                aria-hidden="true"
-              />
-            )}
           </div>
           <span
             className={cn(
@@ -134,48 +125,45 @@ function NavItem({
           >
             {item.title}
           </span>
+          {count && (
+            <span className="sr-only">
+              , {formatNumber(count.value)} {count.label}
+            </span>
+          )}
         </Link>
       </SidebarMenuButton>
+      {count && (
+        <SidebarMenuBadge
+          aria-hidden="true"
+          className="right-2 rounded-full px-[7px] text-[11px] font-semibold bg-red-500/15 text-red-600 dark:text-red-400"
+        >
+          {formatNavCount(count.value)}
+        </SidebarMenuBadge>
+      )}
     </SidebarMenuItem>
   )
 }
 
-function LiveIndicator({ collapsed }: { collapsed: boolean }) {
-  const { tooltipsSuppressed, resetTooltipSuppression } = useSidebar()
-  const { variant, color, label, tooltip, statusRoute } = useServiceStatus()
-  const isRunning = variant === "running"
+function StatusDot({ color, pulse }: { color: string; pulse: boolean }) {
+  return (
+    <span className="relative flex size-2 shrink-0 items-center justify-center">
+      {pulse && (
+        <span
+          className={cn(
+            "absolute inline-flex h-full w-full animate-ping rounded-full opacity-75",
+            color,
+          )}
+        />
+      )}
+      <span className={cn("relative inline-flex size-2 rounded-full", color)} />
+    </span>
+  )
+}
 
-  if (collapsed) {
-    return (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Link
-            to={statusRoute}
-            aria-label="Service status"
-            className="flex items-center justify-center py-2 mx-2"
-            onPointerLeave={resetTooltipSuppression}
-          >
-            <div className="relative flex items-center justify-center w-3 h-3">
-              {isRunning && (
-                <span
-                  className={cn(
-                    "absolute inline-flex h-full w-full animate-ping rounded-full opacity-75",
-                    color,
-                  )}
-                />
-              )}
-              <span className={cn("relative inline-flex w-2 h-2 rounded-full", color)} />
-            </div>
-          </Link>
-        </TooltipTrigger>
-        {!tooltipsSuppressed && (
-          <TooltipContent side="right">
-            <span>{tooltip}</span>
-          </TooltipContent>
-        )}
-      </Tooltip>
-    )
-  }
+/** The smoke test finds the status by this link name, so every placement keeps it. */
+function StatusLink({ className, children }: { className: string; children: ReactNode }) {
+  const { tooltipsSuppressed, resetTooltipSuppression } = useSidebar()
+  const { tooltip, statusRoute } = useServiceStatus()
 
   return (
     <Tooltip>
@@ -183,31 +171,10 @@ function LiveIndicator({ collapsed }: { collapsed: boolean }) {
         <Link
           to={statusRoute}
           aria-label="Service status"
-          className="flex items-center gap-2 px-3 py-2 mx-2 rounded-md bg-sidebar-accent/50 border border-sidebar-border transition-colors hover:bg-sidebar-accent"
+          className={className}
           onPointerLeave={resetTooltipSuppression}
         >
-          <div className="relative flex items-center justify-center w-2 h-2">
-            {isRunning && (
-              <span
-                className={cn(
-                  "absolute inline-flex h-full w-full animate-ping rounded-full opacity-75",
-                  color,
-                )}
-              />
-            )}
-            <span className={cn("relative inline-flex w-2 h-2 rounded-full", color)} />
-          </div>
-          <span className="text-xs font-medium text-sidebar-foreground/70">{label}</span>
-          {variant === "running" ? (
-            <Activity className="w-3 h-3 text-emerald-400 ml-auto" />
-          ) : variant === "disabled" ? (
-            // Deliberate setting, not a fault: no warning glyph.
-            <PowerOff className="w-3 h-3 text-sidebar-foreground/40 ml-auto" />
-          ) : variant === "offline" ? (
-            <AlertCircle className="w-3 h-3 text-gray-400 ml-auto" />
-          ) : (
-            <AlertCircle className="w-3 h-3 text-amber-400 ml-auto" />
-          )}
+          {children}
         </Link>
       </TooltipTrigger>
       {!tooltipsSuppressed && (
@@ -219,161 +186,66 @@ function LiveIndicator({ collapsed }: { collapsed: boolean }) {
   )
 }
 
-function LogoutButton() {
-  const { state, isMobile, tooltipsSuppressed, resetTooltipSuppression } = useSidebar()
-  const collapsed = isMobile ? false : state === "collapsed"
-
-  // Only render when there is a session to end. /auth/me reports
-  // mode: "disabled" when APP_AUTH_DISABLED=true, and a 401 already
-  // redirects to /login via the api interceptor.
-  const { data: me } = useMe()
-
-  if (me?.mode !== "session") return null
-
+function CollapsedStatus() {
+  const { variant, color } = useServiceStatus()
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          onClick={logOut}
-          onPointerLeave={resetTooltipSuppression}
-          className={cn(
-            "flex items-center justify-center w-full py-2",
-            collapsed ? "px-0" : "px-3",
-            "text-sidebar-foreground/50 hover:text-sidebar-foreground",
-            "hover:bg-sidebar-accent/50 rounded-md transition-all duration-200",
-          )}
-        >
-          <LogOut className="w-4 h-4 shrink-0" />
-          <span
-            className={cn(
-              "text-xs font-medium overflow-hidden transition-all duration-200",
-              collapsed ? "ml-0 w-0 opacity-0" : "ml-2 w-auto opacity-100",
-            )}
-          >
-            Log out
-          </span>
-        </button>
-      </TooltipTrigger>
-      {collapsed && !tooltipsSuppressed && (
-        <TooltipContent side="right">
-          <span>Log out {me.username}</span>
-        </TooltipContent>
-      )}
-    </Tooltip>
+    <StatusLink className="mx-2 flex items-center justify-center py-2">
+      <StatusDot color={color} pulse={variant === "running"} />
+    </StatusLink>
   )
 }
 
-function CollapseToggle() {
-  const { toggleSidebar, state, isMobile, resetTooltipSuppression } = useSidebar()
-  const collapsed = state === "collapsed"
-  const [tooltipOpen, setTooltipOpen] = useState(false)
-  const [suppressTooltip, setSuppressTooltip] = useState(false)
-
-  // Don't show collapse toggle on mobile - sidebar is always expanded when open
-  if (isMobile) return null
-
-  function onToggle(event: React.MouseEvent<HTMLButtonElement>) {
-    // The trigger stays focused and hovered after its click. Suppress that
-    // state so collapsing cannot open its new "Expand sidebar" tooltip.
-    setSuppressTooltip(true)
-    setTooltipOpen(false)
-    event.currentTarget.blur()
-    toggleSidebar()
-  }
-
-  function onTooltipOpenChange(open: boolean) {
-    if (!suppressTooltip) setTooltipOpen(open)
-  }
+function StatusProblem() {
+  const { variant, color, label } = useServiceStatus()
+  const offline = variant === "offline"
 
   return (
-    <Tooltip open={tooltipOpen} onOpenChange={onTooltipOpenChange}>
-      <TooltipTrigger asChild>
-        <button
-          onClick={onToggle}
-          onPointerLeave={() => {
-            setSuppressTooltip(false)
-            setTooltipOpen(false)
-            resetTooltipSuppression()
-          }}
-          className={cn(
-            "flex items-center justify-center w-full py-2",
-            collapsed ? "px-0" : "px-3",
-            "text-sidebar-foreground/50 hover:text-sidebar-foreground",
-            "hover:bg-sidebar-accent/50 rounded-md transition-all duration-200",
-            "group/collapse",
-          )}
-        >
-          <ChevronLeft
-            className={cn(
-              "w-4 h-4 shrink-0 transition-transform duration-300",
-              collapsed && "rotate-180",
-            )}
-          />
-          <span
-            className={cn(
-              "text-xs font-medium overflow-hidden transition-all duration-200",
-              collapsed ? "ml-0 w-0 opacity-0" : "ml-2 w-auto opacity-100",
-            )}
-          >
-            Collapse
-          </span>
-        </button>
-      </TooltipTrigger>
-      {collapsed && !suppressTooltip && (
-        <TooltipContent side="right">
-          <span>Expand sidebar</span>
-        </TooltipContent>
+    <StatusLink
+      className={cn(
+        "mx-2 flex items-center gap-2 rounded-md border px-3 py-2 transition-colors",
+        offline
+          ? "border-sidebar-border bg-sidebar-accent/50 hover:bg-sidebar-accent"
+          : "border-amber-400/40 bg-amber-400/10 hover:bg-amber-400/15",
       )}
-    </Tooltip>
+    >
+      <StatusDot color={color} pulse={false} />
+      <span
+        className={cn(
+          "text-xs font-medium",
+          offline ? "text-sidebar-foreground/70" : "text-amber-700 dark:text-amber-300",
+        )}
+      >
+        {label}
+      </span>
+      <AlertCircle className={cn("ml-auto size-3", offline ? "text-gray-400" : "text-amber-500")} />
+    </StatusLink>
   )
 }
 
-function RuntimeMetadata({ collapsed }: { collapsed: boolean }) {
-  const { data: settings } = useRuntimeSettings()
-  const { pending: updatePending } = useReloadNotice()
-  const unseenRelease = useUnseenRelease()
-
-  if (updatePending) return collapsed ? <ReloadNoticeCollapsedButton /> : <ReloadNoticeCard />
-  if (collapsed || !settings) return null
-
-  const version = displayVersion(publicVersion(settings.version))
-  const runtimeLabel = containerRuntimeLabel(settings.runtime.imageTag)
+function StatusFooterRow() {
+  const { variant, color, label, requestsPerMinute } = useServiceStatus()
+  const running = variant === "running"
 
   return (
-    <div className="flex items-center justify-center gap-1.5 px-3 py-2 text-sidebar-foreground/30">
-      {unseenRelease ? (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Link
-              to="/settings/about"
-              aria-label={`${version}, ${unseenRelease.displayVersion} is available`}
-              className="inline-flex items-center gap-1.5 text-[10px] font-mono hover:text-sidebar-foreground/60"
-            >
-              {version}
-              <GlowDot />
-            </Link>
-          </TooltipTrigger>
-          <TooltipContent side="right">
-            <span>{unseenRelease.displayVersion} is available</span>
-          </TooltipContent>
-        </Tooltip>
-      ) : (
-        <span className="text-[10px] font-mono">{version}</span>
+    <StatusLink className="flex h-[30px] items-center gap-2 rounded-md px-2.5 text-xs text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent/50">
+      <StatusDot color={color} pulse={running} />
+      <span className="font-medium text-sidebar-foreground">{label}</span>
+      {running && requestsPerMinute !== null && (
+        <span className="ml-auto tabular-nums">{formatRequestRate(requestsPerMinute)}</span>
       )}
-      {settings.runtime.container && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className="inline-flex cursor-default" aria-label={runtimeLabel}>
-              <SiDocker aria-hidden="true" className="h-4 w-4 text-[#2496ED]" />
-            </span>
-          </TooltipTrigger>
-          <TooltipContent side="right">
-            <span>{runtimeLabel}</span>
-          </TooltipContent>
-        </Tooltip>
-      )}
-    </div>
+    </StatusLink>
   )
+}
+
+const GROUP_STARTS: ReadonlySet<NavId> = new Set(["access-logs", "security"])
+
+function groupNavItems(items: NavItemData[]): NavItemData[][] {
+  const groups: NavItemData[][] = []
+  for (const item of items) {
+    if (groups.length === 0 || GROUP_STARTS.has(item.id)) groups.push([])
+    groups[groups.length - 1].push(item)
+  }
+  return groups
 }
 
 export function AppSidebar() {
@@ -383,12 +255,17 @@ export function AppSidebar() {
   const routerState = useRouterState()
   const currentPath = routerState.location.pathname
   const { status: securityStatus } = useSecurityNavStatus()
-  const changelogUnseen = useChangelogUnseen()
   const visibleNavigationItems = NAV_ITEMS.filter(
     (item) => !item.requiresSecurityFeature || securityStatus?.enabled === true,
   )
 
-  const { crowdsecDown } = useServiceStatus()
+  const { variant, crowdsecDown } = useServiceStatus()
+  const statusInFooter = ingestionInFooter(variant)
+  const { data: crowdsecStats } = useCrowdsecStats()
+  const activeDecisions =
+    !crowdsecDown && crowdsecStats && crowdsecStats.total > 0
+      ? { value: crowdsecStats.total, label: "active decisions" }
+      : undefined
 
   // The mobile sidebar is a full-height sheet; leaving it open after a nav
   // tap would cover the page the user just navigated to.
@@ -405,68 +282,50 @@ export function AppSidebar() {
       <SidebarSeparator className="opacity-50" />
 
       <SidebarContent>
-        <div className="mt-2">
-          <LiveIndicator collapsed={collapsed} />
-        </div>
+        {(collapsed || !statusInFooter) && (
+          <div className="mt-2">{collapsed ? <CollapsedStatus /> : <StatusProblem />}</div>
+        )}
 
-        <SidebarGroup className="mt-2">
-          <SidebarGroupLabel
-            className={cn(
-              "text-[10px] font-semibold tracking-widest uppercase text-sidebar-foreground/40",
-              "flex items-center gap-2",
-            )}
-          >
-            <Globe2 className="w-3 h-3" />
-            {!collapsed && "Navigation"}
-          </SidebarGroupLabel>
+        <SidebarGroup className="mt-0.5">
           <SidebarGroupContent>
-            <SidebarMenu>
-              {visibleNavigationItems.map((item) => (
-                <NavItem
-                  key={item.title}
-                  item={item}
-                  isActive={
-                    item.url === "/" ? currentPath === "/" : currentPath.startsWith(item.url)
-                  }
-                  warning={
-                    item.url === "/security" && crowdsecDown
-                      ? "CrowdSec LAPI unreachable"
-                      : undefined
-                  }
-                />
-              ))}
-            </SidebarMenu>
+            {groupNavItems(visibleNavigationItems).map((group, index) => (
+              <Fragment key={group[0].id}>
+                {index > 0 && <SidebarSeparator className="my-2.5" />}
+                <SidebarMenu>
+                  {group.map((item) => (
+                    <NavItem
+                      key={item.id}
+                      item={item}
+                      isActive={
+                        item.url === "/" ? currentPath === "/" : currentPath.startsWith(item.url)
+                      }
+                      warning={
+                        item.id === "security" && crowdsecDown
+                          ? "CrowdSec LAPI unreachable"
+                          : undefined
+                      }
+                      count={item.id === "security" ? activeDecisions : undefined}
+                    />
+                  ))}
+                </SidebarMenu>
+              </Fragment>
+            ))}
           </SidebarGroupContent>
         </SidebarGroup>
 
         <SidebarGroup className="mt-auto">
-          <SidebarGroupLabel
-            className={cn(
-              "text-[10px] font-semibold tracking-widest uppercase text-sidebar-foreground/40",
-            )}
-          >
-            {!collapsed && "System"}
-          </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {[SETTINGS_ITEM].map((item) => (
-                <NavItem
-                  key={item.title}
-                  item={item}
-                  isActive={currentPath.startsWith(item.url)}
-                  notice={changelogUnseen ? "New changes to read in the changelog" : undefined}
-                />
-              ))}
+              <NavItem item={SETTINGS_ITEM} isActive={currentPath.startsWith(SETTINGS_ITEM.url)} />
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter>
-        <SidebarSeparator className="opacity-50" />
-        <LogoutButton />
-        <CollapseToggle />
-        <RuntimeMetadata collapsed={collapsed} />
+      <SidebarFooter className="gap-1.5">
+        {collapsed ? <ReloadNoticeCollapsedButton /> : <ReloadNoticeCard />}
+        {!collapsed && statusInFooter && <StatusFooterRow />}
+        <SidebarUserMenu />
       </SidebarFooter>
 
       <SidebarRail />

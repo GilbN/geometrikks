@@ -8,6 +8,7 @@ import {
   type SidebarIngestionVariant,
 } from "@/components/settings/status-logic"
 import { agentsNeedingAttention } from "@/components/settings/agents-logic"
+import { requestsPerMinute } from "@/lib/sidebar-status"
 
 const INDICATOR_STYLES: Record<
   SidebarIngestionVariant,
@@ -44,6 +45,8 @@ export function useServiceStatus(): {
   attention: string[]
   statusRoute: "/settings/status" | "/settings/agents"
   crowdsecDown: boolean
+  /** Null until an instance reports a 5-minute count, or when the instances request fails. */
+  requestsPerMinute: number | null
 } {
   const { data: health, isError } = useQuery({
     queryKey: ["health"],
@@ -75,5 +78,16 @@ export function useServiceStatus(): {
 
   const crowdsecDown = health?.crowdsec?.enabled === true && health.crowdsec.lapiReachable === false
 
-  return { variant, color, label, tooltip, attention, statusRoute, crowdsecDown }
+  const rate = instancesError ? null : requestsPerMinute(instances?.instances)
+
+  return {
+    variant,
+    color,
+    label,
+    tooltip,
+    attention,
+    statusRoute,
+    crowdsecDown,
+    requestsPerMinute: rate,
+  }
 }
