@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - The Security page replaces its four top tiles with one summary of active decisions, alerts per day for the last 7 days and the top scenarios. Manual bans now show their reason in Top scenarios instead of "manual-ban". Alerts per day needs `CROWDSEC_MACHINE_ID` and `CROWDSEC_MACHINE_PASSWORD`, like the Alerts tab.
+- The desktop sidebar groups its links with thin lines and shows active decisions on Security. Ingestion status moves to the footer with requests per minute.
+- A user row at the bottom of the sidebar opens a menu with the color scheme, what's new, the docs and Log out.
 - Byte counts under 1 KB show as whole bytes, `455 B` instead of `455.0 B`, everywhere the app shows sizes. Table headers are all upper case.
 
 ## [0.26.0] - 2026-11-23
