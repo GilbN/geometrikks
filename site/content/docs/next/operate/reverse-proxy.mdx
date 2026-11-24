@@ -30,7 +30,9 @@ The Exclude your IP filter on the log pages looks your address up the same way.
 
 `X-Forwarded-For` is a plain header any client can send. The app reads it only when the connection comes from an address in `APP_TRUSTED_PROXIES`, and otherwise uses the connection's own address. It then walks the header from the right and stops at the first address outside the list, which is the client. Every address inside the range can put any address it likes in the header, so keep the range tight.
 
-Leave `APP_TRUSTED_PROXIES` empty behind a proxy and all of these record the proxy's address. A fail2ban or CrowdSec filter on the login log then bans your proxy, and Exclude your IP shows Needs APP_TRUSTED_PROXIES instead of filtering.
+If `APP_TRUSTED_PROXIES` is empty behind a proxy, or doesn't include the proxy that connects to the app, all of these record the proxy's address. A fail2ban or CrowdSec filter on the login log then bans your proxy, and Exclude your IP shows Needs APP_TRUSTED_PROXIES instead of filtering. A list with only Cloudflare's ranges misses it too, because your reverse proxy opens the connection to GeoMetrikks, not Cloudflare. `172.64.0.0/13` in that list is a Cloudflare range, not a Docker network.
+
+To check your setting, open `/api/v1/system/client-ip` in the browser you use for GeoMetrikks. You want `behindUntrustedProxy` to be `false` and `ip` to be your own public address. When `behindUntrustedProxy` is `true`, `ip` is the address your proxy connected from, which is the address or subnet missing from `APP_TRUSTED_PROXIES`.
 
 The list has to cover every hop that adds to `X-Forwarded-For` before the request reaches the app:
 
