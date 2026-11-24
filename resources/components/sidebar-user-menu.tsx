@@ -133,6 +133,7 @@ export function SidebarUserMenu() {
                   size="lg"
                   aria-label={rowLabel}
                   onBlur={() => setTooltipHeld(false)}
+                  onPointerEnter={() => setTooltipHeld(false)}
                   className={cn(
                     "h-11 gap-2.5 px-2 bg-sidebar-accent/55 ring-1 ring-inset ring-sidebar-border focus-visible:ring-2 focus-visible:ring-sidebar-ring",
                     "aria-expanded:bg-sidebar-accent group-data-[collapsible=icon]:justify-center",
@@ -167,7 +168,7 @@ export function SidebarUserMenu() {
               side="right"
               hidden={!collapsed || menuOpen || tooltipHeld || tooltipsSuppressed}
             >
-              <span className="break-all">{rowLabel}</span>
+              <span className="wrap-anywhere">{rowLabel}</span>
             </TooltipContent>
           </Tooltip>
           <DropdownMenuContent
