@@ -1571,12 +1571,15 @@ class Settings(BaseSettings):
             "Reverse-proxy IPs/CIDRs allowed to supply X-Forwarded-For. The "
             "login log, the OIDC login lines, an API key's last-used-from IP and "
             "the api_key_rejected, api_key_created and api_key_revoked log lines "
-            "all record the client IP resolved through it, and the Exclude your IP "
-            "filter on the log pages looks up your address through it. Env accepts "
-            "one value, comma-separated values, or a JSON list. Empty (default): "
-            "forwarded headers are never trusted, so behind a proxy all of these "
-            "record the proxy's address and the filter shows Needs "
-            "APP_TRUSTED_PROXIES instead of excluding your IP."
+            "record the client IP resolved through it, and the Exclude your IP "
+            "filter on the log pages looks up your address through it. The list "
+            "must cover the proxy that connects to the app. With Docker, that is "
+            "the subnet of the network the proxy and GeoMetrikks share, and CDN "
+            "ranges go next to it, not instead of it. Env accepts one value, "
+            "comma-separated values, or a JSON list. Default is empty. When it is "
+            "empty or misses the connecting proxy, forwarded headers are ignored, "
+            "the app records the proxy's address, and the filter shows Needs "
+            "APP_TRUSTED_PROXIES."
         ),
     )
 
