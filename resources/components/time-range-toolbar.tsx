@@ -1,47 +1,60 @@
 import { useEffect, useRef, useState } from "react"
 import { useRouterState } from "@tanstack/react-router"
-import { ChevronDown, RotateCw, Filter } from "lucide-react"
+import { CalendarDays, ChevronDown, RotateCw } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { TimeRangePicker, timeRangeLabel } from "@/components/time-range-picker"
+import { ButtonGroup } from "@/components/ui/button-group"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { Separator } from "@/components/ui/separator"
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
+  TimeRangePicker,
+  timeRangeLabel,
+  timeRangeName,
+  timeRangeSpan,
+} from "@/components/time-range-picker"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useTimeRange } from "@/lib/time-range-context"
 import { useRouteHeader } from "@/lib/route-header"
-import { CHART_GRANULARITY_OPTIONS, POLL_INTERVAL_OPTIONS, type ChartGranularity } from "@/lib/api"
+import { useTimeFormat } from "@/lib/table-view"
+import { POLL_INTERVAL_OPTIONS } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { useIsFetching } from "@tanstack/react-query"
 import { usePhoneLayout } from "@/hooks/use-phone-map"
 import { useShortcutAction } from "@/components/shortcuts/keyboard-shortcuts"
 
 export function TimeRangeToolbar() {
-  const {
-    range,
-    customRange,
-    pollInterval,
-    granularity,
-    setPollInterval,
-    setGranularity,
-    refresh,
-  } = useTimeRange()
-  const isFetching = useIsFetching()
-  const pathname = useRouterState({ select: (s) => s.location.pathname })
   const routeHeader = useRouteHeader()
-  // The map page has no time-series charts, so granularity is irrelevant there.
-  const showGranularity = pathname !== "/map"
-  const rangeLabel = timeRangeLabel(range, customRange)
+  if (!routeHeader.timeRange) return null
+  return (
+    <>
+      <div className="hidden items-center gap-2 md:flex phone:hidden">
+        <RangeButton />
+        <RefreshSplitButton />
+      </div>
+      {/* Phones: a refresh button and a range pill that opens one drawer
+          for the range, auto refresh and chart buckets. */}
+      <div className="md:hidden phone:flex flex items-center gap-1.5">
+        <PhoneTimeRangeControls />
+      </div>
+    </>
+  )
+}
+
+/** "Last 7 days" with the span it covers, opening the range menu. T opens it too. */
+function RangeButton() {
+  const { range, customRange, lastRefresh } = useTimeRange()
+  const [timeFormat] = useTimeFormat()
   const phone = usePhoneLayout()
-  const [rangeMenuOpen, setRangeMenuOpen] = useState(false)
+  const [open, setOpen] = useState(false)
   // The desktop menu unmounts on a phone layout. Closing it here stops it reopening on widening.
   useEffect(() => {
-    if (phone) setRangeMenuOpen(false)
+    if (phone) setOpen(false)
   }, [phone])
   // T opens the menu from wherever focus is, such as a table row, and closing goes back there.
   const focusBeforeShortcut = useRef<HTMLElement | null>(null)
@@ -53,98 +66,94 @@ export function TimeRangeToolbar() {
           const active = document.activeElement
           focusBeforeShortcut.current =
             active instanceof HTMLElement && active !== document.body ? active : null
-          setRangeMenuOpen(true)
+          setOpen(true)
         },
   )
-
+  const name = range === "custom" ? null : timeRangeName(range)
+  const span = timeRangeSpan(range, customRange, lastRefresh, timeFormat)
   return (
-    <>
-      {/* Desktop Layout */}
-      <div className="hidden md:flex phone:hidden items-center gap-2">
-        {/* Time Range Dropdown Menu */}
-        <TimeRangePicker
-          open={rangeMenuOpen}
-          onOpenChange={setRangeMenuOpen}
-          onCloseAutoFocus={(event) => {
-            const target = focusBeforeShortcut.current
-            focusBeforeShortcut.current = null
-            if (!target?.isConnected) return
-            event.preventDefault()
-            target.focus({ preventScroll: true })
-          }}
-          trigger={
-            <Button variant="outline" size="sm" className="flex items-center gap-2">
-              <Filter className="w-4 h-4" />
-              <span className="text-xs">{rangeLabel}</span>
-            </Button>
-          }
-        />
-
-        <Separator orientation="vertical" className="h-6" />
-
-        {/* Refresh Button */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="outline"
-              size="icon-sm"
-              onClick={refresh}
-              disabled={isFetching > 0}
-              className="shrink-0"
-            >
-              <RotateCw className={cn("h-3.5 w-3.5", isFetching > 0 && "animate-spin")} />
-              <span className="sr-only">Refresh data</span>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Refresh now</TooltipContent>
-        </Tooltip>
-
-        {/* Poll Interval Select */}
-        <Select
-          value={String(pollInterval)}
-          onValueChange={(value) => setPollInterval(Number(value))}
+    <TimeRangePicker
+      align="end"
+      open={open}
+      onOpenChange={setOpen}
+      onCloseAutoFocus={(event) => {
+        const target = focusBeforeShortcut.current
+        focusBeforeShortcut.current = null
+        if (!target?.isConnected) return
+        event.preventDefault()
+        target.focus({ preventScroll: true })
+      }}
+      trigger={
+        <Button
+          variant="outline"
+          className="h-9 gap-2 px-3 text-[13px]"
+          aria-label={`Time range: ${[name, span].filter(Boolean).join(", ")}`}
         >
-          <SelectTrigger size="sm" className="w-[80px] text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {POLL_INTERVAL_OPTIONS.map((option) => (
-              <SelectItem key={option.value} value={String(option.value)}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          <CalendarDays aria-hidden className="size-4 text-muted-foreground" />
+          {name && <span className="font-semibold">{name}</span>}
+          <span className={cn("tabular-nums", name && "text-muted-foreground")}>{span}</span>
+          <ChevronDown aria-hidden className="size-3.5 text-muted-foreground" />
+        </Button>
+      }
+    />
+  )
+}
 
-        {/* Chart Granularity Select */}
-        {showGranularity && (
-          <Select
-            value={granularity}
-            onValueChange={(value) => setGranularity(value as ChartGranularity)}
+/** Refresh now, and auto refresh as a menu beside it. */
+function RefreshSplitButton() {
+  const { refresh, pollInterval, setPollInterval } = useTimeRange()
+  const isFetching = useIsFetching()
+  const interval = POLL_INTERVAL_OPTIONS.find((option) => option.value === pollInterval)
+  const autoLabel = pollInterval > 0 ? `Auto ${interval?.label ?? ""}`.trim() : "Auto off"
+  return (
+    <ButtonGroup>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="outline"
+            size="icon"
+            className="size-9"
+            onClick={refresh}
+            disabled={isFetching > 0}
           >
-            <SelectTrigger size="sm" className="w-[90px] text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {CHART_GRANULARITY_OPTIONS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      </div>
-
-      {/* Phones: a refresh button and a range pill that opens one drawer
-          for the range, auto refresh and chart buckets. Pages that don't
-          follow the range show neither. */}
-      {routeHeader.timeRange && (
-        <div className="md:hidden phone:flex flex items-center gap-1.5">
-          <PhoneTimeRangeControls />
-        </div>
-      )}
-    </>
+            <RotateCw className={cn("size-4", isFetching > 0 && "animate-spin")} />
+            <span className="sr-only">Refresh now</span>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Refresh now</TooltipContent>
+      </Tooltip>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="outline"
+            className="h-9 gap-1.5 px-3 text-[13px]"
+            aria-label={`Auto refresh, ${pollInterval > 0 ? `every ${interval?.label}` : "off"}`}
+          >
+            {autoLabel}
+            <ChevronDown aria-hidden className="size-3.5 text-muted-foreground" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="min-w-36">
+          <DropdownMenuLabel className="text-xs text-muted-foreground">
+            Auto refresh
+          </DropdownMenuLabel>
+          <DropdownMenuRadioGroup
+            value={String(pollInterval)}
+            onValueChange={(value) => setPollInterval(Number(value))}
+          >
+            {POLL_INTERVAL_OPTIONS.map((option) => (
+              <DropdownMenuRadioItem
+                key={option.value}
+                value={String(option.value)}
+                className="text-[13px]"
+              >
+                {option.value === 0 ? "Off" : `Every ${option.label}`}
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </ButtonGroup>
   )
 }
 

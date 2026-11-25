@@ -75,6 +75,14 @@ async function mockSeries(page: Page) {
   return { requests, gate }
 }
 
+/** The range button's name for a preset label: "7d" reads "Last 7 days". */
+function rangeName(label: string): string {
+  const match = /^(\d+)([mhd])$/.exec(label)
+  if (!match) return label
+  const unit = { m: "minute", h: "hour", d: "day" }[match[2] as "m" | "h" | "d"]
+  return match[1] === "1" ? `Last ${unit}` : `Last ${match[1]} ${unit}s`
+}
+
 function totalEventsChart(page: Page): Locator {
   return page
     .locator('[data-slot="card"]', { has: page.getByText("Total Events", { exact: true }) })
@@ -82,7 +90,11 @@ function totalEventsChart(page: Page): Locator {
 }
 
 async function chooseRange(page: Page, current: string, label: string) {
-  await page.getByRole("button", { name: current, exact: true }).click()
+  await page
+    .locator("header")
+    .first()
+    .getByRole("button", { name: new RegExp(`^Time range: ${rangeName(current)},`) })
+    .click()
   await page.getByRole("menuitem", { name: label, exact: true }).click()
 }
 
@@ -145,8 +157,8 @@ test.describe("geo logs card charts", () => {
     await expect(chart.locator(".recharts-area")).toBeVisible()
     await markChart(chart)
 
-    await page.getByRole("combobox").filter({ hasText: "Auto" }).click()
-    await page.getByRole("option", { name: "Daily", exact: true }).click()
+    await page.getByRole("button", { name: /^Chart buckets: Auto/ }).click()
+    await page.getByRole("menuitemradio", { name: "Daily", exact: true }).click()
     await expect
       .poll(() => requests.map((request) => request.granularity))
       .toEqual(["hourly", "daily"])

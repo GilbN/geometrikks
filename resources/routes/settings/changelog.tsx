@@ -4,10 +4,7 @@ import { SettingsPage } from "@/components/settings/settings-page"
 
 export const Route = createFileRoute("/settings/changelog")({
   component: () => (
-    <SettingsPage
-      title="Changelog"
-      subtitle="What changed in each release, and which one this install is running."
-    >
+    <SettingsPage subtitle="What changed in each release, and which one this install is running.">
       <ChangelogPage />
     </SettingsPage>
   ),

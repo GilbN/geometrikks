@@ -15,7 +15,6 @@ function ApiKeysRoute() {
   const [layoutRef, narrow] = useNarrowLayout<HTMLDivElement>()
   return (
     <SettingsPage
-      title="API keys"
       subtitle="For scripts, monitors and dashboards. Browser logins don't use them."
       subtitleOnPhone
       actions={

@@ -11,7 +11,6 @@ function MutedIpsRoute() {
   const [layoutRef, narrow] = useNarrowLayout<HTMLDivElement>()
   return (
     <SettingsPage
-      title="Muted IPs"
       subtitle="Hidden from Access Logs, Geo Logs and Analytics while their Muted IPs switch is on. Rows are still stored."
       subtitleOnPhone
     >

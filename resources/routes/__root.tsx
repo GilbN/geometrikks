@@ -17,12 +17,12 @@ import {
   BreadcrumbItem,
   BreadcrumbLink,
   BreadcrumbList,
-  BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
 import { Separator } from "@/components/ui/separator"
+import { BadgeHint } from "@/components/badge-hint"
+import { usePageSubtitle } from "@/lib/page-heading"
 import { AppSidebar } from "@/components/app-sidebar"
-import { ModeToggle } from "@/components/mode-toggle"
 import { TimeRangeProvider } from "@/lib/time-range-context"
 import { LiveFeedProvider } from "@/lib/live-feed-context"
 import { TimeRangeToolbar } from "@/components/time-range-toolbar"
@@ -77,25 +77,26 @@ const routeLabels: Record<string, string> = {
   "/login": "Login",
 }
 
+/** The page name as the document's h1, with the page's subtitle as a hint
+ *  on hover, focus or tap. Settings pages put "Settings" before it. */
 function AppBreadcrumb() {
   const pathname = useRouterState({ select: (state) => state.location.pathname })
   const currentLabel = routeLabels[pathname] || "Page"
   const isSettingsChild = pathname.startsWith("/settings/")
+  const subtitle = usePageSubtitle()
 
   return (
-    <Breadcrumb className="min-w-0 flex-1">
-      <BreadcrumbList className="min-w-0 flex-nowrap overflow-hidden">
-        <BreadcrumbItem className="hidden md:block phone-side:hidden">
-          <BreadcrumbLink href="/">GeoMetrikks</BreadcrumbLink>
-        </BreadcrumbItem>
-        <BreadcrumbSeparator className="hidden md:block phone-side:hidden" />
-        {isSettingsChild && (
-          <>
-            <BreadcrumbItem className="hidden md:block phone-side:hidden">
-              <BreadcrumbLink href="/settings">Settings</BreadcrumbLink>
+    <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2.5">
+      {isSettingsChild && (
+        <Breadcrumb className="shrink-0">
+          <BreadcrumbList className="flex-nowrap">
+            <BreadcrumbItem className="hidden md:block phone:hidden">
+              <BreadcrumbLink asChild>
+                <Link to="/settings">Settings</Link>
+              </BreadcrumbLink>
             </BreadcrumbItem>
             <BreadcrumbItem className="hidden phone-side:block">Settings</BreadcrumbItem>
-            <BreadcrumbSeparator className="hidden md:block phone-side:block" />
+            <BreadcrumbSeparator className="hidden md:block phone:hidden phone-side:block" />
             {/* Portrait phones have no settings nav on the page; this goes back to the list. */}
             <BreadcrumbItem className="md:hidden phone-side:hidden">
               <BreadcrumbLink asChild>
@@ -106,13 +107,19 @@ function AppBreadcrumb() {
               </BreadcrumbLink>
             </BreadcrumbItem>
             <BreadcrumbSeparator className="md:hidden phone-side:hidden" />
-          </>
+          </BreadcrumbList>
+        </Breadcrumb>
+      )}
+      <h1 className="min-w-0 truncate text-sm text-foreground md:text-[17px] md:font-semibold phone:text-sm phone:font-normal">
+        {subtitle ? (
+          <BadgeHint hint={subtitle} hover="tooltip" side="bottom">
+            <span className="cursor-default rounded-sm outline-offset-2">{currentLabel}</span>
+          </BadgeHint>
+        ) : (
+          currentLabel
         )}
-        <BreadcrumbItem className="min-w-0">
-          <BreadcrumbPage className="block truncate">{currentLabel}</BreadcrumbPage>
-        </BreadcrumbItem>
-      </BreadcrumbList>
-    </Breadcrumb>
+      </h1>
+    </div>
   )
 }
 
@@ -306,12 +313,6 @@ function RootLayout() {
                             </div>
                             <div className="flex shrink-0 items-center gap-1 sm:gap-3">
                               <TimeRangeToolbar />
-                              {/* Phones switch the color scheme on Settings > Appearance;
-                      the header keeps its room for the range and refresh. */}
-                              <div className="hidden md:contents phone:hidden">
-                                <Separator orientation="vertical" className="h-6" />
-                                <ModeToggle />
-                              </div>
                             </div>
                           </header>
                         )}

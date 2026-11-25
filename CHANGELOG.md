@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A user row at the bottom of the sidebar opens a menu with the color scheme, what's new, the docs and Log out.
 - Byte counts under 1 KB show as whole bytes, `455 B` instead of `455.0 B`, everywhere the app shows sizes. Table headers are all upper case.
 - The sidebar status row keeps showing requests per minute when it moves above the links (degraded, needs attention or offline).
+- On desktop, the app bar and page title merge into one top bar with the page name, a time range button showing its span, and a split refresh and auto-refresh button. Hovering the page name, or tapping it on a phone, shows the page description, and Security and Settings hide the range and refresh controls. Chart buckets move from the bar to a Buckets menu beside the Charts switch on Overview, and to each chart's Hourly or Daily label on Analytics and Geo Logs.
 
 ## [0.26.0] - 2026-11-23
 

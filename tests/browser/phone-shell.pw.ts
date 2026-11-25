@@ -91,7 +91,7 @@ test.describe("portrait phone", () => {
     const title = (await page
       .locator("header")
       .first()
-      .locator('[aria-current="page"]')
+      .getByRole("heading", { level: 1 })
       .boundingBox())!
     expect(title.x).toBe(16)
 

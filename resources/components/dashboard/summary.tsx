@@ -14,6 +14,8 @@ import {
 } from "@/components/dashboard/summary-sections"
 import { TrafficOriginStats } from "@/components/dashboard/traffic-origin-stats"
 import { PageHeader } from "@/components/page-header"
+import { ChartBucketsMenu } from "@/components/chart-buckets-menu"
+import { usePhoneLayout } from "@/hooks/use-phone-map"
 import { ErrorBanner } from "@/components/error-banner"
 
 export function Summary() {
@@ -27,6 +29,7 @@ export function Summary() {
     comparePrevious: true,
   })
   const [chartsOn] = useCardCharts("overview")
+  const phone = usePhoneLayout()
   const sparklines = useOverviewSparklines({ enabled: chartsOn })
 
   const section = {
@@ -41,7 +44,6 @@ export function Summary() {
     <TooltipProvider>
       <div className="p-4 md:p-6 phone-side:p-4 space-y-6">
         <PageHeader
-          title="Overview"
           subtitle="Traffic, status codes and response times for the selected range."
           meta={
             summary ? (
@@ -52,7 +54,6 @@ export function Summary() {
               !isError && <Skeleton className="h-6 w-72 max-w-full rounded-md" />
             )
           }
-          actions={<CardChartsSwitch page="overview" />}
         />
 
         {isError && (
@@ -66,7 +67,17 @@ export function Summary() {
             is the order on screen in both the loading and loaded states.
             Traffic Origin has its own query and its own states; it is not
             gated on /summary so its request starts with the others. */}
-        <TrafficOverviewSection {...section} />
+        <TrafficOverviewSection
+          {...section}
+          actions={
+            phone ? undefined : (
+              <>
+                <ChartBucketsMenu />
+                <CardChartsSwitch page="overview" />
+              </>
+            )
+          }
+        />
         <TrafficOriginStats />
         <HttpStatusSection {...section} />
         <PerformanceSection {...section} />

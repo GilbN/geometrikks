@@ -5,11 +5,13 @@ description: What each page in the GeoMetrikks web UI shows, in the order the na
 
 The sidebar lists the pages in this order. On a phone the tab bar holds Overview, Map, Access Logs and either Security or Analytics, and More holds the rest. Security only appears once CrowdSec is set up or AbuseIPDB reporting is on, and then takes the fourth place in the tab bar. Without either, Analytics takes it.
 
-Most pages read the time range picker in the header, and Access Logs, Geo Logs, Analytics and the map keep their filters in the page URL, so a filtered view is a link you can share. Wherever an IP address appears in a table, the button after it opens the IP actions menu. The [IP inspector](./ip-inspector.mdx) page covers what it offers.
+The top bar shows the current page name. Hovering it on desktop or tapping it on a phone shows the page's description. On desktop, the bar also holds the time range button, which names the range and the dates or times it covers, and a split button for refresh and auto refresh. Pages that don't use the time range, Security and Settings, show no range or refresh controls.
+
+Most pages read the time range in the top bar, and Access Logs, Geo Logs, Analytics and the map keep their filters in the page URL, so a filtered view is a link you can share. Wherever an IP address appears in a table, the button after it opens the IP actions menu. The [IP inspector](./ip-inspector.mdx) page covers what it offers.
 
 ## Overview
 
-Traffic, status codes and response times for the selected range, each figure with its trend against the previous range of the same length. The page has four sections: Traffic Overview, Traffic Origin, HTTP Status Codes, and Performance & Bandwidth. The Charts switch in the header draws a small chart under each figure; on a phone it is in the time range drawer.
+Traffic, status codes and response times for the selected range, each figure with its trend against the previous range of the same length. The page has four sections: Traffic Overview, Traffic Origin, HTTP Status Codes, and Performance & Bandwidth. The Charts switch at the end of the Traffic Overview heading row draws a small chart under each figure, and the Buckets menu beside it sets Auto, Hourly or Daily buckets. On a phone, both controls sit in the time range drawer.
 
 <Screenshot scene="dashboard" />
 
@@ -47,7 +49,7 @@ Live tail shows new requests as your proxy logs them. It keeps the most recent f
 
 ## Geo Logs
 
-Traffic grouped by location and IP: where requests come from, how that changes over time, and which clients come back. The page has a map preview, cards for total events, unique IPs, countries and cities, an event chart, Top IPs, and Top locations with Countries, Cities and ASNs tabs. The ASNs tab has an abuse report button on each row; see [Abuse reports](./abuse-reports.mdx). The table below lists one row per location and IP.
+Traffic grouped by location and IP: where requests come from, how that changes over time, and which clients come back. The page has a map preview, cards for total events, unique IPs, countries and cities, an event chart, Top IPs, and Top locations with Countries, Cities and ASNs tabs. On desktop, the event chart's Hourly or Daily label opens the bucket choice for all charts. The ASNs tab has an abuse report button on each row; see [Abuse reports](./abuse-reports.mdx). The table below lists one row per location and IP.
 
 <Screenshot scene="geo-logs" />
 
@@ -63,7 +65,7 @@ With `LOGPARSER_STORE_DEBUG_LINES=true` the parser stores every line here as wel
 
 Charts and top lists for the range, all following one filter set: IP address, Exclude IP, host, Exclude host, country, city, ASN and Exclude ASN, plus the [Muted IPs](./muted-ips.mdx) switch when your list has entries. Host picks from the hosts the server has logged. On a wide screen, Exclude host takes typed text. In the phone Filters drawer it picks from the same list. Both match the logged Host value exactly. Excluding a host keeps requests that have no host.
 
-- **Traffic** has the Requests, Status classes, Bandwidth and Request latency charts.
+- **Traffic** has the Requests, Status classes, Bandwidth and Request latency charts. On desktop, each chart's Hourly or Daily label opens the bucket choice for all charts.
 - **Top Lists** has Top IPs, Top Countries / Cities, Top URLs with one row per host and path, and Top user agents. Top IPs shows how many unique IPs the filtered view covers in its header, counting IPs beyond the ones listed. Top Countries counts each country's errors, the requests with status 400 or higher. Each Top URLs row that has a host has a menu that filters by that host or excludes it. When you pick two or more hosts in the Host filter, Top URLs adds up each path across those hosts and drops its Host column. Excluding hosts never merges paths.
 - **Traffic Origin** has the hosting and DROP split and Top ASNs. Each Top ASNs row has an abuse report button.
 

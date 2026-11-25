@@ -40,12 +40,15 @@ interface SectionProps {
   /** Wording for a trend against the span before, e.g. "vs last 24h". */
   compareLabel: string
   sparklines: CardSparklines<OverviewSparklines>
+  /** Page controls at the end of the first section's heading. */
+  actions?: React.ReactNode
 }
 
 /** Header plus grid; skeletons while loading, nothing on error (the page
  *  shows one error card for all summary sections). */
 function Section({
   title,
+  actions,
   gridClassName,
   skeletons,
   sparklines,
@@ -53,6 +56,7 @@ function Section({
   children,
 }: {
   title: string
+  actions?: React.ReactNode
   gridClassName: string
   skeletons: number
   sparklines: boolean
@@ -62,7 +66,7 @@ function Section({
   if (!children && !isLoading) return null
   return (
     <>
-      <SectionHeader>{title}</SectionHeader>
+      <SectionHeader actions={actions}>{title}</SectionHeader>
       <StatGrid className={gridClassName}>
         {children ??
           Array.from({ length: skeletons }, (_, i) => (
@@ -81,12 +85,14 @@ export function TrafficOverviewSection({
   isLoading,
   rangeSubtitle,
   sparklines,
+  actions,
 }: SectionProps) {
   const cur = summary?.currentPeriod
   const chg = summary?.percentChanges
   return (
     <Section
       title="Traffic Overview"
+      actions={actions}
       gridClassName="lg:grid-cols-4"
       skeletons={4}
       sparklines={sparklines.shown}

@@ -105,10 +105,7 @@ function AccessLogsPage() {
       toggleMuted={toggleMuted}
     >
       <div className="p-4 space-y-4">
-        <PageHeader
-          title="Access Logs"
-          subtitle="Explore request history or follow new traffic as it arrives."
-        />
+        <PageHeader subtitle="Explore request history or follow new traffic as it arrives." />
         {/* On a phone the filter bar is a single Filters button, so it shares
             the row with the tabs. */}
         <div className="space-y-4 phone:flex phone:flex-wrap phone:items-center phone:justify-between phone:gap-3 phone:space-y-0">

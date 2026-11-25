@@ -92,8 +92,8 @@ test.describe("overview card charts", () => {
       element.dataset.marked = "true"
     })
 
-    await page.getByRole("combobox").filter({ hasText: "Auto" }).click()
-    await page.getByRole("option", { name: "Daily", exact: true }).click()
+    await page.getByRole("button", { name: /^Buckets/ }).click()
+    await page.getByRole("menuitemradio", { name: "Daily", exact: true }).click()
     await expect.poll(() => requests.filter((request) => request.endsWith(":daily")).length).toBe(2)
     await expect
       .poll(() => chart.evaluate((element: HTMLElement) => element.dataset.marked === "true"))

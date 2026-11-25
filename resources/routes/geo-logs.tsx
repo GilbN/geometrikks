@@ -92,7 +92,6 @@ function GeoLogsPage() {
     >
       <div className="p-4 space-y-4">
         <PageHeader
-          title="Geo Logs"
           subtitle="Trace where traffic originates, how locations change over time, and which clients recur."
           // Phones set this in the range drawer. Leaving it out there lets the
           // header, which has nothing else to show on a phone, take no space.

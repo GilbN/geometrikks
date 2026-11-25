@@ -18,10 +18,12 @@ function openOnKey(event: KeyboardEvent<HTMLElement>) {
 function TapHint({
   hint,
   holdsLink,
+  side,
   children,
 }: {
   hint: string
   holdsLink: boolean
+  side?: "top" | "bottom"
   children: ReactElement
 }) {
   const [open, setOpen] = useState(false)
@@ -54,6 +56,7 @@ function TapHint({
       </PopoverTrigger>
       <PopoverContent
         ref={contentRef}
+        side={side}
         collisionPadding={8}
         sideOffset={6}
         onOpenAutoFocus={(event) => event.preventDefault()}
@@ -75,9 +78,12 @@ export function BadgeHint({
   hover = "title",
   tappable = true,
   holdsLink = false,
+  side,
   children,
 }: {
   hint: string
+  /** Where the hint opens. A hint at the top of the screen opens below. */
+  side?: "top" | "bottom"
   hover?: "title" | "tooltip"
   /** Off when the badge sits inside a button, whose tap must still work. */
   tappable?: boolean
@@ -88,7 +94,7 @@ export function BadgeHint({
   const noHover = useMediaQuery(NO_HOVER_QUERY)
   if (noHover && tappable)
     return (
-      <TapHint hint={hint} holdsLink={holdsLink}>
+      <TapHint hint={hint} holdsLink={holdsLink} side={side}>
         {children}
       </TapHint>
     )
@@ -98,7 +104,9 @@ export function BadgeHint({
         <TooltipTrigger asChild tabIndex={0}>
           {children}
         </TooltipTrigger>
-        <TooltipContent className="max-w-xs">{hint}</TooltipContent>
+        <TooltipContent side={side} className="max-w-xs">
+          {hint}
+        </TooltipContent>
       </Tooltip>
     )
   }

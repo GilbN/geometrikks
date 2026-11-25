@@ -34,11 +34,13 @@ import {
   CHART_GRANULARITY_OPTIONS,
   POLL_INTERVAL_OPTIONS,
   TIME_RANGE_PRESETS,
+  parseTimeRange,
   type ChartGranularity,
   type CustomTimeRange,
   type TimeRangeValue,
 } from "@/lib/api"
 import { useTimeRange } from "@/lib/time-range-context"
+import type { TimeFormat } from "@/lib/table-view"
 import { cn } from "@/lib/utils"
 import { useOverlayEntry } from "@/lib/overlay-history"
 
@@ -47,6 +49,46 @@ export function timeRangeLabel(range: TimeRangeValue, customRange: CustomTimeRan
   return range === "custom" && customRange
     ? `${new Date(customRange.from).toLocaleDateString(undefined, { month: "short", day: "numeric" })} → ${new Date(customRange.to).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
     : TIME_RANGE_PRESETS.find((p) => p.value === range)?.label || "Range"
+}
+
+const UNITS: Record<string, [string, string]> = {
+  m: ["minute", "minutes"],
+  h: ["hour", "hours"],
+  d: ["day", "days"],
+}
+
+/** "Last 7 days", "Last hour", "Today": the preset's name in words. */
+export function timeRangeName(range: TimeRangeValue): string {
+  const relative = /^(\d+)([mhd])$/.exec(range)
+  if (relative) {
+    const count = Number(relative[1])
+    const [one, many] = UNITS[relative[2]]
+    return count === 1 ? `Last ${one}` : `Last ${count} ${many}`
+  }
+  return TIME_RANGE_PRESETS.find((preset) => preset.value === range)?.label ?? "Range"
+}
+
+/**
+ * The span the range covers right now: "Nov 7 – Nov 14", or the clock times
+ * when it starts and ends on the same day.
+ */
+export function timeRangeSpan(
+  range: TimeRangeValue,
+  customRange: CustomTimeRange | null,
+  now: number,
+  timeFormat: TimeFormat,
+): string {
+  const { startDate, endDate } = parseTimeRange(range, now, customRange)
+  const start = new Date(startDate)
+  const end = new Date(endDate)
+  const sameDay = start.toDateString() === end.toDateString()
+  const format = (date: Date) =>
+    sameDay
+      ? timeFormat === "browser"
+        ? date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
+        : `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`
+      : date.toLocaleDateString(undefined, { month: "short", day: "numeric" })
+  return `${format(start)} – ${format(end)}`
 }
 
 function CustomRangeFields({
