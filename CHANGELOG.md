@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `GET /api/v1/crowdsec/alerts/daily` returns daily CrowdSec alert counts for scripts, and `GET /api/v1/crowdsec/stats` adds the active decision split and the count of decisions expiring soon.
 - A View menu replaces the Columns button on Access Logs, Geo Logs and Debug Logs, and Settings > Logs has one with Rows and Time. Rows can be Compact, the default with a mouse, or Comfortable. The log tables share 24-hour time by default, and Combined columns are the default on Access Logs (Request, Client, Location), Geo Logs (Location, Client, Coordinates) and Debug Logs (Result, Request, Client).
 - Desktop keyboard shortcuts move between pages (`G` then a letter), focus the page filter (`/`), open the time range (`T`) and step through log table rows (`J` and `K`). Press `?`, or pick Keyboard shortcuts in the user menu, for the full list. Settings > Appearance turns single-key shortcuts off if they clash with a browser extension. [Keyboard shortcuts](https://geometrikks.dev/docs/features/keyboard-shortcuts) lists every key.
+- `Ctrl+K` (`Cmd+K` on a Mac) or the desktop top-bar search field opens a search-and-commands palette from any page, even in a field or with single-key shortcuts off. Type to jump to a sidebar page, change the time range, ban an IP or range with CrowdSec write access, or start the live tail. See [Keyboard shortcuts](https://geometrikks.dev/docs/features/keyboard-shortcuts#search-and-commands).
 
 ### Changed
 

@@ -13,6 +13,12 @@ import { toast } from "sonner"
 import { BanIpDialog } from "@/components/security/ban-ip-dialog"
 import { ShortcutsDialog } from "@/components/shortcuts/shortcuts-dialog"
 import {
+  CommandPalette,
+  closeCommandPalette,
+  commandPaletteOpen,
+  openCommandPalette,
+} from "@/components/command-palette/command-palette"
+import {
   filterCellUnderPointer,
   focusPageFilter,
   moveRow,
@@ -32,6 +38,7 @@ import {
   MODIFIER_KEYS,
   SEQUENCE_TIMEOUT_MS,
   isInOverlay,
+  isPaletteKey,
   isTypingTarget,
   matchKey,
   modalLayerOpen,
@@ -93,6 +100,15 @@ export function useShortcutAction(id: ShortcutId, handler: Handler | null): void
     if (!active) return
     return register(id, () => handlerRef.current?.())
   }, [id, active])
+}
+
+let runBuiltIn: ((id: ShortcutId) => boolean) | null = null
+
+/** Runs a shortcut's action as if its keys were pressed, for the command palette. */
+export function runShortcut(id: ShortcutId): boolean {
+  const handler = registered.get(id)?.at(-1)
+  if (handler) return handler() !== false
+  return runBuiltIn?.(id) ?? false
 }
 
 export function KeyboardShortcuts() {
@@ -199,6 +215,13 @@ export function KeyboardShortcuts() {
     [navigate, router, queryClient, refresh, inspect],
   )
 
+  useEffect(() => {
+    runBuiltIn = builtIn
+    return () => {
+      runBuiltIn = null
+    }
+  }, [builtIn])
+
   useEffect(() => trackPointer(), [])
   // A sign-out unmounts the shell. Closing here keeps the sheet shut after the next sign-in.
   useEffect(() => () => setCheatSheetOpen(false), [])
@@ -210,6 +233,15 @@ export function KeyboardShortcuts() {
     }
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.isComposing) return
+      // Ctrl+K works in fields too, and toggles the palette closed again.
+      if (isPaletteKey(event)) {
+        if (commandPaletteOpen()) closeCommandPalette()
+        else if (modalLayerOpen()) return
+        else openCommandPalette()
+        event.preventDefault()
+        clearPrefix()
+        return
+      }
       if (isTypingTarget(event.target) || isInOverlay(event.target) || modalLayerOpen()) {
         clearPrefix()
         return
@@ -252,6 +284,7 @@ export function KeyboardShortcuts() {
         onCloseAutoFocus={restoreFocus}
       />
       <BanIpDialog open={banOpen} onOpenChange={setBanOpen} returnFocusTo={banReturnFocus} />
+      <CommandPalette />
     </>
   )
 }

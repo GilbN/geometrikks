@@ -7,6 +7,7 @@
 export type ShortcutGroup = "anywhere" | "goto" | "tables"
 
 export type ShortcutId =
+  | "palette"
   | "focus-filter"
   | "time-range"
   | "refresh"
@@ -47,6 +48,14 @@ export interface Shortcut {
 }
 
 export const SHORTCUTS: readonly Shortcut[] = [
+  {
+    id: "palette",
+    group: "anywhere",
+    label: "Search and commands",
+    keys: ["k"],
+    mod: true,
+    external: true,
+  },
   { id: "focus-filter", group: "anywhere", label: "Focus the page filter", keys: ["/"] },
   { id: "time-range", group: "anywhere", label: "Change the time range", keys: ["t"] },
   { id: "refresh", group: "anywhere", label: "Refresh now", keys: ["r"] },
@@ -212,6 +221,16 @@ export function matchKey(event: KeyInput, pendingPrefix: string | null): MatchRe
   if (!shortcut) return { kind: "none" }
   if (event.repeat && !REPEATABLE.has(shortcut.id)) return { kind: "none" }
   return { kind: "match", shortcut }
+}
+
+/** Ctrl+K, or Cmd+K on a Mac, with no other modifier. */
+export function isPaletteKey(event: KeyInput & { shiftKey?: boolean }): boolean {
+  return (
+    (event.ctrlKey || event.metaKey) &&
+    !event.altKey &&
+    !event.shiftKey &&
+    (event.key.toLowerCase() === "k" || event.code === "KeyK")
+  )
 }
 
 /** Whether keys typed here belong to the element, not to the shortcuts. */
