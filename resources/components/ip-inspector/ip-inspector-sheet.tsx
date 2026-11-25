@@ -73,14 +73,25 @@ export function IpInspectorSheet() {
 
   // What was selected before the first bar zoom, so "Back" restores it exactly.
   // Kept while the docked inspector switches IPs, since the zoom set the page's range too.
-  const [beforeZoom, setBeforeZoom] = useState<RangeSelection | null>(null)
+  const [beforeZoom, setBeforeZoom] = useState<ZoomOrigin | null>(null)
   useEffect(() => {
     if (open) return
     setBeforeZoom(null)
     setFocusDockToggle(false)
   }, [open])
+  // A range picked anywhere else replaces the zoom, and Back would undo that pick.
+  useEffect(() => {
+    setBeforeZoom((prev) =>
+      prev &&
+      range === "custom" &&
+      customRange?.from === prev.zoomed.from &&
+      customRange?.to === prev.zoomed.to
+        ? prev
+        : null,
+    )
+  }, [range, customRange])
   const zoomTo = (from: string, to: string) => {
-    setBeforeZoom((prev) => prev ?? { range, customRange })
+    setBeforeZoom((prev) => ({ ...(prev ?? { range, customRange }), zoomed: { from, to } }))
     setCustomRange({ from, to })
   }
   const restore = () => {
@@ -150,6 +161,7 @@ function sheetSubtitle(range: TimeRangeValue, customRange: CustomTimeRange | nul
 }
 
 type RangeSelection = { range: TimeRangeValue; customRange: CustomTimeRange | null }
+type ZoomOrigin = RangeSelection & { zoomed: { from: string; to: string } }
 
 /** The sheet subtitle doubles as the range picker; "Back" appears only after a bar zoom. */
 function SheetRangeControls({

@@ -158,3 +158,13 @@ test("an open inspector moves between dock and overlay as the window crosses 160
   await expect(dock(page)).toHaveAccessibleName(startsWith(ips[0]))
   expect(errors).toEqual([])
 })
+
+test("Back with focus in the dock hands focus to the page", async ({ page }) => {
+  await openAccessLogs(page)
+  const opener = page.getByRole("button", { name: `Actions for ${ips[0]}` })
+  await inspect(page, ips[0])
+  await dock(page).getByRole("button", { name: "Undock the inspector" }).focus()
+  await page.goBack()
+  await expect(dock(page)).toHaveCount(0)
+  await expect(opener).toBeFocused()
+})

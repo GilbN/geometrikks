@@ -22,7 +22,7 @@ export function InspectorDock({
   actions?: ReactNode
   footer?: ReactNode
   onClose: () => void
-  /** The page element that takes focus when the dock closes from inside. */
+  /** The page element that takes focus when the dock closes with focus inside it. */
   returnFocus: () => HTMLElement | null
   /** Focus the dock toggle on mount, for a dock opened from the overlay's toggle. */
   focusToggle: boolean
@@ -47,13 +47,19 @@ export function InspectorDock({
       ?.focus({ preventScroll: true })
   }, [])
 
-  const close = () => {
-    const active = document.activeElement
-    if (!active || active === document.body || asideRef.current?.contains(active)) {
-      returnFocus()?.focus({ preventScroll: true })
+  // On unmount rather than in Close, so Back and a switch to the overlay
+  // hand focus back too. Runs while the dock is still in the document.
+  const returnFocusRef = useRef(returnFocus)
+  useLayoutEffect(() => {
+    returnFocusRef.current = returnFocus
+  })
+  useLayoutEffect(() => {
+    const aside = asideRef.current
+    return () => {
+      if (aside?.contains(document.activeElement))
+        returnFocusRef.current()?.focus({ preventScroll: true })
     }
-    onClose()
-  }
+  }, [])
 
   return (
     <aside
@@ -68,7 +74,7 @@ export function InspectorDock({
         if (event.key !== "Escape" || event.defaultPrevented) return
         if (!event.currentTarget.contains(event.target as Node)) return
         event.preventDefault()
-        close()
+        onClose()
       }}
     >
       <header className="grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 border-b border-border/50 p-4">
@@ -81,7 +87,7 @@ export function InspectorDock({
             variant="ghost"
             size="icon-sm"
             className="-my-1.5 pointer-coarse:-my-3 pointer-coarse:size-11"
-            onClick={close}
+            onClick={onClose}
           >
             <XIcon />
             <span className="sr-only">Close</span>
@@ -153,5 +159,10 @@ export function useLastPageFocus(): () => HTMLElement | null {
     document.addEventListener("focusin", onFocusIn)
     return () => document.removeEventListener("focusin", onFocusIn)
   }, [])
-  return () => (lastRef.current?.isConnected ? lastRef.current : null)
+  // A hidden element, such as a row scrolled out of a virtual table, should
+  // not take focus.
+  return () => {
+    const last = lastRef.current
+    return last?.isConnected && last.checkVisibility?.() !== false ? last : null
+  }
 }
