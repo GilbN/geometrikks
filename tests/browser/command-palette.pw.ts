@@ -48,7 +48,11 @@ test("Ctrl+K closes it again, and works while a field has focus", async ({ page 
 
 test("the search field opens it, and an action runs after it closes", async ({ page }) => {
   await page.goto("/access-logs")
-  await page.locator("header").first().getByRole("button", { name: "Search and commands" }).click()
+  await page
+    .locator("header")
+    .first()
+    .getByRole("button", { name: /^Search pages and actions/ })
+    .click()
   await expect(palette(page)).toBeVisible()
   await palette(page)
     .getByRole("option", { name: /Change the time range/ })
@@ -72,4 +76,25 @@ test("the cheat sheet lists Ctrl+K", async ({ page }) => {
   await expect(
     page.getByRole("dialog", { name: "Keyboard shortcuts" }).getByText("Search and commands"),
   ).toBeVisible()
+})
+
+test("Escape puts focus back where it was", async ({ page }) => {
+  await page.goto("/access-logs")
+  const search = page.getByPlaceholder("URL, referrer or user agent")
+  await search.click()
+  await page.keyboard.press("Control+k")
+  await expect(palette(page)).toBeVisible()
+  await page.keyboard.press("Escape")
+  await expect(palette(page)).toBeHidden()
+  await expect(search).toBeFocused()
+})
+
+test("Enter on All shortcuts opens the cheat sheet, not the highlighted row", async ({ page }) => {
+  await page.goto("/access-logs")
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Access Logs")
+  await page.keyboard.press("Control+k")
+  await palette(page).getByRole("button", { name: "All shortcuts" }).focus()
+  await page.keyboard.press("Enter")
+  await expect(page.getByRole("dialog", { name: "Keyboard shortcuts" })).toBeVisible()
+  await expect(page).toHaveURL(/\/access-logs/)
 })

@@ -223,14 +223,24 @@ export function matchKey(event: KeyInput, pendingPrefix: string | null): MatchRe
   return { kind: "match", shortcut }
 }
 
-/** Ctrl+K, or Cmd+K on a Mac, with no other modifier. */
-export function isPaletteKey(event: KeyInput & { shiftKey?: boolean }): boolean {
-  return (
-    (event.ctrlKey || event.metaKey) &&
-    !event.altKey &&
-    !event.shiftKey &&
-    (event.key.toLowerCase() === "k" || event.code === "KeyK")
-  )
+/** Whether this is a Mac or iPad, where Cmd takes the place of Ctrl. */
+export function applePlatform(): boolean {
+  const platform =
+    (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform ??
+    navigator.platform
+  return /mac|iphone|ipad|ipod/i.test(platform)
+}
+
+/**
+ * Ctrl+K, or Cmd+K on a Mac, with no other modifier. On a Mac, Ctrl+K stays
+ * the system's "delete to end of line" in text fields.
+ */
+export function isPaletteKey(
+  event: KeyInput & { shiftKey?: boolean },
+  apple: boolean = applePlatform(),
+): boolean {
+  const modifier = apple ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey
+  return modifier && !event.altKey && !event.shiftKey && normalize(event.key, event.code) === "k"
 }
 
 /** Whether keys typed here belong to the element, not to the shortcuts. */

@@ -13,11 +13,10 @@ import { toast } from "sonner"
 import { BanIpDialog } from "@/components/security/ban-ip-dialog"
 import { ShortcutsDialog } from "@/components/shortcuts/shortcuts-dialog"
 import {
-  CommandPalette,
   closeCommandPalette,
   commandPaletteOpen,
   openCommandPalette,
-} from "@/components/command-palette/command-palette"
+} from "@/lib/command-palette-store"
 import {
   filterCellUnderPointer,
   focusPageFilter,
@@ -235,10 +234,10 @@ export function KeyboardShortcuts() {
       if (event.defaultPrevented || event.isComposing) return
       // Ctrl+K works in fields too, and toggles the palette closed again.
       if (isPaletteKey(event)) {
-        if (commandPaletteOpen()) closeCommandPalette()
-        else if (modalLayerOpen()) return
-        else openCommandPalette()
         event.preventDefault()
+        if (event.repeat) return
+        if (commandPaletteOpen()) closeCommandPalette()
+        else if (!modalLayerOpen()) openCommandPalette()
         clearPrefix()
         return
       }
@@ -284,7 +283,6 @@ export function KeyboardShortcuts() {
         onCloseAutoFocus={restoreFocus}
       />
       <BanIpDialog open={banOpen} onOpenChange={setBanOpen} returnFocusTo={banReturnFocus} />
-      <CommandPalette />
     </>
   )
 }

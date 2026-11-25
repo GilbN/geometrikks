@@ -35,7 +35,7 @@ import { IpInspectorProvider } from "@/lib/ip-inspector"
 import { OverlayHistoryProvider } from "@/lib/overlay-history"
 import { IpInspectorSheet } from "@/components/ip-inspector/ip-inspector-sheet"
 import { KeyboardShortcuts } from "@/components/shortcuts/keyboard-shortcuts"
-import { CommandPaletteField } from "@/components/command-palette/command-palette"
+import { CommandPalette, CommandPaletteField } from "@/components/command-palette/command-palette"
 import { isChromelessRoute } from "@/lib/auth-redirect"
 import { loadSidebarOpenPreference } from "@/lib/sidebar-preference"
 import {
@@ -351,6 +351,7 @@ function RootLayout() {
                     {phone && <TabBar compact={phoneSide} />}
                     <IpInspectorSheet />
                     <KeyboardShortcuts />
+                    <CommandPalette />
                   </SidebarProvider>
                 </IpInspectorProvider>
               </OverlayHistoryProvider>
