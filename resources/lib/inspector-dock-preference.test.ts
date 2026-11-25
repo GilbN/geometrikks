@@ -28,7 +28,15 @@ describe("inspector dock preference", () => {
     saveInspectorDockedPreference(true)
     expect(loadInspectorDockedPreference()).toBe(true)
   })
-  it("survives a missing localStorage", () => {
+  it("survives blocked storage", () => {
+    vi.stubGlobal("localStorage", {
+      getItem: () => {
+        throw new Error("blocked")
+      },
+      setItem: () => {
+        throw new Error("blocked")
+      },
+    })
     expect(loadInspectorDockedPreference()).toBe(true)
     expect(() => saveInspectorDockedPreference(false)).not.toThrow()
   })

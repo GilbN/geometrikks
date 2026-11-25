@@ -109,3 +109,52 @@ test("below 1600px the inspector stays an overlay with no dock button", async ({
   await expect(dock(page)).toHaveCount(0)
   await expect(dialog.getByRole("button", { name: /Dock the inspector/ })).toHaveCount(0)
 })
+
+test("focus follows the inspector between the overlay and the dock", async ({ page }) => {
+  await openAccessLogs(page)
+  const opener = page.getByRole("button", { name: `Actions for ${ips[0]}` })
+  await inspect(page, ips[0])
+  await dock(page).getByRole("button", { name: "Undock the inspector" }).click()
+  const toggle = page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Dock the inspector beside the page" })
+  await toggle.focus()
+  await page.keyboard.press("Enter")
+  await expect(dock(page).getByRole("button", { name: "Undock the inspector" })).toBeFocused()
+
+  await page.keyboard.press("Escape")
+  await expect(dock(page)).toHaveCount(0)
+  await expect(opener).toBeFocused()
+})
+
+test("the docked body starts at the top for each IP", async ({ page }) => {
+  await page.setViewportSize({ width: 1920, height: 360 })
+  await openAccessLogs(page)
+  await inspect(page, ips[0])
+  const body = dock(page).locator("> div").first()
+  // The test IPs have no traffic, so their profile is too short to scroll.
+  await body.evaluate((element) => {
+    element.style.paddingBottom = "2000px"
+    element.scrollTo({ top: element.scrollHeight })
+  })
+  await expect.poll(() => body.evaluate((element) => element.scrollTop)).toBeGreaterThan(0)
+  await inspect(page, ips[1])
+  await expect(dock(page)).toHaveAccessibleName(startsWith(ips[1]))
+  await expect.poll(() => body.evaluate((element) => element.scrollTop)).toBe(0)
+})
+
+test("an open inspector moves between dock and overlay as the window crosses 1600px", async ({
+  page,
+}) => {
+  const errors: string[] = []
+  page.on("pageerror", (error) => errors.push(error.message))
+  await openAccessLogs(page)
+  await inspect(page, ips[0])
+  await expect(dock(page)).toHaveCount(1)
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await expect(page.getByRole("dialog")).toContainText(ips[0])
+  await expect(dock(page)).toHaveCount(0)
+  await page.setViewportSize({ width: 1920, height: 1080 })
+  await expect(dock(page)).toHaveAccessibleName(startsWith(ips[0]))
+  expect(errors).toEqual([])
+})

@@ -28,6 +28,7 @@ export function DetailSheet({
   actions,
   className,
   historyEntry = true,
+  returnFocus,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -40,13 +41,17 @@ export function DetailSheet({
   className?: string
   /** Off for a sheet whose opener pushes a history entry of its own. */
   historyEntry?: boolean
+  /** Where focus goes on close when every element that opened the sheet is gone. */
+  returnFocus?: () => HTMLElement | null
 }) {
   const openerRef = useRef<HTMLElement[]>([])
+  const contentRef = useRef<HTMLDivElement>(null)
   const overlayId = useId()
   useOverlayEntry(`detail-sheet-${overlayId}`, historyEntry && open, () => onOpenChange(false))
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
+        ref={contentRef}
         side="right"
         size="full-mobile"
         aria-modal="true"
@@ -67,7 +72,11 @@ export function DetailSheet({
         onCloseAutoFocus={(event) => {
           event.preventDefault()
           if (document.querySelector('[data-slot="sheet-content"][data-state="open"]')) return
-          openerRef.current.find((element) => element.isConnected)?.focus({ preventScroll: true })
+          // Something that replaced the sheet, such as the docked inspector, took focus.
+          const active = document.activeElement
+          if (active && active !== document.body && !contentRef.current?.contains(active)) return
+          const target = openerRef.current.find((element) => element.isConnected) ?? returnFocus?.()
+          target?.focus({ preventScroll: true })
         }}
       >
         <SheetHeader className="grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 border-b border-border/50">

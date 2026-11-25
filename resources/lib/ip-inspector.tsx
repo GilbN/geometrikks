@@ -3,9 +3,18 @@
  * the root route so every page inherits it. Where it was opened from (a map
  * location id) is React state only: a pasted link has no origin.
  */
-import { createContext, useCallback, useContext, useMemo, useState } from "react"
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 import { useNavigate, useSearch } from "@tanstack/react-router"
 import { useMediaQuery } from "@/hooks/use-media-query"
+import { usePhoneLayout } from "@/hooks/use-phone-map"
 import { useOverlayEntry, useOverlayHistory } from "@/lib/overlay-history"
 import {
   INSPECTOR_DOCK_QUERY,
@@ -38,13 +47,23 @@ export function IpInspectorProvider({ children }: { children: React.ReactNode })
   const overlays = useOverlayHistory()
   const inspectedIp = useInspectedIp()
   const [originLocationId, setOrigin] = useState<number | null>(null)
-  const canDock = useMediaQuery(INSPECTOR_DOCK_QUERY)
+  const wide = useMediaQuery(INSPECTOR_DOCK_QUERY)
+  const phone = usePhoneLayout()
+  // A phone held sideways can be this wide too; it keeps the phone sheet.
+  const canDock = wide && !phone
   const [dockPreferred, setDockPreferred] = useState(loadInspectorDockedPreference)
   const docked = canDock && dockPreferred
   const setDocked = useCallback((next: boolean) => {
     setDockPreferred(next)
     saveInspectorDockedPreference(next)
   }, [])
+
+  // A ref, so `open` keeps its identity and every row's menu does not
+  // re-render each time the docked inspector switches IPs.
+  const replaceOnOpen = useRef(false)
+  useLayoutEffect(() => {
+    replaceOnOpen.current = docked && inspectedIp !== undefined
+  })
 
   const open = useCallback(
     (nextIp: string, fromLocationId?: number) => {
@@ -56,10 +75,10 @@ export function IpInspectorProvider({ children }: { children: React.ReactNode })
         to: ".",
         search: (prev: Record<string, unknown>) => ({ ...prev, inspect: nextIp }),
         state: overlays.stateFor(INSPECTOR_OVERLAY),
-        replace: docked && inspectedIp !== undefined,
+        replace: replaceOnOpen.current,
       })
     },
-    [navigate, overlays, setOrigin, docked, inspectedIp],
+    [navigate, overlays, setOrigin],
   )
 
   const close = useCallback(() => {

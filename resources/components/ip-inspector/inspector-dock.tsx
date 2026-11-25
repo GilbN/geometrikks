@@ -1,4 +1,4 @@
-import { useId, useRef, type ReactNode } from "react"
+import { useEffect, useId, useLayoutEffect, useRef, type ReactNode } from "react"
 import { PanelRight, XIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -12,6 +12,9 @@ export function InspectorDock({
   actions,
   footer,
   onClose,
+  returnFocus,
+  focusToggle,
+  contentKey,
   children,
 }: {
   title: ReactNode
@@ -19,20 +22,35 @@ export function InspectorDock({
   actions?: ReactNode
   footer?: ReactNode
   onClose: () => void
+  /** The page element that takes focus when the dock closes from inside. */
+  returnFocus: () => HTMLElement | null
+  /** Focus the dock toggle on mount, for a dock opened from the overlay's toggle. */
+  focusToggle: boolean
+  /** The body scrolls back to the top when this changes. */
+  contentKey: string | undefined
   children: ReactNode
 }) {
   const titleId = useId()
   const descriptionId = useId()
   const asideRef = useRef<HTMLElement>(null)
-  // Where focus came from when it entered the dock, so closing the dock
-  // from inside it does not drop focus on the body.
-  const returnFocusRef = useRef<HTMLElement | null>(null)
+  const bodyRef = useRef<HTMLDivElement>(null)
+
+  useLayoutEffect(() => {
+    bodyRef.current?.scrollTo({ top: 0 })
+  }, [contentKey])
+
+  const focusToggleOnMount = useRef(focusToggle)
+  useEffect(() => {
+    if (!focusToggleOnMount.current) return
+    asideRef.current
+      ?.querySelector<HTMLElement>("[data-dock-toggle]")
+      ?.focus({ preventScroll: true })
+  }, [])
 
   const close = () => {
-    const aside = asideRef.current
-    const target = returnFocusRef.current
-    if (aside?.contains(document.activeElement) && target?.isConnected) {
-      target.focus({ preventScroll: true })
+    const active = document.activeElement
+    if (!active || active === document.body || asideRef.current?.contains(active)) {
+      returnFocus()?.focus({ preventScroll: true })
     }
     onClose()
   }
@@ -44,12 +62,6 @@ export function InspectorDock({
       aria-labelledby={titleId}
       aria-describedby={description ? descriptionId : undefined}
       className="flex h-(--app-height) w-[31rem] shrink-0 min-[120rem]:w-[32.5rem] flex-col border-l border-border/50 bg-panel text-sm"
-      onFocus={(event) => {
-        const from = event.relatedTarget
-        if (from instanceof HTMLElement && !event.currentTarget.contains(from)) {
-          returnFocusRef.current = from
-        }
-      }}
       onKeyDown={(event) => {
         // Menus and popovers opened from the dock portal out of it, but React
         // still bubbles their keys here. Escape in one closes only that menu.
@@ -65,7 +77,12 @@ export function InspectorDock({
         </h2>
         <div className={cn("flex items-center gap-1", description && "row-span-2")}>
           {actions}
-          <Button variant="ghost" size="icon-sm" className="-my-1.5" onClick={close}>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="-my-1.5 pointer-coarse:-my-3 pointer-coarse:size-11"
+            onClick={close}
+          >
             <XIcon />
             <span className="sr-only">Close</span>
           </Button>
@@ -76,7 +93,9 @@ export function InspectorDock({
           </p>
         )}
       </header>
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">{children}</div>
+      <div ref={bodyRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
+        {children}
+      </div>
       {footer && <div className="shrink-0 border-t border-border/50 px-4 py-3">{footer}</div>}
     </aside>
   )
@@ -96,7 +115,8 @@ export function DockToggle({
     <Button
       variant="ghost"
       size="icon-sm"
-      className="-my-1.5"
+      className="-my-1.5 pointer-coarse:-my-3 pointer-coarse:size-11"
+      data-dock-toggle=""
       title={label}
       aria-label={label}
       onClick={() => onDockedChange(!docked)}
@@ -104,4 +124,34 @@ export function DockToggle({
       <PanelRight />
     </Button>
   )
+}
+
+const OUTSIDE_PAGE = [
+  '[data-slot="inspector-dock"]',
+  '[role="dialog"]',
+  '[role="alertdialog"]',
+  '[role="menu"]',
+  '[role="listbox"]',
+  "[data-radix-popper-content-wrapper]",
+].join(", ")
+
+/** The last element focused on the page itself, outside the inspector and
+ *  any menu, dialog or popover. The inspector hands focus back to it when
+ *  the element that opened it is gone. */
+export function useLastPageFocus(): () => HTMLElement | null {
+  const lastRef = useRef<HTMLElement | null>(null)
+  useEffect(() => {
+    const onFocusIn = (event: FocusEvent) => {
+      const target = event.target
+      if (
+        target instanceof HTMLElement &&
+        target !== document.body &&
+        !target.closest(OUTSIDE_PAGE)
+      )
+        lastRef.current = target
+    }
+    document.addEventListener("focusin", onFocusIn)
+    return () => document.removeEventListener("focusin", onFocusIn)
+  }, [])
+  return () => (lastRef.current?.isConnected ? lastRef.current : null)
 }

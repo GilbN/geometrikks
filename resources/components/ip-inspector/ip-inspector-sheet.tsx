@@ -41,7 +41,7 @@ import {
 } from "@/lib/queries"
 import { useTimeRange } from "@/lib/time-range-context"
 import { rangeSubtitle } from "@/lib/time-range-labels"
-import { DockToggle, InspectorDock } from "./inspector-dock"
+import { DockToggle, InspectorDock, useLastPageFocus } from "./inspector-dock"
 import { IpLatestRequests } from "./ip-latest-requests"
 import { IpLocationsBlock } from "./ip-locations-block"
 import { IpSignalsStrip } from "./ip-signals-strip"
@@ -60,9 +60,25 @@ export function IpInspectorSheet() {
   const valid = open && isValidIp(ip)
   useCoverBar(open && side)
 
+  const lastPageFocus = useLastPageFocus()
+  const [focusDockToggle, setFocusDockToggle] = useState(false)
+  const dock = () => {
+    setFocusDockToggle(true)
+    setDocked(true)
+  }
+  const undock = () => {
+    setFocusDockToggle(false)
+    setDocked(false)
+  }
+
   // What was selected before the first bar zoom, so "Back" restores it exactly.
+  // Kept while the docked inspector switches IPs, since the zoom set the page's range too.
   const [beforeZoom, setBeforeZoom] = useState<RangeSelection | null>(null)
-  useEffect(() => setBeforeZoom(null), [ip])
+  useEffect(() => {
+    if (open) return
+    setBeforeZoom(null)
+    setFocusDockToggle(false)
+  }, [open])
   const zoomTo = (from: string, to: string) => {
     setBeforeZoom((prev) => prev ?? { range, customRange })
     setCustomRange({ from, to })
@@ -102,7 +118,8 @@ export function IpInspectorSheet() {
         title={title}
         description={description}
         footer={footer}
-        actions={canDock && <DockToggle docked={false} onDockedChange={setDocked} />}
+        actions={canDock && <DockToggle docked={false} onDockedChange={dock} />}
+        returnFocus={lastPageFocus}
         className="sm:w-[min(36rem,100vw)] sm:max-w-xl"
       >
         {body}
@@ -112,8 +129,11 @@ export function IpInspectorSheet() {
           title={title}
           description={description}
           footer={footer}
-          actions={<DockToggle docked onDockedChange={setDocked} />}
+          actions={<DockToggle docked onDockedChange={undock} />}
           onClose={close}
+          returnFocus={lastPageFocus}
+          focusToggle={focusDockToggle}
+          contentKey={ip}
         >
           {body}
         </InspectorDock>
