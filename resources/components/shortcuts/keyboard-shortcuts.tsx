@@ -101,6 +101,20 @@ export function useShortcutAction(id: ShortcutId, handler: Handler | null): void
   }, [id, active])
 }
 
+/**
+ * A modal dialog, sheet or menu that is open, not one on its way out. The
+ * page stays scroll-locked until a closing layer's animation ends, and Ctrl+K
+ * pressed then should still reopen the palette.
+ */
+function openModalLayer(): boolean {
+  return (
+    modalLayerOpen() &&
+    document.querySelector(
+      '[role="dialog"][data-state="open"],[role="alertdialog"][data-state="open"],[role="menu"][data-state="open"]',
+    ) !== null
+  )
+}
+
 let runBuiltIn: ((id: ShortcutId) => boolean) | null = null
 
 /** Runs a shortcut's action as if its keys were pressed, for the command palette. */
@@ -237,7 +251,7 @@ export function KeyboardShortcuts() {
         event.preventDefault()
         if (event.repeat) return
         if (commandPaletteOpen()) closeCommandPalette()
-        else if (!modalLayerOpen()) openCommandPalette()
+        else if (!openModalLayer()) openCommandPalette()
         clearPrefix()
         return
       }

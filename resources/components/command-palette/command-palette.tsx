@@ -36,12 +36,19 @@ import {
   closeCommandPaletteThen,
   commandPaletteOpen,
   openCommandPalette,
+  resetCommandPalette,
   setCommandPaletteOpen,
   takeCommandPaletteClose,
   useCommandPaletteOpen,
 } from "@/lib/command-palette-store"
 import { queryKeys, useSecurityNavStatus } from "@/lib/queries"
-import { SHORTCUTS, shortcutKeyLabels, type ShortcutId } from "@/lib/shortcuts"
+import {
+  SHORTCUTS,
+  ariaKeyShortcut,
+  modifierLabel,
+  shortcutKeyLabels,
+  type ShortcutId,
+} from "@/lib/shortcuts"
 import { timeRangeName, timeRangeSpan } from "@/lib/time-range-label"
 import { useTimeRange } from "@/lib/time-range-context"
 import { useTimeFormat } from "@/lib/table-view"
@@ -112,7 +119,7 @@ export function CommandPalette() {
   const routeHeader = useRouteHeader()
   const phone = usePhoneLayout()
   // A sign-out unmounts the shell. Closing here keeps the palette shut after the next sign-in.
-  useEffect(() => () => setCommandPaletteOpen(false), [])
+  useEffect(() => () => resetCommandPalette(), [])
   const { data: crowdsec } = useQuery({
     queryKey: queryKeys.crowdsec.status,
     queryFn: fetchCrowdsecStatus,
@@ -138,6 +145,7 @@ export function CommandPalette() {
   return (
     <Dialog open={isOpen} onOpenChange={setCommandPaletteOpen}>
       <DialogContent
+        data-command-palette=""
         showCloseButton={false}
         className="top-[17vh] translate-y-0 gap-0 overflow-hidden rounded-xl! p-0 sm:max-w-[660px]"
         onCloseAutoFocus={(event) => {
@@ -266,22 +274,22 @@ export function CommandPaletteField() {
     <>
       <button
         type="button"
-        onClick={openCommandPalette}
-        aria-keyshortcuts="Control+K"
+        onClick={(event) => openCommandPalette(event.currentTarget)}
+        aria-keyshortcuts={ariaKeyShortcut("k")}
         className="hidden h-9 w-80 items-center gap-2 rounded-md border border-input bg-input/30 px-3 text-left text-[13px] text-muted-foreground transition-colors hover:bg-input/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring @4xl:flex"
       >
         <Search aria-hidden className="size-4 shrink-0" />
         <span className="min-w-0 flex-1 truncate">Search pages and actions…</span>
         <KbdGroup aria-hidden>
-          <Kbd className={KEY}>Ctrl</Kbd>
+          <Kbd className={KEY}>{modifierLabel()}</Kbd>
           <Kbd className={KEY}>K</Kbd>
         </KbdGroup>
       </button>
       <Button
         variant="outline"
         size="icon"
-        onClick={openCommandPalette}
-        aria-keyshortcuts="Control+K"
+        onClick={(event) => openCommandPalette(event.currentTarget)}
+        aria-keyshortcuts={ariaKeyShortcut("k")}
         className="size-9 @4xl:hidden"
       >
         <Search className="size-4" />

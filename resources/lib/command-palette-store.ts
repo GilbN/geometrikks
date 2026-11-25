@@ -21,9 +21,13 @@ function subscribe(listener: () => void): () => void {
   return () => listeners.delete(listener)
 }
 
-export function openCommandPalette(): void {
-  const active = document.activeElement
-  opener = active instanceof HTMLElement && active !== document.body ? active : null
+/** `from` names the opener when focus can't tell, as after a click in Safari. */
+export function openCommandPalette(from?: HTMLElement | null): void {
+  const active = from ?? document.activeElement
+  // Reopened while it fades out, focus is still in the palette. Keep the first opener.
+  if (!(active instanceof HTMLElement && active.closest("[data-command-palette]"))) {
+    opener = active instanceof HTMLElement && active !== document.body ? active : null
+  }
   // A row picked just before a quick reopen must not run on a later close.
   pendingAction = null
   setOpen(true)
@@ -37,6 +41,13 @@ export function closeCommandPalette(): void {
 export function setCommandPaletteOpen(next: boolean): void {
   if (next) openCommandPalette()
   else closeCommandPalette()
+}
+
+/** Forgets everything, for a palette that unmounts mid-close, as on sign-out. */
+export function resetCommandPalette(): void {
+  opener = null
+  pendingAction = null
+  setOpen(false)
 }
 
 export function commandPaletteOpen(): boolean {

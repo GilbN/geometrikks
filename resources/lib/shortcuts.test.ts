@@ -93,7 +93,8 @@ describe("labels", () => {
     expect(keyLabel("Enter")).toBe("↵")
     expect(keyLabel(",")).toBe(",")
     const sidebar = SHORTCUTS.find((shortcut) => shortcut.id === "toggle-sidebar")!
-    expect(shortcutKeyLabels(sidebar)).toEqual(["Ctrl", "B"])
+    expect(shortcutKeyLabels(sidebar, false)).toEqual(["Ctrl", "B"])
+    expect(shortcutKeyLabels(sidebar, true)).toEqual(["⌘", "B"])
   })
 
   it("has one binding per key", () => {
@@ -115,5 +116,6 @@ describe("isPaletteKey", () => {
   it("follows the key's position only on a non-Latin layout", () => {
     expect(isPaletteKey(press("л", { ctrlKey: true, code: "KeyK" }), false)).toBe(true)
     expect(isPaletteKey(press("e", { ctrlKey: true, code: "KeyK" }), false)).toBe(false)
+    expect(isPaletteKey(press("î", { ctrlKey: true, code: "KeyK" }), false)).toBe(false)
   })
 })

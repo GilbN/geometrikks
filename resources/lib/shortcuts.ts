@@ -138,9 +138,9 @@ const SPOKEN_KEYS: Record<string, string> = {
 }
 
 /** How a screen reader should hear one shortcut's keys. */
-export function shortcutSpokenKeys(shortcut: Shortcut): string[] {
+export function shortcutSpokenKeys(shortcut: Shortcut, apple = applePlatform()): string[] {
   return [
-    ...(shortcut.mod ? ["Ctrl"] : []),
+    ...(shortcut.mod ? [apple ? "Command" : "Ctrl"] : []),
     ...shortcut.keys.map((key) => SPOKEN_KEYS[key] ?? keyLabel(key)),
   ]
 }
@@ -151,8 +151,18 @@ export function keyLabel(key: string): string {
 }
 
 /** The labels for one shortcut's keys, Ctrl first for a held one. */
-export function shortcutKeyLabels(shortcut: Shortcut): string[] {
-  return [...(shortcut.mod ? ["Ctrl"] : []), ...shortcut.keys.map(keyLabel)]
+export function shortcutKeyLabels(shortcut: Shortcut, apple = applePlatform()): string[] {
+  return [...(shortcut.mod ? [modifierLabel(apple)] : []), ...shortcut.keys.map(keyLabel)]
+}
+
+/** The held key the Ctrl shortcuts use, which is Cmd on a Mac. */
+export function modifierLabel(apple = applePlatform()): string {
+  return apple ? "⌘" : "Ctrl"
+}
+
+/** `aria-keyshortcuts` for a Ctrl shortcut on this platform. */
+export function ariaKeyShortcut(key: string, apple = applePlatform()): string {
+  return `${apple ? "Meta" : "Control"}+${key.toUpperCase()}`
 }
 
 export interface KeyInput {
@@ -193,7 +203,8 @@ export const MODIFIER_KEYS: ReadonlySet<string> = new Set([
  */
 function normalize(key: string, code: string | undefined): string {
   if (key.length !== 1 || !/\p{L}/u.test(key)) return key
-  if (/[a-z]/i.test(key)) return key.toLowerCase()
+  // Accented Latin letters are their own keys, not stand-ins for A to Z.
+  if (/\p{Script=Latin}/u.test(key)) return key.toLowerCase()
   const position = code?.match(/^Key([A-Z])$/)
   return position ? position[1].toLowerCase() : key
 }
@@ -225,8 +236,9 @@ export function matchKey(event: KeyInput, pendingPrefix: string | null): MatchRe
 
 /** Whether this is a Mac or iPad, where Cmd takes the place of Ctrl. */
 export function applePlatform(): boolean {
+  if (typeof navigator === "undefined") return false
   const platform =
-    (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform ??
+    (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform ||
     navigator.platform
   return /mac|iphone|ipad|ipod/i.test(platform)
 }
