@@ -133,6 +133,7 @@ export function DecisionsTable() {
               onChange={(event) => setSearchInput(event.target.value)}
               placeholder="IP, range or scenario"
               aria-label="Search active decisions"
+              data-page-filter=""
               aria-describedby={searchHint ? "decision-search-scope" : undefined}
               maxLength={200}
               className="pl-8 pr-9 pointer-coarse:h-11 [&::-webkit-search-cancel-button]:hidden"

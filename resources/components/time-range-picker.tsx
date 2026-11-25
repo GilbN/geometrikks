@@ -111,10 +111,15 @@ export function TimeRangePicker({
   trigger,
   align = "start",
   refreshControls,
+  open,
+  onOpenChange,
 }: {
   trigger: React.ReactNode
   align?: "start" | "end"
   refreshControls?: { chartBuckets: boolean; cardCharts?: CardChartsPage }
+  /** Controls the desktop menu, for the T shortcut. The phone drawer keeps its own state. */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }) {
   const {
     range,
@@ -255,7 +260,7 @@ export function TimeRangePicker({
   }
 
   return (
-    <DropdownMenu>
+    <DropdownMenu open={open} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
       <DropdownMenuContent align={align} className="w-auto!">
         {TIME_RANGE_PRESETS.map((preset) => (

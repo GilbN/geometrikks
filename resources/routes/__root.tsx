@@ -34,6 +34,7 @@ import { inspectSearchSchema } from "@/lib/ip-inspector-search"
 import { IpInspectorProvider } from "@/lib/ip-inspector"
 import { OverlayHistoryProvider } from "@/lib/overlay-history"
 import { IpInspectorSheet } from "@/components/ip-inspector/ip-inspector-sheet"
+import { KeyboardShortcuts } from "@/components/shortcuts/keyboard-shortcuts"
 import { isChromelessRoute } from "@/lib/auth-redirect"
 import { loadSidebarOpenPreference } from "@/lib/sidebar-preference"
 import {
@@ -328,6 +329,7 @@ function RootLayout() {
                     </PageInset>
                     {phone && <TabBar compact={phoneSide} />}
                     <IpInspectorSheet />
+                    <KeyboardShortcuts />
                   </SidebarProvider>
                 </IpInspectorProvider>
               </OverlayHistoryProvider>

@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { useRouterState } from "@tanstack/react-router"
 import { ChevronDown, RotateCw, Filter } from "lucide-react"
 
@@ -17,6 +18,8 @@ import { useRouteHeader } from "@/lib/route-header"
 import { CHART_GRANULARITY_OPTIONS, POLL_INTERVAL_OPTIONS, type ChartGranularity } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { useIsFetching } from "@tanstack/react-query"
+import { usePhoneLayout } from "@/hooks/use-phone-map"
+import { useShortcutAction } from "@/components/shortcuts/keyboard-shortcuts"
 
 export function TimeRangeToolbar() {
   const {
@@ -34,6 +37,9 @@ export function TimeRangeToolbar() {
   // The map page has no time-series charts, so granularity is irrelevant there.
   const showGranularity = pathname !== "/map"
   const rangeLabel = timeRangeLabel(range, customRange)
+  const phone = usePhoneLayout()
+  const [rangeMenuOpen, setRangeMenuOpen] = useState(false)
+  useShortcutAction("time-range", phone ? null : () => setRangeMenuOpen(true))
 
   return (
     <>
@@ -41,6 +47,8 @@ export function TimeRangeToolbar() {
       <div className="hidden md:flex phone:hidden items-center gap-2">
         {/* Time Range Dropdown Menu */}
         <TimeRangePicker
+          open={rangeMenuOpen}
+          onOpenChange={setRangeMenuOpen}
           trigger={
             <Button variant="outline" size="sm" className="flex items-center gap-2">
               <Filter className="w-4 h-4" />

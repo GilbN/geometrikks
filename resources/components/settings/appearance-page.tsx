@@ -4,6 +4,11 @@ import { RadioGroup as RadioGroupPrimitive } from "radix-ui"
 
 import { useTheme } from "@/components/theme-provider"
 import { RadioGroup } from "@/components/ui/radio-group"
+import { Switch } from "@/components/ui/switch"
+import { Label } from "@/components/ui/label"
+import { usePhoneLayout } from "@/hooks/use-phone-map"
+import { useSingleKeyShortcuts } from "@/lib/shortcut-preference"
+import { openShortcutsCheatSheet } from "@/components/shortcuts/keyboard-shortcuts"
 import { Toggle } from "@/components/ui/toggle"
 import {
   COLOR_THEMES,
@@ -191,10 +196,51 @@ function ThemeCard({ colorTheme }: { colorTheme: ColorTheme }) {
   )
 }
 
+/** Phones have no keyboard to speak of, so the section shows on desktop layouts only. */
+function ShortcutsSection() {
+  const [enabled, setEnabled] = useSingleKeyShortcuts()
+  const headingId = useId()
+  const switchId = useId()
+  const descriptionId = useId()
+  return (
+    <section aria-labelledby={headingId} className="space-y-3">
+      <h2 id={headingId} className={HEADING}>
+        Keyboard shortcuts
+      </h2>
+      <div className="flex items-start justify-between gap-4 rounded-xl bg-glass-card p-4 ring-1 ring-border backdrop-blur-[2px]">
+        <div className="space-y-1">
+          <Label htmlFor={switchId} className="text-sm font-medium">
+            Single-key shortcuts
+          </Label>
+          <p id={descriptionId} className="text-[13px] text-muted-foreground">
+            Keys such as G then A, T and / work on every page. Turn them off if they clash with a
+            browser extension. Ctrl+B keeps working either way.{" "}
+            <button
+              type="button"
+              onClick={openShortcutsCheatSheet}
+              className="text-foreground underline underline-offset-2"
+            >
+              Show all shortcuts
+            </button>
+          </p>
+        </div>
+        <Switch
+          id={switchId}
+          checked={enabled}
+          onCheckedChange={setEnabled}
+          aria-describedby={descriptionId}
+          className="mt-0.5"
+        />
+      </div>
+    </section>
+  )
+}
+
 export function AppearancePage() {
   const { theme, setTheme, lightTheme, darkTheme } = useTheme()
   const schemeHeadingId = useId()
   const themesHeadingId = useId()
+  const phone = usePhoneLayout()
 
   return (
     <div className="space-y-8">
@@ -247,6 +293,8 @@ export function AppearancePage() {
           ))}
         </div>
       </section>
+
+      {!phone && <ShortcutsSection />}
     </div>
   )
 }

@@ -79,6 +79,7 @@ export function PaginationFooter({
             size="sm"
             className="pointer-coarse:h-10"
             disabled={page <= 1 || disabled}
+            data-page-step="previous"
             onClick={() => onPageChange(Math.max(1, page - 1))}
           >
             <ChevronLeft className="h-4 w-4" /> Prev
@@ -88,6 +89,7 @@ export function PaginationFooter({
             size="sm"
             className="pointer-coarse:h-10"
             disabled={page >= pageCount || disabled}
+            data-page-step="next"
             onClick={() => onPageChange(page + 1)}
           >
             Next <ChevronRight className="h-4 w-4" />

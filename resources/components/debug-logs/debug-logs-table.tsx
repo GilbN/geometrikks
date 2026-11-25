@@ -260,6 +260,28 @@ function renderCombinedCell(
 
 const getRowKey = (row: AccessLogDebugEntry) => row.id
 
+const shortcutValues = (row: AccessLogDebugEntry): IpRowValues | null =>
+  row.ipAddress
+    ? {
+        ip: row.ipAddress,
+        countryCode: row.countryCode,
+        countryName: row.countryName,
+        city: row.city,
+      }
+    : null
+
+/** The filter F applies on a column, when the page filters on its field. */
+const FILTER_NOUNS: Partial<Record<DebugLogColumn["key"], string>> = {
+  ipAddress: "IP",
+  country: "country",
+}
+
+/** A combined column filters on the field its header sorts by. */
+function combinedFilterNoun(column: DebugLogCombinedColumn): string | undefined {
+  const main = column.fields.find((field) => field.sortField) ?? column.fields[0]
+  return main ? FILTER_NOUNS[main.key] : undefined
+}
+
 const SORT_OPTIONS = sortOptions(DEBUG_LOG_COLUMNS)
 
 function DebugLogIpActions({ row }: { row: AccessLogDebugEntry }) {
@@ -338,6 +360,7 @@ const DebugLogTableBody = memo(function DebugLogTableBody({
         narrow ? 1 : layout === "combined" ? combinedColumns.length : shownColumns.length
       }
       getRowKey={getRowKey}
+      shortcutValues={shortcutValues}
     >
       {(row) => (
         <TableRow
@@ -351,6 +374,7 @@ const DebugLogTableBody = memo(function DebugLogTableBody({
             combinedColumns.map((c) => (
               <TableCell
                 key={c.key}
+                data-filter-noun={combinedFilterNoun(c)}
                 className={cn((c.grow || c.width) && "max-w-0 truncate")}
                 style={c.minWidth ? { minWidth: c.minWidth } : undefined}
               >
@@ -359,7 +383,11 @@ const DebugLogTableBody = memo(function DebugLogTableBody({
             ))
           ) : (
             shownColumns.map((c) => (
-              <TableCell key={c.key} className={cn(c.grow && "max-w-0 truncate")}>
+              <TableCell
+                key={c.key}
+                data-filter-noun={FILTER_NOUNS[c.key]}
+                className={cn(c.grow && "max-w-0 truncate")}
+              >
                 {renderCell(c, row, timeFormat)}
                 {c.key === "ipAddress" && <DebugLogIpActions row={row} />}
               </TableCell>
@@ -510,6 +538,7 @@ export function DebugLogsTable() {
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Raw line or parse error"
             className={cn("h-8 pl-7 text-xs", inDrawer ? "w-full" : "w-64")}
+            data-page-filter={inDrawer ? undefined : ""}
           />
         </div>
       </FilterField>

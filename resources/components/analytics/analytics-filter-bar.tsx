@@ -141,6 +141,7 @@ export function AnalyticsFilterBar() {
           hint={ipFilterHint}
           placeholder="203.0.113.7"
           className="w-36"
+          data-page-filter=""
         />
       }
       exclude={

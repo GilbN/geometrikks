@@ -153,6 +153,7 @@ export function AccessLogsFilterBar() {
           onChange={(e) => setSearchInput(e.target.value)}
           placeholder="URL, referrer or user agent"
           className="h-8 pl-7 text-xs w-64"
+          data-page-filter=""
         />
       </div>
     </FilterField>
