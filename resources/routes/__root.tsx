@@ -104,7 +104,11 @@ function AppBreadcrumb() {
             {/* Portrait phones have no settings nav on the page; this goes back to the list. */}
             <BreadcrumbItem className="md:hidden phone-side:hidden">
               <BreadcrumbLink asChild>
-                <Link to="/settings" className="-ml-1 flex min-h-10 items-center gap-0.5 pr-1">
+                <Link
+                  to="/settings"
+                  activeOptions={{ exact: true }}
+                  className="-ml-1 flex min-h-10 items-center gap-0.5 pr-1"
+                >
                   <ChevronLeft aria-hidden className="size-4" />
                   Settings
                 </Link>

@@ -84,7 +84,7 @@ export function GranularityBadge({ granularity }: { granularity: string | undefi
     <DropdownMenu>
       <DropdownMenuTrigger
         className={`${BADGE} inline-flex items-center gap-1 transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring`}
-        aria-label={`Chart buckets: ${choice === "auto" ? `Auto, ${label}` : label}`}
+        aria-label={`Chart buckets: ${choice === "auto" && granularity ? `Auto, ${label}` : label}`}
       >
         {label}
         <ChevronDown aria-hidden className="size-3" />

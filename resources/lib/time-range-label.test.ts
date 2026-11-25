@@ -48,4 +48,21 @@ describe("timeRangeSpan", () => {
   it("adds the year when the span crosses one", () => {
     expect(timeRangeSpan("365d", null, now, "short24")).toMatch(/2025.*2026/)
   })
+
+  it("keeps clock times for a short span across midnight", () => {
+    const justAfter = at("2026-11-25T00:20:00")
+    const yesterday = new Date(at("2026-11-24T12:00:00")).toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+    })
+    expect(timeRangeSpan("1h", null, justAfter, "short24")).toBe(`${yesterday}, 23:20 – 00:20`)
+  })
+
+  it("names the year of a custom range from an earlier year", () => {
+    const custom = {
+      from: new Date(at("2025-11-01T00:00:00")).toISOString(),
+      to: new Date(at("2025-11-10T00:00:00")).toISOString(),
+    }
+    expect(timeRangeSpan("custom", custom, now, "short24")).toMatch(/2025.*2025/)
+  })
 })

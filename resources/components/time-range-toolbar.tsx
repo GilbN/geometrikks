@@ -44,17 +44,19 @@ export function TimeRangeToolbar() {
 
 /** "Last 7 days" with the span it covers, opening the range menu. T opens it too. */
 function RangeButton() {
-  const { range, customRange, lastRefresh } = useTimeRange()
+  const { range, customRange, lastRefresh, pollInterval } = useTimeRange()
   const [timeFormat] = useTimeFormat()
   const phone = usePhoneLayout()
   const [open, setOpen] = useState(false)
-  // Queries take a fresh "now" on every poll, so the span follows the clock too.
+  // Polling queries take a fresh "now" each time, so the span follows the clock
+  // while auto refresh runs. Without it the data stays at the last refresh.
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
     setNow(Date.now())
-    const timer = window.setInterval(() => setNow(Date.now()), 30_000)
+    if (pollInterval <= 0) return
+    const timer = window.setInterval(() => setNow(Date.now()), Math.max(pollInterval, 30_000))
     return () => window.clearInterval(timer)
-  }, [lastRefresh])
+  }, [lastRefresh, pollInterval])
   // The desktop menu unmounts on a phone layout. Closing it here stops it reopening on widening.
   useEffect(() => {
     if (phone) setOpen(false)
@@ -89,13 +91,18 @@ function RangeButton() {
       trigger={
         <Button
           variant="outline"
-          className="h-9 gap-2 px-3 text-[13px]"
+          className="h-9 max-w-full gap-2 px-3 text-[13px] @max-2xl:max-w-52"
           aria-label={`Time range: ${[name, span].filter(Boolean).join(", ")}`}
         >
           <CalendarDays aria-hidden className="size-4 text-muted-foreground" />
           {name && <span className="font-semibold">{name}</span>}
           {/* A narrow bar drops the dates to keep the page name whole. A custom range is all dates. */}
-          <span className={cn("tabular-nums", name && "hidden text-muted-foreground @2xl:inline")}>
+          <span
+            className={cn(
+              "min-w-0 truncate tabular-nums",
+              name && "hidden text-muted-foreground @2xl:inline",
+            )}
+          >
             {span}
           </span>
           <ChevronDown aria-hidden className="size-3.5 text-muted-foreground" />

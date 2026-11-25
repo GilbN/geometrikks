@@ -61,7 +61,7 @@ export function Summary() {
             )
           }
           // Traffic Overview hides on an error, and its heading holds these controls.
-          actions={isError && !phone ? overviewControls : undefined}
+          actions={isError && !summary && !phone ? overviewControls : undefined}
         />
 
         {isError && (
