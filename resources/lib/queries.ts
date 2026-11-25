@@ -409,6 +409,20 @@ export function useDropLists(): { data?: DropIndex; loaded: boolean } {
   return { data: dropIndex, loaded: true }
 }
 
+const selectDropAsns = (lists: DropListsResponse): ReadonlySet<number> =>
+  new Set(lists.asns.map((entry) => entry.asn))
+
+/** The ASNs on Spamhaus ASN-DROP, from the same download as the networks. */
+export function useDropAsns(): ReadonlySet<number> | undefined {
+  const { data: about } = useAbout()
+  const active = about?.dropLists?.enabled === true && about.dropLists.loaded
+  const { data } = useQuery({
+    ...dropListsQueryOptions(about?.dropLists?.updatedAt ?? null, active),
+    select: selectDropAsns,
+  })
+  return active ? data : undefined
+}
+
 /** The DROP network holding `ip`, or null while the lists are off, loading, or miss it. */
 export function useDropNetwork(ip: string): DropNetworkMatch | null {
   const { data: dropIndex } = useDropLists()

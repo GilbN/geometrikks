@@ -51,14 +51,23 @@ These work on Access Logs History, Geo Logs and Debug Logs.
 
 ## Search and commands
 
-Press `Ctrl+K` (`Cmd+K` on a Mac) from any page to open the search-and-commands palette, including while you type in a field. Press the same keys again or `Esc` to close it. On desktop, the search field in the top bar ("Search pages and actions…", showing `Ctrl K`, or `⌘ K` on a Mac) opens the same palette, and shrinks to a search icon button on narrow windows.
+Press `Ctrl+K` (`Cmd+K` on a Mac) from any page to open the search-and-commands palette, including while you type in a field. Press the same keys again or `Esc` to close it. It searches pages, actions and IP addresses. On desktop, the search field in the top bar ("Search IPs, pages and actions…", showing `Ctrl K`, or `⌘ K` on a Mac) opens the same palette, and shrinks to a search icon button on narrow windows.
 
-The palette lists two groups, with each row showing its keyboard shortcut:
+When opened empty, the palette lists:
 
+- **Recently inspected** shows the last 5 addresses opened in the [IP inspector](./ip-inspector.mdx), kept in this browser only, each with "banned" or its country and its request count.
 - **Go to** lists every page in the sidebar with its `G` shortcut.
 - **Actions** lists "Change the time range…" with the current range on pages that use the time range, "Ban an IP or range…" when CrowdSec has write access (`CROWDSEC_MACHINE_ID` and `CROWDSEC_MACHINE_PASSWORD`), and "Start the live tail".
 
 Type to filter the list, move with the arrow keys and press `Enter` to run the selected row. The footer has a button that opens the shortcuts cheat sheet.
+
+### IP search
+
+Type an IP address or its start to search all traffic GeoMetrikks has kept, not only the selected time range. The search starts once the first part is complete and followed by its separator: `45.` or `198.51` for IPv4, `2001:` for IPv6. A single number such as `1` doesn't search. Partial parts match too: `203.0.11` finds `203.0.11.x` and `203.0.110.x` to `203.0.119.x`. An IPv6 address written with `::` matches only that address.
+
+- **IP addresses seen** lists up to 8 matches, busiest first, each with its AS number, name and request count. Rows also show a red Banned badge with time left when CrowdSec has an active decision, and a DROP badge when the address or its network is on Spamhaus DROP or ASN-DROP. Press `Enter` on an address to open it in the [IP inspector](./ip-inspector.mdx), or `Ctrl+Enter` (`Cmd+Enter` on a Mac) to open Access Logs filtered to it. The footer shows these keys.
+- **Filter a page** offers "Access Logs where IP starts with …" to open Access Logs filtered to every address starting with the text. The count shown covers all kept data, while the page opens on the selected time range. With CrowdSec set up, a whole address or whole parts such as `198.51` also add "Security decisions matching …" with the number of active bans under it, opening the Security decisions tab searched for that text.
+- **Actions** adds "Ban 198.51.0.0/16 as a range…" for whole parts, or "Ban …" for a whole address, when CrowdSec has write access. Both open the ban dialog filled in. "Write an abuse report for …" opens an [abuse report](./abuse-reports.mdx) for the typed address or the busiest match.
 
 ## When shortcuts don't fire
 

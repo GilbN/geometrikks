@@ -48,14 +48,14 @@ const ORIGIN_SCOPES = [
 
 type OriginScopeKey = (typeof ORIGIN_SCOPES)[number]["key"]
 
-export function DecisionsTable() {
+export function DecisionsTable({ initialQuery = "" }: { initialQuery?: string }) {
   const { data: status } = useCrowdsecStatus()
   const isMobile = useIsMobile()
   const [scope, setScope] = useState<OriginScopeKey>("local")
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState<number>(10)
   const origins = ORIGIN_SCOPES.find((s) => s.key === scope)?.origins
-  const [searchInput, setSearchInput] = useState("")
+  const [searchInput, setSearchInput] = useState(initialQuery)
   const searchRef = useRef<HTMLInputElement>(null)
   const q = useDebouncedValue(searchInput.trim())
   // The server searches every origin for an IP or a range, whatever the tab.

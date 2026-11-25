@@ -3,12 +3,11 @@
  * list of pages and actions. Each row shows its keyboard shortcut, so the
  * keys are learned along the way.
  */
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useNavigate } from "@tanstack/react-router"
 import { useQuery } from "@tanstack/react-query"
-import { useCommandState } from "cmdk"
+import { defaultFilter, useCommandState } from "cmdk"
 import { ArrowDown, ArrowUp, Ban, CalendarDays, CornerDownLeft, Radio, Search } from "lucide-react"
-import type { LucideIcon } from "lucide-react"
 
 import {
   Command,
@@ -28,7 +27,26 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Kbd, KbdGroup } from "@/components/ui/kbd"
-import { openShortcutsCheatSheet, runShortcut } from "@/components/shortcuts/keyboard-shortcuts"
+import {
+  openBanDialogFor,
+  openShortcutsCheatSheet,
+  runShortcut,
+} from "@/components/shortcuts/keyboard-shortcuts"
+import { useAbuseReportDialog } from "@/components/abuse-report/abuse-report-dialog"
+import {
+  ADDRESS_ROW,
+  GROUP,
+  IP_ROW,
+  ITEM,
+  ItemIcon,
+  IpSearchGroups,
+  RecentIpsGroup,
+  type IpActions,
+} from "@/components/command-palette/ip-results"
+import { useDebouncedValue } from "@/hooks/use-debounced-value"
+import { useIpInspector } from "@/lib/ip-inspector"
+import { parseIpQuery } from "@/lib/ip-prefix"
+import { rememberInspectedIp, useRecentIps } from "@/lib/recent-ips"
 import { useRouteHeader } from "@/lib/route-header"
 import { fetchCrowdsecStatus } from "@/lib/api"
 import { NAV_ITEMS, SETTINGS_ITEM, type NavId } from "@/lib/phone-nav"
@@ -89,15 +107,9 @@ function Keys({ id }: { id: ShortcutId }) {
   )
 }
 
-const ITEM =
-  "min-h-10 gap-3 rounded-lg! px-2.5 text-sm ring-1 ring-transparent data-selected:bg-primary/12 data-selected:ring-primary/50"
-
-function ItemIcon({ icon: Icon }: { icon: LucideIcon }) {
-  return (
-    <span className="grid size-7 shrink-0 place-items-center rounded-md bg-muted/60">
-      <Icon className="size-4 text-muted-foreground" />
-    </span>
-  )
+/** IP rows come from the server, which already matched them, so the typed text never hides them. */
+function paletteFilter(value: string, search: string, keywords?: string[]): number {
+  return value.startsWith(IP_ROW) ? 1 : defaultFilter(value, search, keywords)
 }
 
 /** cmdk's empty message sits in the listbox, which screen readers don't announce. */
@@ -120,6 +132,18 @@ export function CommandPalette() {
   const phone = usePhoneLayout()
   // A sign-out unmounts the shell. Closing here keeps the palette shut after the next sign-in.
   useEffect(() => () => resetCommandPalette(), [])
+  const { ip: inspected, open: inspect } = useIpInspector()
+  useEffect(() => {
+    if (inspected) rememberInspectedIp(inspected)
+  }, [inspected])
+  const recentIps = useRecentIps()
+  const report = useAbuseReportDialog()
+  const [search, setSearch] = useState("")
+  const [selected, setSelected] = useState("")
+  // Every opening starts with an empty field.
+  if (!isOpen && search !== "") setSearch("")
+  if (!isOpen && selected !== "") setSelected("")
+  const ipQuery = parseIpQuery(useDebouncedValue(search, 150))
   const { data: crowdsec } = useQuery({
     queryKey: queryKeys.crowdsec.status,
     queryFn: fetchCrowdsecStatus,
@@ -140,6 +164,19 @@ export function CommandPalette() {
     // Enter during the closing animation would still select a row.
     if (!commandPaletteOpen()) return
     closeCommandPaletteThen(action)
+  }
+
+  const onAddress = selected.startsWith(ADDRESS_ROW)
+
+  const ipActions: IpActions = {
+    inspect: (ip) => run(() => inspect(ip)),
+    openInAccessLogs: (ips) =>
+      run(() => void navigate({ to: "/access-logs", search: { ip: ips } })),
+    searchDecisions: (query) =>
+      run(() => void navigate({ to: "/security", search: { tab: "decisions", q: query } })),
+    banRange: (target) => run(() => openBanDialogFor(target)),
+    report: ({ ip, asn, organization }) =>
+      run(() => report.openFor({ kind: "ip", ip, asn, organization })),
   }
 
   return (
@@ -165,9 +202,28 @@ export function CommandPalette() {
           <DialogDescription>Go to a page or run an action.</DialogDescription>
         </DialogHeader>
         {/* cmdk binds Ctrl+K to "up". The palette needs it to close. */}
-        <Command className="bg-transparent" vimBindings={false} label="Search pages and actions">
+        <Command
+          className="bg-transparent"
+          vimBindings={false}
+          label="Search IPs, pages and actions"
+          filter={paletteFilter}
+          value={selected}
+          onValueChange={setSelected}
+          onKeyDown={(event) => {
+            // Ctrl+Enter opens an address in Access Logs instead of the inspector.
+            const ip = selected.startsWith(ADDRESS_ROW) ? selected.slice(ADDRESS_ROW.length) : null
+            if (event.key !== "Enter" || !(event.ctrlKey || event.metaKey) || !ip) return
+            event.preventDefault()
+            ipActions.openInAccessLogs([ip])
+          }}
+        >
           <div className="relative border-b border-border/60 [&_[data-slot=command-input-wrapper]]:p-2 [&_[data-slot=input-group]]:h-11! [&_[data-slot=input-group]]:border-0 [&_[data-slot=input-group]]:bg-transparent [&_[data-slot=command-input]]:text-base">
-            <CommandInput placeholder="Search pages and actions" className="pr-14" />
+            <CommandInput
+              placeholder="Search IPs, pages and actions"
+              className="pr-14"
+              value={search}
+              onValueChange={setSearch}
+            />
             <Kbd
               aria-hidden
               className={cn(KEY, "pointer-events-none absolute top-1/2 right-4 -translate-y-1/2")}
@@ -177,10 +233,21 @@ export function CommandPalette() {
           </div>
           <CommandList className="max-h-[min(28rem,60vh)] px-1.5 py-2">
             <CommandEmpty>Nothing matches.</CommandEmpty>
-            <CommandGroup
-              heading="Go to"
-              className="**:[[cmdk-group-heading]]:text-[11px] **:[[cmdk-group-heading]]:font-semibold **:[[cmdk-group-heading]]:tracking-[0.08em] **:[[cmdk-group-heading]]:uppercase"
-            >
+            {ipQuery ? (
+              <IpSearchGroups
+                query={ipQuery}
+                actions={ipActions}
+                crowdsecEnabled={crowdsec?.enabled === true}
+                canBan={crowdsec?.writeEnabled === true}
+                enabled={isOpen}
+                onTopAddress={setSelected}
+              />
+            ) : (
+              search === "" && (
+                <RecentIpsGroup ips={recentIps} actions={ipActions} enabled={isOpen} />
+              )
+            )}
+            <CommandGroup heading="Go to" className={GROUP}>
               {pages.map((item) => (
                 <CommandItem
                   key={item.id}
@@ -194,10 +261,7 @@ export function CommandPalette() {
                 </CommandItem>
               ))}
             </CommandGroup>
-            <CommandGroup
-              heading="Actions"
-              className="**:[[cmdk-group-heading]]:text-[11px] **:[[cmdk-group-heading]]:font-semibold **:[[cmdk-group-heading]]:tracking-[0.08em] **:[[cmdk-group-heading]]:uppercase"
-            >
+            <CommandGroup heading={ipQuery ? "More actions" : "Actions"} className={GROUP}>
               {routeHeader.timeRange && !phone && (
                 <CommandItem
                   value="change the time range"
@@ -251,8 +315,20 @@ export function CommandPalette() {
             <Kbd className={KEY}>
               <CornerDownLeft />
             </Kbd>
-            open
+            {onAddress ? "open the inspector" : "open"}
           </span>
+          {onAddress && (
+            <span aria-hidden className="flex items-center gap-1.5">
+              <KbdGroup>
+                <Kbd className={KEY}>{modifierLabel()}</Kbd>
+                <Kbd className={KEY}>
+                  <CornerDownLeft />
+                </Kbd>
+              </KbdGroup>
+              open in Access Logs
+            </span>
+          )}
+          {onAddress && <span className="ml-auto">Paste any IP</span>}
           <button
             type="button"
             onClick={() => run(() => openShortcutsCheatSheet())}
@@ -264,6 +340,7 @@ export function CommandPalette() {
           </button>
         </div>
       </DialogContent>
+      {report.dialog}
     </Dialog>
   )
 }
@@ -279,7 +356,7 @@ export function CommandPaletteField() {
         className="hidden h-9 w-80 items-center gap-2 rounded-md border border-input bg-input/30 px-3 text-left text-[13px] text-muted-foreground transition-colors hover:bg-input/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring @4xl:flex"
       >
         <Search aria-hidden className="size-4 shrink-0" />
-        <span className="min-w-0 flex-1 truncate">Search pages and actions…</span>
+        <span className="min-w-0 flex-1 truncate">Search IPs, pages and actions…</span>
         <KbdGroup aria-hidden>
           <Kbd className={KEY}>{modifierLabel()}</Kbd>
           <Kbd className={KEY}>K</Kbd>

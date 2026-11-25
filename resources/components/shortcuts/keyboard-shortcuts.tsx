@@ -116,6 +116,13 @@ function openModalLayer(): boolean {
 }
 
 let runBuiltIn: ((id: ShortcutId) => boolean) | null = null
+let nextBanTarget = ""
+
+/** Opens the ban dialog with `target`, an IP or CIDR range, already filled in. */
+export function openBanDialogFor(target: string): boolean {
+  nextBanTarget = target
+  return runShortcut("ban")
+}
 
 /** Runs a shortcut's action as if its keys were pressed, for the command palette. */
 export function runShortcut(id: ShortcutId): boolean {
@@ -132,6 +139,7 @@ export function KeyboardShortcuts() {
   const { open: inspect } = useIpInspectorActions()
   const sheetOpen = useSyncExternalStore(subscribeCheatSheet, () => cheatSheetOpen)
   const [banOpen, setBanOpen] = useState(false)
+  const [banTarget, setBanTarget] = useState("")
   const banReturnFocus = useRef<HTMLElement | null>(null)
   const pendingPrefix = useRef<{ key: string; timer: number } | null>(null)
 
@@ -159,6 +167,8 @@ export function KeyboardShortcuts() {
           }
           return true
         case "ban": {
+          const target = nextBanTarget
+          nextBanTarget = ""
           // A slow status answer must not pull focus from whatever the user did next.
           const focusedBefore = document.activeElement
           const pathBefore = router.state.location.pathname
@@ -176,6 +186,7 @@ export function KeyboardShortcuts() {
                 focusedBefore instanceof HTMLElement && focusedBefore !== document.body
                   ? focusedBefore
                   : null
+              setBanTarget(target)
               setBanOpen(true)
             })
             .catch(() => {})
@@ -296,7 +307,14 @@ export function KeyboardShortcuts() {
         onOpenChange={setCheatSheetOpen}
         onCloseAutoFocus={restoreFocus}
       />
-      <BanIpDialog open={banOpen} onOpenChange={setBanOpen} returnFocusTo={banReturnFocus} />
+      <BanIpDialog
+        // A new target remounts the form, which reads its initial IP once.
+        key={banTarget}
+        open={banOpen}
+        onOpenChange={setBanOpen}
+        initialIp={banTarget}
+        returnFocusTo={banReturnFocus}
+      />
     </>
   )
 }
