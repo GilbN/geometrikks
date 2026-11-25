@@ -3,7 +3,7 @@ title: IP inspector
 description: Everything GeoMetrikks knows about one IP address for the selected range, and the IP actions menu that opens it.
 ---
 
-The IP inspector is a side sheet about one address: how much it sent, how the server answered, what it asked for, where it came from, and what CrowdSec, Spamhaus and AbuseIPDB say about it. It covers the selected time range, and the range picker next to the address changes it without closing the sheet.
+The IP inspector is a side sheet, or a docked panel on wide screens, about one address: how much it sent, how the server answered, what it asked for, where it came from, and what CrowdSec, Spamhaus and AbuseIPDB say about it. It covers the selected time range, and the range picker next to the address changes it without closing the inspector.
 
 <Screenshot scene="ip-inspector" />
 
@@ -56,6 +56,16 @@ Every IP in a table has a copy button and an IP actions button after it. The men
 - With AbuseIPDB reporting on, Report to AbuseIPDB…, which opens a report prefilled from what GeoMetrikks saw. The item says when the address was last reported, and stays disabled for 15 minutes after a report and on an address that isn't public. See [Report an IP](./abuseipdb.mdx#report-an-ip).
 
 The menu's header shows the address with its CrowdSec decision, DROP listing and AbuseIPDB blacklist mark. In the footer of a record sheet, such as an access log row's details, the menu leaves out Copy, Inspect and Fly to, since the sheet has its own buttons for them.
+
+## Docked beside the page
+
+From 1600 px wide, the inspector docks beside the page by default, on every page it opens from. The page stays usable next to it, so you can scroll a table and inspect the next row's IP. On the map, the map gets narrower to make room. A record sheet, such as an access log row's details, still opens over the page, and its Inspect IP button shows that address in the dock.
+
+A button next to Close moves the inspector between the dock and the side sheet that dims the page. Your browser remembers the choice. Below 1600 px the inspector is always the side sheet, without that button. Close, or Escape while focus is in the dock, closes it.
+
+Opening the inspector adds one history entry. Inspecting another address while docked replaces that entry, and docking or undocking adds none, so one press of Back closes the dock.
+
+At 1600 px with the sidebar expanded, the Access Logs table scrolls sideways for its last columns. Collapse the sidebar or hide fields in the View menu to make room.
 
 ## On a phone
 

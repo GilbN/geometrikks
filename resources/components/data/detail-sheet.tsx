@@ -25,6 +25,7 @@ export function DetailSheet({
   description,
   children,
   footer,
+  actions,
   className,
   historyEntry = true,
 }: {
@@ -34,6 +35,8 @@ export function DetailSheet({
   description?: React.ReactNode
   children: React.ReactNode
   footer?: React.ReactNode
+  /** Header buttons placed before the close button. */
+  actions?: React.ReactNode
   className?: string
   /** Off for a sheet whose opener pushes a history entry of its own. */
   historyEntry?: boolean
@@ -71,19 +74,19 @@ export function DetailSheet({
           <SheetTitle>{title}</SheetTitle>
           {/* Spans the description row too, so it centres on the whole header. The negative margins
               stop it from making a title-only header taller. */}
-          <SheetClose asChild>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className={cn(
-                "-my-1.5 pointer-coarse:-my-3 pointer-coarse:size-11",
-                description && "row-span-2",
-              )}
-            >
-              <XIcon />
-              <span className="sr-only">Close</span>
-            </Button>
-          </SheetClose>
+          <div className={cn("flex items-center gap-1", description && "row-span-2")}>
+            {actions}
+            <SheetClose asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="-my-1.5 pointer-coarse:-my-3 pointer-coarse:size-11"
+              >
+                <XIcon />
+                <span className="sr-only">Close</span>
+              </Button>
+            </SheetClose>
+          </div>
           <SheetDescription className={cn(!description && "sr-only")}>
             {description ?? "Record details"}
           </SheetDescription>

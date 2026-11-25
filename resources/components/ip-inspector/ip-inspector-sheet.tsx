@@ -25,7 +25,7 @@ import type { CustomTimeRange, TimeRangeValue } from "@/lib/api"
 import { bgpAsUrl, crowdsecCtiUrl, decisionLabel, isValidIp, winningDecision } from "@/lib/crowdsec"
 import { cn } from "@/lib/utils"
 import { formatTs } from "@/lib/datetime"
-import { useInspectOnNavigate, useIpInspector } from "@/lib/ip-inspector"
+import { useInspectOnNavigate, useIpInspector, useIpInspectorDock } from "@/lib/ip-inspector"
 import { abuseipdbCheckUrl, isPublicIp } from "@/lib/abuseipdb"
 import { useCoverBar } from "@/lib/phone-chrome"
 import { usePhoneMapSide } from "@/hooks/use-phone-map"
@@ -41,6 +41,7 @@ import {
 } from "@/lib/queries"
 import { useTimeRange } from "@/lib/time-range-context"
 import { rangeSubtitle } from "@/lib/time-range-labels"
+import { DockToggle, InspectorDock } from "./inspector-dock"
 import { IpLatestRequests } from "./ip-latest-requests"
 import { IpLocationsBlock } from "./ip-locations-block"
 import { IpSignalsStrip } from "./ip-signals-strip"
@@ -52,6 +53,7 @@ import { scenarioText } from "@/lib/scenario-name"
 
 export function IpInspectorSheet() {
   const { ip, close } = useIpInspector()
+  const { canDock, docked, setDocked } = useIpInspectorDock()
   const { range, customRange, setRange, setCustomRange } = useTimeRange()
   const side = usePhoneMapSide()
   const open = ip !== undefined
@@ -73,31 +75,50 @@ export function IpInspectorSheet() {
     setBeforeZoom(null)
   }
 
+  const title = (
+    // One row: IP, ban action, then the range picker; wraps only when a custom range needs the room.
+    <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+      <span className="inline-flex items-center gap-2">
+        {ip ?? ""}
+        {valid && <HeaderBanAction ip={ip} />}
+      </span>
+      {valid && <SheetRangeControls beforeZoom={beforeZoom} onRestore={restore} />}
+    </span>
+  )
+  const description = valid ? undefined : "Not a valid IP address"
+  const footer = valid ? <IpInspectorFooter ip={ip} /> : undefined
+  const body = valid ? (
+    <IpInspectorBody ip={ip} onZoom={zoomTo} />
+  ) : (
+    <p className="text-sm text-muted-foreground">Not a valid IP address.</p>
+  )
+
   return (
-    <DetailSheet
-      historyEntry={false}
-      open={open}
-      onOpenChange={(next) => !next && close()}
-      title={
-        // One row: IP, ban action, then the range picker; wraps only when a custom range needs the room.
-        <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <span className="inline-flex items-center gap-2">
-            {ip ?? ""}
-            {valid && <HeaderBanAction ip={ip} />}
-          </span>
-          {valid && <SheetRangeControls beforeZoom={beforeZoom} onRestore={restore} />}
-        </span>
-      }
-      description={valid ? undefined : "Not a valid IP address"}
-      footer={valid ? <IpInspectorFooter ip={ip} /> : undefined}
-      className="sm:w-[min(36rem,100vw)] sm:max-w-xl"
-    >
-      {valid ? (
-        <IpInspectorBody ip={ip} onZoom={zoomTo} />
-      ) : (
-        <p className="text-sm text-muted-foreground">Not a valid IP address.</p>
+    <>
+      <DetailSheet
+        historyEntry={false}
+        open={open && !docked}
+        onOpenChange={(next) => !next && close()}
+        title={title}
+        description={description}
+        footer={footer}
+        actions={canDock && <DockToggle docked={false} onDockedChange={setDocked} />}
+        className="sm:w-[min(36rem,100vw)] sm:max-w-xl"
+      >
+        {body}
+      </DetailSheet>
+      {open && docked && (
+        <InspectorDock
+          title={title}
+          description={description}
+          footer={footer}
+          actions={<DockToggle docked onDockedChange={setDocked} />}
+          onClose={close}
+        >
+          {body}
+        </InspectorDock>
       )}
-    </DetailSheet>
+    </>
   )
 }
 
