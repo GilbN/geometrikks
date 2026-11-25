@@ -262,10 +262,13 @@ export function VirtualTableBody<T>({
 
   // One lookup per body, read when a shortcut fires, so rows keep a stable ref.
   const shortcutLookup = useRef<(index: number) => RowShortcutData | undefined>(() => undefined)
-  shortcutLookup.current = (index) => {
-    const values = shortcutValues && rows[index] !== undefined ? shortcutValues(rows[index]) : null
-    return values ? { values, targetsFor } : undefined
-  }
+  useLayoutEffect(() => {
+    shortcutLookup.current = (index) => {
+      const values =
+        shortcutValues && rows[index] !== undefined ? shortcutValues(rows[index]) : null
+      return values ? { values, targetsFor } : undefined
+    }
+  }, [shortcutValues, rows, targetsFor])
   const registerBody = useCallback((body: HTMLTableSectionElement | null) => {
     if (body) registerShortcutBody(body, (index) => shortcutLookup.current(index))
   }, [])

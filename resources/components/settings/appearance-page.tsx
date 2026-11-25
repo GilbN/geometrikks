@@ -217,7 +217,7 @@ function ShortcutsSection() {
             browser extension. Ctrl+B keeps working either way.{" "}
             <button
               type="button"
-              onClick={openShortcutsCheatSheet}
+              onClick={() => openShortcutsCheatSheet()}
               className="text-foreground underline underline-offset-2"
             >
               Show all shortcuts

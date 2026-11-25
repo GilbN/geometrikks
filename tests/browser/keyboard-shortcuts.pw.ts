@@ -41,7 +41,7 @@ async function login(page: Page) {
 }
 
 /** Access Logs with 120 rows over three pages, whatever the database holds. */
-async function mockAccessLogs(page: Page) {
+async function mockAccessLogs(page: Page, delayMs = 0) {
   await page.route(
     (url) => url.pathname.replace(/\/$/, "") === "/api/v1/access-logs",
     async (route) => {
@@ -49,6 +49,7 @@ async function mockAccessLogs(page: Page) {
       const current = Number(url.searchParams.get("currentPage") ?? 1)
       const size = Number(url.searchParams.get("pageSize") ?? PAGE_SIZE)
       const start = (current - 1) * size
+      if (delayMs && current > 1) await new Promise((resolve) => setTimeout(resolve, delayMs))
       const items = Array.from({ length: Math.max(0, Math.min(size, 120 - start)) }, (_, i) =>
         accessRow(start + i),
       )
@@ -145,6 +146,40 @@ test("J and K move through rows, and I, C and F act on them", async ({ page, con
   await expect(page).toHaveURL(/ip=/)
 })
 
+test("closing the cheat sheet puts focus back on the row", async ({ page }) => {
+  await mockAccessLogs(page)
+  await page.goto("/access-logs")
+  await tableReady(page)
+  await page.keyboard.press("j")
+  await page.keyboard.press("j")
+  await expect.poll(() => focusedIndex(page)).toBe("1")
+  await page.keyboard.press("?")
+  await expect(page.getByRole("dialog", { name: "Keyboard shortcuts" })).toBeVisible()
+  await page.keyboard.press("Escape")
+  await expect.poll(() => focusedIndex(page)).toBe("1")
+})
+
+test("T and Esc go back to the row, and an open sheet keeps the keys", async ({ page }) => {
+  await mockAccessLogs(page)
+  await page.goto("/access-logs")
+  await tableReady(page)
+  await page.keyboard.press("j")
+  await page.keyboard.press("j")
+  await page.keyboard.press("t")
+  await expect(page.getByRole("menu")).toBeVisible()
+  await page.keyboard.press("Escape")
+  await expect(page.getByRole("menu")).toBeHidden()
+  await expect.poll(() => focusedIndex(page)).toBe("1")
+
+  await page.keyboard.press("i")
+  await expect(page).toHaveURL(/inspect=/)
+  await expect(page.getByRole("dialog")).toBeVisible()
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
+  await page.keyboard.press("g")
+  await page.keyboard.press("o")
+  await expect(page).toHaveURL(/\/access-logs/)
+})
+
 test("the arrow keys turn the page while a row has focus", async ({ page }) => {
   await mockAccessLogs(page)
   await page.goto("/access-logs")
@@ -158,6 +193,17 @@ test("the arrow keys turn the page while a row has focus", async ({ page }) => {
   await expect(page.locator('tr[aria-label^="Request 51,"]')).toBeFocused()
   await page.keyboard.press("ArrowLeft")
   await expect(page.getByText(/page 1 of 3/)).toBeVisible()
+})
+
+test("a slow page still lands focus on its first row", async ({ page }) => {
+  await mockAccessLogs(page, 1500)
+  await page.goto("/access-logs")
+  await tableReady(page)
+  for (let step = 0; step < 30; step++) await page.keyboard.press("j")
+  await expect.poll(() => focusedIndex(page)).toBe("29")
+  await page.keyboard.press("ArrowRight")
+  await expect(page.getByText(/page 2 of 3/)).toBeVisible()
+  await expect(page.locator('tr[aria-label^="Request 51,"]')).toBeFocused({ timeout: 6000 })
 })
 
 test("Appearance turns single-key shortcuts off, and Ctrl+B keeps working", async ({ page }) => {

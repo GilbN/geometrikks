@@ -219,7 +219,7 @@ function StatusProblem() {
       <StatusDot color={color} pulse={false} />
       <span
         className={cn(
-          "text-xs font-medium",
+          "min-w-0 truncate text-xs font-medium",
           offline ? "text-sidebar-foreground/70" : "text-amber-700 dark:text-amber-300",
         )}
       >

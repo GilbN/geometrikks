@@ -6,10 +6,13 @@
 import { useEffect } from "react"
 
 const EVENT = "geometrikks:live-tail"
-let pending = false
+/** A request the page has not taken lapses, so a navigation that never
+ *  arrived can't open the tab on some later visit. */
+const LAPSE_MS = 5000
+let requestedAt: number | null = null
 
 export function requestLiveTail(): void {
-  pending = true
+  requestedAt = Date.now()
   window.dispatchEvent(new Event(EVENT))
 }
 
@@ -17,9 +20,9 @@ export function requestLiveTail(): void {
 export function useLiveTailRequest(start: () => void): void {
   useEffect(() => {
     const take = () => {
-      if (!pending) return
-      pending = false
-      start()
+      const fresh = requestedAt !== null && Date.now() - requestedAt < LAPSE_MS
+      requestedAt = null
+      if (fresh) start()
     }
     take()
     window.addEventListener(EVENT, take)

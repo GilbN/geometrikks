@@ -119,6 +119,23 @@ const KEY_LABELS: Record<string, string> = {
   ArrowLeft: "←",
 }
 
+const SPOKEN_KEYS: Record<string, string> = {
+  Enter: "Enter",
+  ArrowRight: "Right arrow",
+  ArrowLeft: "Left arrow",
+  ",": "comma",
+  "/": "slash",
+  "?": "question mark",
+}
+
+/** How a screen reader should hear one shortcut's keys. */
+export function shortcutSpokenKeys(shortcut: Shortcut): string[] {
+  return [
+    ...(shortcut.mod ? ["Ctrl"] : []),
+    ...shortcut.keys.map((key) => SPOKEN_KEYS[key] ?? keyLabel(key)),
+  ]
+}
+
 /** How the cheat sheet and the palette print a key. */
 export function keyLabel(key: string): string {
   return KEY_LABELS[key] ?? (key.length === 1 ? key.toUpperCase() : key)
@@ -131,6 +148,7 @@ export function shortcutKeyLabels(shortcut: Shortcut): string[] {
 
 export interface KeyInput {
   key: string
+  code?: string
   ctrlKey: boolean
   metaKey: boolean
   altKey: boolean
@@ -140,6 +158,8 @@ export interface KeyInput {
 export type MatchResult =
   | { kind: "match"; shortcut: Shortcut }
   | { kind: "pending"; prefix: string }
+  /** The first key of a sequence repeats while held, and the sequence keeps waiting. */
+  | { kind: "waiting" }
   | { kind: "none" }
 
 const singleKey = SHORTCUTS.filter(
@@ -148,11 +168,18 @@ const singleKey = SHORTCUTS.filter(
 const sequences = SHORTCUTS.filter((shortcut) => !shortcut.mod && shortcut.keys.length === 2)
 const prefixes = new Set(sequences.map((shortcut) => shortcut.keys[0]))
 
-/** Letters arrive in upper case with Caps Lock on; the rest stay as typed. */
-function normalize(key: string): string {
-  return key.length === 1 && key !== key.toLowerCase() && key.toLowerCase() !== key.toUpperCase()
-    ? key.toLowerCase()
-    : key
+const MODIFIER_KEYS = new Set(["Shift", "Control", "Alt", "Meta", "CapsLock", "AltGraph"])
+
+/**
+ * Letters arrive in upper case with Caps Lock on. On a non-Latin layout the
+ * physical J key reports another letter, so letters fall back to the key's
+ * position. Everything else stays as typed.
+ */
+function normalize(key: string, code: string | undefined): string {
+  if (key.length !== 1 || key.toLowerCase() === key.toUpperCase()) return key
+  if (/[a-z]/i.test(key)) return key.toLowerCase()
+  const position = code?.match(/^Key([A-Z])$/)
+  return position ? position[1].toLowerCase() : key
 }
 
 /**
@@ -162,8 +189,12 @@ function normalize(key: string): string {
  */
 export function matchKey(event: KeyInput, pendingPrefix: string | null): MatchResult {
   if (event.ctrlKey || event.metaKey || event.altKey) return { kind: "none" }
-  const key = normalize(event.key)
+  // Shift on its own, on the way to a capital or a symbol, keeps a sequence waiting.
+  if (MODIFIER_KEYS.has(event.key))
+    return pendingPrefix === null ? { kind: "none" } : { kind: "waiting" }
+  const key = normalize(event.key, event.code)
   if (pendingPrefix !== null) {
+    if (event.repeat && key === pendingPrefix) return { kind: "waiting" }
     const shortcut = sequences.find(
       (candidate) => candidate.keys[0] === pendingPrefix && candidate.keys[1] === key,
     )
@@ -187,6 +218,15 @@ export function isTypingTarget(target: EventTarget | null): boolean {
   }
   if (target instanceof HTMLElement && target.isContentEditable) return true
   return target.closest('[role="textbox"],[role="combobox"],[role="searchbox"]') !== null
+}
+
+/**
+ * Whether a modal layer is open. Radix and vaul lock the page's scroll while
+ * a modal dialog, sheet, drawer or menu is open, and focus can still land on
+ * the body behind it, for example when a button inside it turns disabled.
+ */
+export function modalLayerOpen(): boolean {
+  return document.body.hasAttribute("data-scroll-locked")
 }
 
 /** Focus inside a dialog, sheet, menu or list keeps its keys to itself. */

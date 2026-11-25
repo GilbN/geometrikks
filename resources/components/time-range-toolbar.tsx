@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useRouterState } from "@tanstack/react-router"
 import { ChevronDown, RotateCw, Filter } from "lucide-react"
 
@@ -39,7 +39,19 @@ export function TimeRangeToolbar() {
   const rangeLabel = timeRangeLabel(range, customRange)
   const phone = usePhoneLayout()
   const [rangeMenuOpen, setRangeMenuOpen] = useState(false)
-  useShortcutAction("time-range", phone ? null : () => setRangeMenuOpen(true))
+  // T opens the menu from wherever focus is, such as a table row, and closing goes back there.
+  const focusBeforeShortcut = useRef<HTMLElement | null>(null)
+  useShortcutAction(
+    "time-range",
+    phone
+      ? null
+      : () => {
+          const active = document.activeElement
+          focusBeforeShortcut.current =
+            active instanceof HTMLElement && active !== document.body ? active : null
+          setRangeMenuOpen(true)
+        },
+  )
 
   return (
     <>
@@ -49,6 +61,13 @@ export function TimeRangeToolbar() {
         <TimeRangePicker
           open={rangeMenuOpen}
           onOpenChange={setRangeMenuOpen}
+          onCloseAutoFocus={(event) => {
+            const target = focusBeforeShortcut.current
+            focusBeforeShortcut.current = null
+            if (!target?.isConnected) return
+            event.preventDefault()
+            target.focus({ preventScroll: true })
+          }}
           trigger={
             <Button variant="outline" size="sm" className="flex items-center gap-2">
               <Filter className="w-4 h-4" />

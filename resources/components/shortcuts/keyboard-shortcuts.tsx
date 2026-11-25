@@ -6,7 +6,7 @@
  * KeyboardShortcuts once beside the page instead of around it.
  */
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react"
-import { useNavigate } from "@tanstack/react-router"
+import { useNavigate, useRouter } from "@tanstack/react-router"
 import { useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 
@@ -33,6 +33,7 @@ import {
   isInOverlay,
   isTypingTarget,
   matchKey,
+  modalLayerOpen,
   type ShortcutId,
 } from "@/lib/shortcuts"
 import { useTimeRange } from "@/lib/time-range-context"
@@ -63,8 +64,22 @@ function subscribeCheatSheet(listener: () => void): () => void {
   return () => cheatSheetListeners.delete(listener)
 }
 
-export function openShortcutsCheatSheet(): void {
+let returnFocusTo: HTMLElement | null = null
+
+/** Opens the cheat sheet. Closing it puts focus back on `returnTo`, or on
+ *  whatever had focus when it opened, such as a table row. */
+export function openShortcutsCheatSheet(returnTo?: HTMLElement | null): void {
+  returnFocusTo =
+    returnTo ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null)
   setCheatSheetOpen(true)
+}
+
+function restoreFocus(event: Event): void {
+  const target = returnFocusTo
+  returnFocusTo = null
+  if (!target?.isConnected || target === document.body) return
+  event.preventDefault()
+  target.focus({ preventScroll: true })
 }
 
 /** Binds a shortcut to a handler while the calling component is mounted. The
@@ -81,6 +96,7 @@ export function useShortcutAction(id: ShortcutId, handler: Handler | null): void
 
 export function KeyboardShortcuts() {
   const navigate = useNavigate()
+  const router = useRouter()
   const queryClient = useQueryClient()
   const { refresh } = useTimeRange()
   const { open: inspect } = useIpInspectorActions()
@@ -97,7 +113,7 @@ export function KeyboardShortcuts() {
       }
       switch (id) {
         case "cheat-sheet":
-          setCheatSheetOpen(true)
+          openShortcutsCheatSheet()
           return true
         case "refresh":
           refresh()
@@ -106,9 +122,15 @@ export function KeyboardShortcuts() {
           return focusPageFilter()
         case "live-tail":
           requestLiveTail()
-          void navigate({ to: "/access-logs" })
+          // On the page already, the request switches the tab and keeps the History filters.
+          if (router.state.location.pathname !== "/access-logs") {
+            void navigate({ to: "/access-logs" })
+          }
           return true
-        case "ban":
+        case "ban": {
+          // A slow status answer must not pull focus from whatever the user did next.
+          const focusedBefore = document.activeElement
+          const pathBefore = router.state.location.pathname
           void queryClient
             .fetchQuery({
               queryKey: queryKeys.crowdsec.status,
@@ -116,10 +138,14 @@ export function KeyboardShortcuts() {
               staleTime: 60_000,
             })
             .then((status) => {
-              if (status?.writeEnabled) setBanOpen(true)
+              if (!status?.writeEnabled) return
+              if (document.activeElement !== focusedBefore) return
+              if (router.state.location.pathname !== pathBefore) return
+              setBanOpen(true)
             })
             .catch(() => {})
           return true
+        }
         case "row-next":
           return moveRow(1)
         case "row-previous":
@@ -164,10 +190,12 @@ export function KeyboardShortcuts() {
           return false
       }
     },
-    [navigate, queryClient, refresh, inspect],
+    [navigate, router, queryClient, refresh, inspect],
   )
 
   useEffect(() => trackPointer(), [])
+  // A sign-out unmounts the shell. Closing here keeps the sheet shut after the next sign-in.
+  useEffect(() => () => setCheatSheetOpen(false), [])
 
   useEffect(() => {
     const clearPrefix = () => {
@@ -176,12 +204,16 @@ export function KeyboardShortcuts() {
     }
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.isComposing) return
-      if (isTypingTarget(event.target) || isInOverlay(event.target)) {
+      if (isTypingTarget(event.target) || isInOverlay(event.target) || modalLayerOpen()) {
         clearPrefix()
         return
       }
       if (!singleKeyShortcutsEnabled()) return
       const result = matchKey(event, pendingPrefix.current?.key ?? null)
+      if (result.kind === "waiting") {
+        event.preventDefault()
+        return
+      }
       if (result.kind === "pending") {
         clearPrefix()
         pendingPrefix.current = {
@@ -207,7 +239,11 @@ export function KeyboardShortcuts() {
 
   return (
     <>
-      <ShortcutsDialog open={sheetOpen} onOpenChange={setCheatSheetOpen} />
+      <ShortcutsDialog
+        open={sheetOpen}
+        onOpenChange={setCheatSheetOpen}
+        onCloseAutoFocus={restoreFocus}
+      />
       <BanIpDialog open={banOpen} onOpenChange={setBanOpen} />
     </>
   )

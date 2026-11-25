@@ -41,6 +41,9 @@ export function PaginationFooter({
 }: PaginationFooterProps) {
   return (
     <div
+      data-pagination=""
+      data-page={page}
+      data-pending={disabled ? "" : undefined}
       className={cn(
         "flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-3 py-2 text-xs text-muted-foreground",
         className,

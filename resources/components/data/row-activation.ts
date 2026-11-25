@@ -36,10 +36,14 @@ export function rowActivation<T extends HTMLElement>(open: () => void) {
 /** Wrap nested interactive content so it does not activate the row. Clicks
  *  from portaled content keep bubbling. On touch, Radix and vaul only notice
  *  a tap outside a menu or drawer when the click reaches the document, so
- *  stopping it would leave them open. The row ignores those clicks itself. */
+ *  stopping it would leave them open. The row ignores those clicks itself.
+ *  Only the activation keys stop, so the app's keyboard shortcuts still hear
+ *  the rest. */
 export const stopRowActivation = {
   onClick: (event: MouseEvent) => {
     if (event.currentTarget.contains(event.target as Node)) event.stopPropagation()
   },
-  onKeyDown: (event: KeyboardEvent) => event.stopPropagation(),
+  onKeyDown: (event: KeyboardEvent) => {
+    if (event.key === "Enter" || event.key === " ") event.stopPropagation()
+  },
 }

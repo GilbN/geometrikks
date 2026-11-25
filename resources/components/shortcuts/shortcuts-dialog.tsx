@@ -14,7 +14,13 @@ import { Kbd, KbdGroup } from "@/components/ui/kbd"
 import { fetchCrowdsecStatus } from "@/lib/api"
 import { queryKeys } from "@/lib/queries"
 import { useSingleKeyShortcuts } from "@/lib/shortcut-preference"
-import { SHORTCUTS, shortcutKeyLabels, type Shortcut, type ShortcutGroup } from "@/lib/shortcuts"
+import {
+  SHORTCUTS,
+  shortcutKeyLabels,
+  shortcutSpokenKeys,
+  type Shortcut,
+  type ShortcutGroup,
+} from "@/lib/shortcuts"
 
 const GROUPS: { group: ShortcutGroup; title: string }[] = [
   { group: "anywhere", title: "Anywhere" },
@@ -40,10 +46,14 @@ function Keys({ labels }: { labels: string[] }) {
 function ShortcutRow({ shortcut }: { shortcut: Shortcut }) {
   const paired = SHORTCUTS.find((candidate) => candidate.pairedWith === shortcut.id)
   const labels = [...shortcutKeyLabels(shortcut), ...(paired ? shortcutKeyLabels(paired) : [])]
+  const spoken = [
+    shortcutSpokenKeys(shortcut).join(" "),
+    ...(paired ? [shortcutSpokenKeys(paired).join(" ")] : []),
+  ].join(" and ")
   return (
     <li className="flex min-h-7 items-center justify-between gap-3 text-[13px]">
       <span>{shortcut.label}</span>
-      <span className="sr-only">: {labels.join(" ")}</span>
+      <span className="sr-only">: {spoken}</span>
       <span aria-hidden className="shrink-0">
         <Keys labels={labels} />
       </span>
@@ -54,9 +64,11 @@ function ShortcutRow({ shortcut }: { shortcut: Shortcut }) {
 export function ShortcutsDialog({
   open,
   onOpenChange,
+  onCloseAutoFocus,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
+  onCloseAutoFocus?: (event: Event) => void
 }) {
   const [singleKeys] = useSingleKeyShortcuts()
   const { data: crowdsec } = useQuery({
@@ -74,12 +86,13 @@ export function ShortcutsDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton={false}
-        className="gap-6 p-7 sm:max-w-[760px]"
+        className="max-h-[calc(100dvh-2rem)] gap-6 overflow-y-auto p-7 outline-none sm:max-w-[760px]"
         // The list has nothing to act on, so open without a focus ring on Esc.
         onOpenAutoFocus={(event) => {
           event.preventDefault()
           ;(event.currentTarget as HTMLElement).focus()
         }}
+        onCloseAutoFocus={onCloseAutoFocus}
       >
         <DialogHeader className="gap-1.5">
           <div className="flex items-start justify-between gap-4">

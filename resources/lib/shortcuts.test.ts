@@ -36,6 +36,21 @@ describe("matchKey", () => {
     expect(matched("d", "g")).toBe("go-debug-logs")
   })
 
+  it("keeps waiting while the first key of a sequence is held", () => {
+    expect(matchKey(press("g", { repeat: true }), "g")).toEqual({ kind: "waiting" })
+    expect(matched("a", "g")).toBe("go-access-logs")
+  })
+
+  it("keeps waiting when Shift goes down between the two keys", () => {
+    expect(matchKey(press("Shift"), "g")).toEqual({ kind: "waiting" })
+    expect(matchKey(press("Shift"), null)).toEqual({ kind: "none" })
+  })
+
+  it("reads letters by position on a non-Latin layout", () => {
+    expect(matched("о", null, { code: "KeyJ" })).toBe("row-next")
+    expect(matched("п", "g", { code: "KeyA" })).toBe("go-access-logs")
+  })
+
   it("drops a sequence with an unknown second key", () => {
     expect(matched("x", "g")).toBe("none")
     expect(matched("t", "g")).toBe("none")

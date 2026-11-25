@@ -125,27 +125,34 @@ export function moveRow(step: 1 | -1): boolean {
 
 /**
  * Turns the page of the table that holds focus, then focuses the first row
- * of the new page once it arrives.
+ * of the new page once its rows have loaded. The old rows stay on screen
+ * while the new page loads, so this waits for the footer to show the new
+ * page with nothing pending. It gives up if focus moves elsewhere meanwhile.
  */
 export function stepPage(step: 1 | -1): boolean {
   const row = focusedRow()
   const frame = row?.closest('[data-slot="data-table-frame"]')
-  const button = frame?.querySelector<HTMLButtonElement>(
+  const footer = frame?.querySelector<HTMLElement>("[data-pagination]")
+  const button = footer?.querySelector<HTMLButtonElement>(
     `[data-page-step="${step === 1 ? "next" : "previous"}"]`,
   )
-  if (!frame || !button || button.disabled) return false
-  const table = row?.closest(TABLE)
-  const before = table?.querySelector(ROW)
+  if (!frame || !footer || !button || button.disabled) return false
+  const target = String(Number(footer.dataset.page) + step)
   button.click()
-  // The new page renders new rows; wait for the first one that differs.
-  let tries = 0
+  const startedAt = Date.now()
   const settle = () => {
-    const first = frame.querySelector<HTMLTableRowElement>(`${TABLE} ${ROW}`)
-    if (first && first !== before && first.isConnected) {
-      focusRow(first)
-      return
+    const active = document.activeElement
+    if (active && active !== document.body && !frame.contains(active)) return
+    const current = frame.querySelector<HTMLElement>("[data-pagination]")
+    if (current?.dataset.page === target && current.dataset.pending === undefined) {
+      const table = frame.querySelector(TABLE)
+      const first = table ? firstVisibleRow(table) : null
+      if (first) {
+        focusRow(first)
+        return
+      }
     }
-    if (++tries < 40) window.setTimeout(settle, 50)
+    if (Date.now() - startedAt < 5000) window.setTimeout(settle, 50)
   }
   window.setTimeout(settle, 50)
   return true
