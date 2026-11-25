@@ -41,11 +41,11 @@ test("the range button says what it is, and auto refresh is a menu", async ({ pa
   await expect(range).toBeVisible()
   await expect(range).toContainText("Last 7 days")
 
-  const auto = header(page).getByRole("button", { name: "Auto refresh, off" })
+  const auto = header(page).getByRole("button", { name: "Auto off, auto refresh" })
   await expect(auto).toHaveText("Auto off")
   await auto.click()
   await page.getByRole("menuitemradio", { name: "Every 30s" }).click()
-  await expect(header(page).getByRole("button", { name: "Auto refresh, every 30s" })).toHaveText(
+  await expect(header(page).getByRole("button", { name: "Auto 30s, auto refresh" })).toHaveText(
     "Auto 30s",
   )
 
@@ -60,7 +60,7 @@ test("Settings pages show no range controls and route back to Settings", async (
   await page.goto("/settings/environment")
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Environment")
   await expect(header(page).getByRole("button", { name: /^Time range/ })).toHaveCount(0)
-  await expect(header(page).getByRole("button", { name: /^Auto refresh/ })).toHaveCount(0)
+  await expect(header(page).getByRole("button", { name: /auto refresh$/ })).toHaveCount(0)
 
   // A full reload would lose this marker.
   await page.evaluate(() => ((window as unknown as { stayed: boolean }).stayed = true))

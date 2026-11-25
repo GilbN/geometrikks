@@ -79,6 +79,8 @@ const routeLabels: Record<string, string> = {
 
 /** The page name as the document's h1, with the page's subtitle as a hint
  *  on hover, focus or tap. Settings pages put "Settings" before it. */
+const PAGE_SUBTITLE_ID = "page-subtitle"
+
 function AppBreadcrumb() {
   const pathname = useRouterState({ select: (state) => state.location.pathname })
   const currentLabel = routeLabels[pathname] || "Page"
@@ -92,7 +94,9 @@ function AppBreadcrumb() {
           <BreadcrumbList className="flex-nowrap">
             <BreadcrumbItem className="hidden md:block phone:hidden">
               <BreadcrumbLink asChild>
-                <Link to="/settings">Settings</Link>
+                <Link to="/settings" activeOptions={{ exact: true }}>
+                  Settings
+                </Link>
               </BreadcrumbLink>
             </BreadcrumbItem>
             <BreadcrumbItem className="hidden phone-side:block">Settings</BreadcrumbItem>
@@ -110,15 +114,25 @@ function AppBreadcrumb() {
           </BreadcrumbList>
         </Breadcrumb>
       )}
-      <h1 className="min-w-0 truncate text-sm text-foreground md:text-[17px] md:font-semibold phone:text-sm phone:font-normal">
+      <h1
+        aria-describedby={subtitle ? PAGE_SUBTITLE_ID : undefined}
+        className="min-w-0 truncate text-sm text-foreground md:text-[17px] md:font-semibold phone:text-sm phone:font-normal"
+      >
         {subtitle ? (
           <BadgeHint hint={subtitle} hover="tooltip" side="bottom">
-            <span className="cursor-default rounded-sm outline-offset-2">{currentLabel}</span>
+            <span className="cursor-default rounded-sm focus-visible:outline-offset-[-2px]">
+              {currentLabel}
+            </span>
           </BadgeHint>
         ) : (
           currentLabel
         )}
       </h1>
+      {subtitle && (
+        <p id={PAGE_SUBTITLE_ID} className="sr-only">
+          {subtitle}
+        </p>
+      )}
     </div>
   )
 }
@@ -292,7 +306,7 @@ function RootLayout() {
                         <GeoDegradedBanner />
                         {/* Top header bar */}
                         {!phoneMap && (
-                          <header className="relative z-10 flex h-14 shrink-0 items-center phone-side:h-12 justify-between gap-1 border-b border-border/50 bg-background px-2 pt-[env(safe-area-inset-top,0px)] pl-[max(0.5rem,env(safe-area-inset-left,0px))] pr-[max(0.5rem,env(safe-area-inset-right,0px))] box-content sm:gap-2 sm:px-4 sm:pl-[max(1rem,env(safe-area-inset-left,0px))] sm:pr-[max(1rem,env(safe-area-inset-right,0px))] md:pl-4 phone:pl-[max(1rem,env(safe-area-inset-left,0px))] phone:pr-[max(1rem,env(safe-area-inset-right,0px))]">
+                          <header className="@container relative z-10 flex h-14 shrink-0 items-center phone-side:h-12 justify-between gap-1 border-b border-border/50 bg-background px-2 pt-[env(safe-area-inset-top,0px)] pl-[max(0.5rem,env(safe-area-inset-left,0px))] pr-[max(0.5rem,env(safe-area-inset-right,0px))] box-content sm:gap-2 sm:px-4 sm:pl-[max(1rem,env(safe-area-inset-left,0px))] sm:pr-[max(1rem,env(safe-area-inset-right,0px))] md:pl-4 phone:pl-[max(1rem,env(safe-area-inset-left,0px))] phone:pr-[max(1rem,env(safe-area-inset-right,0px))]">
                             <div className="flex min-w-0 flex-1 items-center gap-2">
                               {!phone && (
                                 <>

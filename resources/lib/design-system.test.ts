@@ -120,7 +120,7 @@ describe("page chrome", () => {
   })
 
   it("puts every page route on PageHeader", () => {
-    // settings.tsx is a layout; its children carry the H1 via SettingsPage.
+    // settings.tsx is a layout. Its children reach PageHeader through SettingsPage.
     const exempt = new Set([
       "__root.tsx",
       "index.tsx",

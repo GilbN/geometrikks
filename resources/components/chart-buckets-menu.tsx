@@ -48,8 +48,7 @@ export function ChartBucketsMenu() {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="sm" className="h-8 gap-1.5 px-2.5 text-[13px]">
-          <span className="text-muted-foreground">Buckets</span>
-          {label}
+          <span className="text-muted-foreground">Buckets</span> {label}
           <ChevronDown aria-hidden className="size-3.5 text-muted-foreground" />
         </Button>
       </DropdownMenuTrigger>
@@ -69,9 +68,12 @@ function bucketLabel(granularity: string): string {
 export function GranularityBadge({ granularity }: { granularity: string | undefined }) {
   const phone = usePhoneLayout()
   const { granularity: choice } = useTimeRange()
-  if (!granularity) return null
-  const label = bucketLabel(granularity)
+  // While a new bucket size loads the chart has no data, and the menu must stay put for focus.
+  const label = granularity
+    ? bucketLabel(granularity)
+    : (CHART_GRANULARITY_OPTIONS.find((option) => option.value === choice)?.label ?? "Auto")
   if (phone) {
+    if (!granularity) return null
     return (
       <BadgeHint hint="Bucket size chosen for the selected range">
         <span className={BADGE}>{label}</span>

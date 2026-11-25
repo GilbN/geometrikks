@@ -30,6 +30,12 @@ export function Summary() {
   })
   const [chartsOn] = useCardCharts("overview")
   const phone = usePhoneLayout()
+  const overviewControls = (
+    <>
+      <ChartBucketsMenu />
+      <CardChartsSwitch page="overview" />
+    </>
+  )
   const sparklines = useOverviewSparklines({ enabled: chartsOn })
 
   const section = {
@@ -54,6 +60,8 @@ export function Summary() {
               !isError && <Skeleton className="h-6 w-72 max-w-full rounded-md" />
             )
           }
+          // Traffic Overview hides on an error, and its heading holds these controls.
+          actions={isError && !phone ? overviewControls : undefined}
         />
 
         {isError && (
@@ -67,17 +75,7 @@ export function Summary() {
             is the order on screen in both the loading and loaded states.
             Traffic Origin has its own query and its own states; it is not
             gated on /summary so its request starts with the others. */}
-        <TrafficOverviewSection
-          {...section}
-          actions={
-            phone ? undefined : (
-              <>
-                <ChartBucketsMenu />
-                <CardChartsSwitch page="overview" />
-              </>
-            )
-          }
-        />
+        <TrafficOverviewSection {...section} actions={phone ? undefined : overviewControls} />
         <TrafficOriginStats />
         <HttpStatusSection {...section} />
         <PerformanceSection {...section} />

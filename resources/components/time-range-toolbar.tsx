@@ -12,12 +12,8 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import {
-  TimeRangePicker,
-  timeRangeLabel,
-  timeRangeName,
-  timeRangeSpan,
-} from "@/components/time-range-picker"
+import { TimeRangePicker, timeRangeLabel } from "@/components/time-range-picker"
+import { timeRangeName, timeRangeSpan } from "@/lib/time-range-label"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useTimeRange } from "@/lib/time-range-context"
 import { useRouteHeader } from "@/lib/route-header"
@@ -52,6 +48,13 @@ function RangeButton() {
   const [timeFormat] = useTimeFormat()
   const phone = usePhoneLayout()
   const [open, setOpen] = useState(false)
+  // Queries take a fresh "now" on every poll, so the span follows the clock too.
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    setNow(Date.now())
+    const timer = window.setInterval(() => setNow(Date.now()), 30_000)
+    return () => window.clearInterval(timer)
+  }, [lastRefresh])
   // The desktop menu unmounts on a phone layout. Closing it here stops it reopening on widening.
   useEffect(() => {
     if (phone) setOpen(false)
@@ -70,7 +73,7 @@ function RangeButton() {
         },
   )
   const name = range === "custom" ? null : timeRangeName(range)
-  const span = timeRangeSpan(range, customRange, lastRefresh, timeFormat)
+  const span = timeRangeSpan(range, customRange, now, timeFormat)
   return (
     <TimeRangePicker
       align="end"
@@ -91,7 +94,10 @@ function RangeButton() {
         >
           <CalendarDays aria-hidden className="size-4 text-muted-foreground" />
           {name && <span className="font-semibold">{name}</span>}
-          <span className={cn("tabular-nums", name && "text-muted-foreground")}>{span}</span>
+          {/* A narrow bar drops the dates to keep the page name whole. A custom range is all dates. */}
+          <span className={cn("tabular-nums", name && "hidden text-muted-foreground @2xl:inline")}>
+            {span}
+          </span>
           <ChevronDown aria-hidden className="size-3.5 text-muted-foreground" />
         </Button>
       }
@@ -117,7 +123,7 @@ function RefreshSplitButton() {
             disabled={isFetching > 0}
           >
             <RotateCw className={cn("size-4", isFetching > 0 && "animate-spin")} />
-            <span className="sr-only">Refresh now</span>
+            <span className="sr-only">Refresh data</span>
           </Button>
         </TooltipTrigger>
         <TooltipContent>Refresh now</TooltipContent>
@@ -127,7 +133,7 @@ function RefreshSplitButton() {
           <Button
             variant="outline"
             className="h-9 gap-1.5 px-3 text-[13px]"
-            aria-label={`Auto refresh, ${pollInterval > 0 ? `every ${interval?.label}` : "off"}`}
+            aria-label={`${autoLabel}, auto refresh`}
           >
             {autoLabel}
             <ChevronDown aria-hidden className="size-3.5 text-muted-foreground" />
