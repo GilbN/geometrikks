@@ -46,8 +46,14 @@ describe("matchKey", () => {
     expect(matchKey(press("Shift"), null)).toEqual({ kind: "none" })
   })
 
+  it("keeps waiting through a bare Ctrl or Alt press", () => {
+    expect(matchKey(press("Control", { ctrlKey: true }), "g")).toEqual({ kind: "waiting" })
+    expect(matchKey(press("Alt", { altKey: true }), "g")).toEqual({ kind: "waiting" })
+  })
+
   it("reads letters by position on a non-Latin layout", () => {
     expect(matched("о", null, { code: "KeyJ" })).toBe("row-next")
+    expect(matched("ע", null, { code: "KeyG" })).toBe("pending")
     expect(matched("п", "g", { code: "KeyA" })).toBe("go-access-logs")
   })
 

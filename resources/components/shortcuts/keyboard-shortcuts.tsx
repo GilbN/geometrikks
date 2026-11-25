@@ -29,6 +29,7 @@ import { queryKeys } from "@/lib/queries"
 import { singleKeyShortcutsEnabled } from "@/lib/shortcut-preference"
 import {
   GO_TO_PATHS,
+  MODIFIER_KEYS,
   SEQUENCE_TIMEOUT_MS,
   isInOverlay,
   isTypingTarget,
@@ -102,6 +103,7 @@ export function KeyboardShortcuts() {
   const { open: inspect } = useIpInspectorActions()
   const sheetOpen = useSyncExternalStore(subscribeCheatSheet, () => cheatSheetOpen)
   const [banOpen, setBanOpen] = useState(false)
+  const banReturnFocus = useRef<HTMLElement | null>(null)
   const pendingPrefix = useRef<{ key: string; timer: number } | null>(null)
 
   const builtIn = useCallback(
@@ -141,6 +143,10 @@ export function KeyboardShortcuts() {
               if (!status?.writeEnabled) return
               if (document.activeElement !== focusedBefore) return
               if (router.state.location.pathname !== pathBefore) return
+              banReturnFocus.current =
+                focusedBefore instanceof HTMLElement && focusedBefore !== document.body
+                  ? focusedBefore
+                  : null
               setBanOpen(true)
             })
             .catch(() => {})
@@ -211,7 +217,8 @@ export function KeyboardShortcuts() {
       if (!singleKeyShortcutsEnabled()) return
       const result = matchKey(event, pendingPrefix.current?.key ?? null)
       if (result.kind === "waiting") {
-        event.preventDefault()
+        // Block a held G so it repeats nothing. A lone modifier keeps its default.
+        if (!MODIFIER_KEYS.has(event.key)) event.preventDefault()
         return
       }
       if (result.kind === "pending") {
@@ -244,7 +251,7 @@ export function KeyboardShortcuts() {
         onOpenChange={setCheatSheetOpen}
         onCloseAutoFocus={restoreFocus}
       />
-      <BanIpDialog open={banOpen} onOpenChange={setBanOpen} />
+      <BanIpDialog open={banOpen} onOpenChange={setBanOpen} returnFocusTo={banReturnFocus} />
     </>
   )
 }

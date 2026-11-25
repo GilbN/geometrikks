@@ -142,7 +142,8 @@ export function stepPage(step: 1 | -1): boolean {
   const startedAt = Date.now()
   const settle = () => {
     const active = document.activeElement
-    if (active && active !== document.body && !frame.contains(active)) return
+    if (!frame.isConnected) return
+    if (active && active !== document.body && !row?.contains(active)) return
     const current = frame.querySelector<HTMLElement>("[data-pagination]")
     if (current?.dataset.page === target && current.dataset.pending === undefined) {
       const table = frame.querySelector(TABLE)

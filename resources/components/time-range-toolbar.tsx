@@ -1,4 +1,4 @@
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouterState } from "@tanstack/react-router"
 import { ChevronDown, RotateCw, Filter } from "lucide-react"
 
@@ -39,6 +39,10 @@ export function TimeRangeToolbar() {
   const rangeLabel = timeRangeLabel(range, customRange)
   const phone = usePhoneLayout()
   const [rangeMenuOpen, setRangeMenuOpen] = useState(false)
+  // The desktop menu unmounts on a phone layout. Closing it here stops it reopening on widening.
+  useEffect(() => {
+    if (phone) setRangeMenuOpen(false)
+  }, [phone])
   // T opens the menu from wherever focus is, such as a table row, and closing goes back there.
   const focusBeforeShortcut = useRef<HTMLElement | null>(null)
   useShortcutAction(

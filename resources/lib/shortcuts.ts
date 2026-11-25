@@ -168,7 +168,14 @@ const singleKey = SHORTCUTS.filter(
 const sequences = SHORTCUTS.filter((shortcut) => !shortcut.mod && shortcut.keys.length === 2)
 const prefixes = new Set(sequences.map((shortcut) => shortcut.keys[0]))
 
-const MODIFIER_KEYS = new Set(["Shift", "Control", "Alt", "Meta", "CapsLock", "AltGraph"])
+export const MODIFIER_KEYS: ReadonlySet<string> = new Set([
+  "Shift",
+  "Control",
+  "Alt",
+  "Meta",
+  "CapsLock",
+  "AltGraph",
+])
 
 /**
  * Letters arrive in upper case with Caps Lock on. On a non-Latin layout the
@@ -176,7 +183,7 @@ const MODIFIER_KEYS = new Set(["Shift", "Control", "Alt", "Meta", "CapsLock", "A
  * position. Everything else stays as typed.
  */
 function normalize(key: string, code: string | undefined): string {
-  if (key.length !== 1 || key.toLowerCase() === key.toUpperCase()) return key
+  if (key.length !== 1 || !/\p{L}/u.test(key)) return key
   if (/[a-z]/i.test(key)) return key.toLowerCase()
   const position = code?.match(/^Key([A-Z])$/)
   return position ? position[1].toLowerCase() : key
@@ -188,10 +195,10 @@ function normalize(key: string, code: string | undefined): string {
  * other modifier means the press belongs to the browser or the system.
  */
 export function matchKey(event: KeyInput, pendingPrefix: string | null): MatchResult {
-  if (event.ctrlKey || event.metaKey || event.altKey) return { kind: "none" }
-  // Shift on its own, on the way to a capital or a symbol, keeps a sequence waiting.
+  // A modifier pressed on its own keeps a sequence waiting.
   if (MODIFIER_KEYS.has(event.key))
     return pendingPrefix === null ? { kind: "none" } : { kind: "waiting" }
+  if (event.ctrlKey || event.metaKey || event.altKey) return { kind: "none" }
   const key = normalize(event.key, event.code)
   if (pendingPrefix !== null) {
     if (event.repeat && key === pendingPrefix) return { kind: "waiting" }
