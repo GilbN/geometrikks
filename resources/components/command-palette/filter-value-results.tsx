@@ -41,7 +41,7 @@ export const NAME_ROW = "name:"
 /** Shorter text matches too much to be worth a request. */
 export const NAME_SEARCH_MIN = 2
 /** The server turns longer text away. */
-const NAME_SEARCH_MAX = 100
+export const NAME_SEARCH_MAX = 100
 const SHOWN = 4
 
 export type PickedValue =

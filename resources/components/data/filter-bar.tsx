@@ -84,17 +84,31 @@ export function FilterBar({
   order.current = orderChips(order.current, active)
 
   const open = openId === null ? null : parseChipId(openId)
+  const isPinnedEmpty = (field: FilterBarField) =>
+    pinned.includes(field.id) && activeModes(field).length === 0
+  // A draft chip leaves with its picker, so its focus goes to the add button.
+  const focusAdd = useRef(false)
+  useEffect(() => {
+    if (!focusAdd.current) return
+    focusAdd.current = false
+    addRef.current?.focus()
+  })
   const closeIf = (id: string) => (next: boolean) => {
-    if (!next) setOpenId((current) => (current === id ? null : current))
-    else setOpenId(id)
+    if (next) return setOpenId(id)
+    const field = byId.get(parseChipId(id).fieldId)
+    if (field && !active.includes(id) && !isPinnedEmpty(field)) focusAdd.current = true
+    setOpenId((current) => (current === id ? null : current))
   }
   const switchTo = (field: FilterBarField, from: FilterMode) => (to: FilterMode) => {
     if (to === from) return
-    const values = switchMode<string | number>(field.include, field.exclude ?? [], to)
-    ;(field.onChange as (include: unknown[], exclude: unknown[]) => void)(
-      values.include,
-      values.exclude,
-    )
+    // An empty picker only changes mode; writing the same filters would still reset the page.
+    if (chipValues(field, from).length > 0) {
+      const values = switchMode<string | number>(field.include, field.exclude ?? [], to)
+      ;(field.onChange as (include: unknown[], exclude: unknown[]) => void)(
+        values.include,
+        values.exclude,
+      )
+    }
     setOpenId(chipId(field.id, to))
   }
   const removeChip = (field: FilterBarField, mode: FilterMode) => {
@@ -109,8 +123,9 @@ export function FilterBar({
     const id = chipId(field.id, mode)
     return (
       <FieldChip
-        // One key per field and mode, so a chip that loses its last value keeps its open picker.
-        key={id}
+        // One key per field and mode, so a chip that loses its last value keeps its open
+        // picker. An empty pinned field keeps one key, so its is / is not switch keeps it mounted.
+        key={slot === "pinned" ? `pin:${field.id}` : id}
         field={field}
         mode={mode}
         slot={slot}
@@ -141,19 +156,17 @@ export function FilterBar({
     items.push(chip(byId.get(fieldId)!, mode, "value"))
   }
   // A field picked from the menu shows as a chip with its picker open until it gets a value.
-  // An empty pinned field opens from its own button instead.
   const draft = open && !active.includes(openId!) ? byId.get(open.fieldId) : undefined
-  const pinnedEmpty =
-    draft !== undefined && pinned.includes(draft.id) && activeModes(draft).length === 0
-  if (draft && open && !pinnedEmpty) items.push(chip(draft, open.mode, "draft"))
+  // An empty pinned field opens from its own button instead.
+  if (draft && open && !isPinnedEmpty(draft)) items.push(chip(draft, open.mode, "draft"))
 
   const pickField = (fieldId: string) => {
     const field = byId.get(fieldId)
     if (!field) return
     const modes = activeModes(field)
-    // A field that has only an "is" chip gets a new "is not" one; its own chip reopens on a click.
+    // A field with one chip gets a new chip for the other mode; its own chip reopens on a click.
     const mode: FilterMode =
-      modes.length === 0 ? "is" : field.exclude && !modes.includes("not") ? "not" : modes[0]
+      field.exclude && modes.length === 1 ? (modes[0] === "is" ? "not" : "is") : "is"
     setOpenId(chipId(fieldId, mode))
   }
 
@@ -208,6 +221,7 @@ const HIDING =
 
 /** The Muted IPs switch at the right of the bar, while the list has entries. */
 function MutedIpsButton({ scope, onToggle }: { scope: MutedScope; onToggle: () => void }) {
+  const hintId = useId()
   if (scope.chip === "none") return null
   const hiding = scope.chip === "hiding"
   const greyed = scope.chip === "greyed"
@@ -216,22 +230,43 @@ function MutedIpsButton({ scope, onToggle }: { scope: MutedScope; onToggle: () =
     : hiding
       ? "Muted IPs hidden"
       : "Muted IPs shown"
+  // aria-disabled, not disabled, so the button keeps focus and its reason reaches a keyboard.
   return (
-    <Button
-      type="button"
-      variant="outline"
-      size="sm"
-      aria-label="Hide muted IPs"
-      aria-pressed={greyed ? undefined : hiding}
-      title={title}
-      disabled={greyed}
-      onClick={onToggle}
-      className={cn("h-8 gap-1.5 px-2.5 text-[13px] tabular-nums", hiding && HIDING)}
-    >
-      {scope.chip === "shown" ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />}
-      {scope.count}
-    </Button>
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        aria-label="Hide muted IPs"
+        aria-pressed={greyed ? undefined : hiding}
+        aria-disabled={greyed || undefined}
+        aria-describedby={greyed ? hintId : undefined}
+        title={title}
+        onClick={greyed ? undefined : onToggle}
+        className={cn(
+          "h-8 gap-1.5 px-2.5 text-[13px] tabular-nums",
+          hiding && HIDING,
+          greyed && "cursor-not-allowed opacity-50 hover:bg-transparent",
+        )}
+      >
+        {scope.chip === "shown" ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />}
+        {scope.count}
+      </Button>
+      {greyed && (
+        <span id={hintId} className="sr-only">
+          Off while filtering by IP
+        </span>
+      )}
+    </>
   )
+}
+
+/** Sets one mode's values. A value can't be in both lists, so the other mode drops it. */
+function setModeValues(field: FilterBarField, mode: FilterMode, values: (string | number)[]) {
+  const onChange = field.onChange as (include: unknown[], exclude: unknown[]) => void
+  const without = (list: (string | number)[]) => list.filter((value) => !values.includes(value))
+  if (mode === "is") onChange(values, without(field.exclude ?? []))
+  else onChange(without(field.include), values)
 }
 
 interface ChipProps {
@@ -311,21 +346,26 @@ function ChipFace({
             {slot === "value" && (
               <span
                 className={cn(
-                  "flex min-w-0 items-center truncate font-medium whitespace-pre",
+                  "flex min-w-0 items-center overflow-hidden font-medium whitespace-pre",
                   field.mono && "font-mono text-xs",
                   not ? "text-destructive" : "text-foreground",
                 )}
               >
                 {shown.map((value, index) => (
                   <Fragment key={String(value)}>
-                    {index > 0 && <span className="font-normal text-muted-foreground">, </span>}
-                    <span className="inline-flex min-w-0 items-center gap-1.5">
+                    {index > 0 && (
+                      <span className="shrink-0 font-normal text-muted-foreground">, </span>
+                    )}
+                    <span className="min-w-0 truncate [&>img]:mr-1.5 [&>img]:align-[-1px]">
                       {chipValue ? chipValue(value) : labelFor(value)}
                     </span>
                   </Fragment>
                 ))}
                 {more > 0 && (
-                  <span className="font-sans font-normal text-muted-foreground"> +{more}</span>
+                  <span className="shrink-0 font-sans font-normal text-muted-foreground">
+                    {" "}
+                    +{more}
+                  </span>
                 )}
               </span>
             )}
@@ -410,11 +450,11 @@ function ListChip(
     ...field.options,
     ...selected.filter((value) => !field.options.includes(value)),
   ].sort((a, b) => Number(exact(b)) - Number(exact(a)))
-  const setSelected = (values: (string | number)[]) => {
-    const onChange = field.onChange as (include: unknown[], exclude: unknown[]) => void
-    if (mode === "is") onChange(values, field.exclude ?? [])
-    else onChange(field.include, values)
-  }
+  const setSelected = (values: (string | number)[]) =>
+    setModeValues(field as FilterBarField, mode, values)
+  useEffect(() => {
+    if (!open) setQuery("")
+  }, [open])
   useEffect(() => {
     if (open) field.onOpen?.()
     // Only the opening matters; a new onOpen each render must not refire it.
@@ -427,10 +467,7 @@ function ListChip(
       onValueChange={(value) => setSelected(value as (string | number)[])}
       itemToStringLabel={field.labelFor as (value: string | number) => string}
       open={open}
-      onOpenChange={(next) => {
-        if (!next) setQuery("")
-        onOpenChange(next)
-      }}
+      onOpenChange={onOpenChange}
       onInputValueChange={setQuery}
       autoHighlight
     >
@@ -471,18 +508,13 @@ function TypedChip(props: Omit<ChipProps, "field"> & { field: TypedFilterBarFiel
   const value = draft.trim()
   const invalid = value !== "" && !field.validate(value)
   const hintText = invalid && field.hint ? field.hint(value) : null
-  const setValues = (next: string[]) => {
-    if (mode === "is") field.onChange(next, field.exclude ?? [])
-    else field.onChange(field.include, next)
-  }
+  const setValues = (next: string[]) => setModeValues(field, mode, next)
+  // The bar can close the picker itself, as Clear does, without onOpenChange.
+  useEffect(() => {
+    if (!open) setDraft("")
+  }, [open])
   return (
-    <Popover
-      open={open}
-      onOpenChange={(next) => {
-        if (!next) setDraft("")
-        onOpenChange(next)
-      }}
-    >
+    <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverAnchor virtualRef={anchorRef} />
       <ChipFace
         {...props}

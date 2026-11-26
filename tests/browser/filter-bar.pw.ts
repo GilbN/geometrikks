@@ -150,3 +150,15 @@ test("filters set elsewhere show as chips, and Clear takes them all", async ({ p
   expect(param(page, "method")).toBeNull()
   await expect(bar(page).locator('[data-slot="filter-chip"]')).toHaveCount(0)
 })
+
+test("an empty picker keeps the page and gives focus back to the add button", async ({ page }) => {
+  await page.goto("/access-logs?page=3")
+  await addFilter(page).click()
+  await page.getByRole("option", { name: /Host/ }).click()
+  await page.getByRole("radio", { name: "is not" }).click()
+  await expect(page.getByRole("radio", { name: "is not" })).toHaveAttribute("data-state", "on")
+  expect(param(page, "page")).toBe("3")
+  await page.keyboard.press("Escape")
+  await expect(addFilter(page)).toBeFocused()
+  await expect(bar(page).locator('[data-slot="filter-chip"]')).toHaveCount(0)
+})

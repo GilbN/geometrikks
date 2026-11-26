@@ -548,7 +548,11 @@ export function AccessLogsTable({
   return (
     <IpFilterTargetsProvider targetsFor={filterTargetsFor}>
       {/* Around the sheet too, so its IP actions menu gets the page's filters. */}
-      <div ref={layoutRef} className={cn(fill && "flex min-h-0 flex-col")}>
+      <div
+        ref={layoutRef}
+        data-table-fill={fill || undefined}
+        className={cn(fill && "flex min-h-0 flex-col")}
+      >
         <DataTableFrame
           fill={fill}
           title="Request history"

@@ -21,6 +21,7 @@ import { CountryFlag } from "@/components/country-flag"
 import { UNTRUSTED_PROXY_HINT } from "@/components/data/exclude-my-ip"
 import type { FilterBarField } from "@/components/data/filter-bar-fields"
 import {
+  NAME_SEARCH_MAX,
   NAME_SEARCH_MIN,
   useFilterValueSearch,
   type PickedValue,
@@ -69,7 +70,8 @@ export function AddFilterMenu({
   const picked = useRef(false)
   const typed = text.trim().toLowerCase()
   const settled = useDebouncedValue(text, 150)
-  const asking = valueSearch !== undefined && typed.length >= NAME_SEARCH_MIN
+  const asking =
+    valueSearch !== undefined && typed.length >= NAME_SEARCH_MIN && typed.length <= NAME_SEARCH_MAX
   const { data, isFetching, isPlaceholderData } = useFilterValueSearch(settled, open && asking)
   // Rows for older text would let Enter pick a match for something no longer typed.
   const current = !isPlaceholderData && settled.trim() === text.trim()
@@ -121,7 +123,14 @@ export function AddFilterMenu({
         // A picked field opens its chip's picker, which takes the focus.
         onCloseAutoFocus={(event) => picked.current && event.preventDefault()}
       >
-        <Command shouldFilter={false} className="rounded-none! p-0" loop>
+        {/* No vim bindings, so Ctrl+K still opens the palette. */}
+        <Command
+          label="Filter by"
+          shouldFilter={false}
+          vimBindings={false}
+          className="rounded-none! p-0"
+          loop
+        >
           <CommandInput
             value={text}
             onValueChange={setText}
@@ -214,31 +223,71 @@ export function AddFilterMenu({
   )
 }
 
+/** A switch row. The option carries its state, since a control nested in an option goes unread. */
+function SwitchRow({
+  value,
+  icon: Icon,
+  label,
+  detail,
+  hint,
+  checked,
+  disabled = false,
+  onSelect,
+}: {
+  value: string
+  icon: typeof UserX
+  label: string
+  detail?: React.ReactNode
+  /** Why the row is off, on a line of its own. */
+  hint?: string
+  checked: boolean
+  disabled?: boolean
+  onSelect?: () => void
+}) {
+  return (
+    <CommandItem
+      value={value}
+      disabled={disabled}
+      onSelect={onSelect}
+      aria-checked={checked}
+      className={cn(ITEM, hint && "h-auto items-start py-1.5")}
+    >
+      <Icon aria-hidden className={cn("size-[15px] text-muted-foreground", hint && "mt-0.5")} />
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="flex min-w-0 items-baseline gap-2">
+          <span className="shrink-0">{label}</span>
+          {detail && <span className="min-w-0 truncate text-muted-foreground">{detail}</span>}
+        </span>
+        {hint && <span className="text-xs text-muted-foreground">{hint}</span>}
+      </span>
+      <Switch aria-hidden checked={checked} tabIndex={-1} className="pointer-events-none" />
+    </CommandItem>
+  )
+}
+
 function MyIpRow({ exclusion }: { exclusion: MyIpExclusion }) {
   if (exclusion.behindUntrustedProxy) {
     return (
-      <CommandItem value="hide-my-ip" disabled className={ITEM}>
-        <UserX aria-hidden className="size-[15px] text-muted-foreground" />
-        <span className="min-w-0 flex-1 truncate">Hide my IP</span>
-        <span className="text-xs text-muted-foreground">{UNTRUSTED_PROXY_HINT}</span>
-      </CommandItem>
+      <SwitchRow
+        value="hide-my-ip"
+        icon={UserX}
+        label="Hide my IP"
+        hint={UNTRUSTED_PROXY_HINT}
+        checked={false}
+        disabled
+      />
     )
   }
   if (exclusion.ip === null) return null
   return (
-    <CommandItem value="hide-my-ip" onSelect={exclusion.toggle} className={ITEM}>
-      <UserX aria-hidden className="size-[15px] text-muted-foreground" />
-      <span className="shrink-0">Hide my IP</span>
-      <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">
-        {exclusion.ip}
-      </span>
-      <Switch
-        checked={exclusion.excluded}
-        tabIndex={-1}
-        aria-label={`Hide my IP, ${exclusion.ip}`}
-        className="pointer-events-none"
-      />
-    </CommandItem>
+    <SwitchRow
+      value="hide-my-ip"
+      icon={UserX}
+      label="Hide my IP"
+      detail={<span className="font-mono text-xs">{exclusion.ip}</span>}
+      checked={exclusion.excluded}
+      onSelect={exclusion.toggle}
+    />
   )
 }
 
@@ -246,19 +295,16 @@ function MutedRow({ scope, onToggle }: { scope: MutedScope; onToggle: () => void
   if (scope.chip === "none") return null
   const greyed = scope.chip === "greyed"
   return (
-    <CommandItem value="hide-muted-ips" disabled={greyed} onSelect={onToggle} className={ITEM}>
-      <EyeOff aria-hidden className="size-[15px] text-muted-foreground" />
-      <span className="shrink-0">Hide muted IPs</span>
-      <span className="min-w-0 flex-1 truncate text-muted-foreground">
-        {greyed ? <span className="text-xs">Off while filtering by IP</span> : scope.count}
-      </span>
-      <Switch
-        checked={scope.chip === "hiding"}
-        tabIndex={-1}
-        aria-label="Hide muted IPs"
-        className="pointer-events-none"
-      />
-    </CommandItem>
+    <SwitchRow
+      value="hide-muted-ips"
+      icon={EyeOff}
+      label="Hide muted IPs"
+      detail={scope.count}
+      hint={greyed ? "Off while filtering by IP" : undefined}
+      checked={scope.chip === "hiding"}
+      disabled={greyed}
+      onSelect={onToggle}
+    />
   )
 }
 

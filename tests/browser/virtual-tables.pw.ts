@@ -289,11 +289,16 @@ for (const fixture of [
     if (!("mobile" in fixture) && fixture.path === "access-logs") {
       // Under the filter bar the rows scroll inside the card, and the page keeps the pager in view.
       const main = table.locator("xpath=ancestor::main[1]")
-      expect(await main.evaluate((element) => element.scrollHeight - element.clientHeight)).toBe(0)
+      await expect
+        .poll(() => main.evaluate((element) => element.scrollHeight - element.clientHeight))
+        .toBe(0)
       const pager = page.locator('[data-slot="data-table-frame"] footer')
-      expect(
-        (await pager.boundingBox())!.y + (await pager.boundingBox())!.height,
-      ).toBeLessThanOrEqual(page.viewportSize()!.height)
+      await expect
+        .poll(async () => {
+          const box = await pager.boundingBox()
+          return box ? box.y + box.height : Infinity
+        })
+        .toBeLessThanOrEqual(page.viewportSize()!.height)
     } else if (!("mobile" in fixture)) {
       const container = table.locator("..")
       const main = table.locator("xpath=ancestor::main[1]")
