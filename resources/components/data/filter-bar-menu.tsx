@@ -334,6 +334,36 @@ type ValueRow = {
 
 type Matches = NonNullable<ReturnType<typeof useFilterValueSearch>["data"]>
 
+function cityRows(cities: Matches["cities"]): ValueRow[] {
+  const byName = new Map<string, Matches["cities"]>()
+  for (const city of cities) byName.set(city.city, [...(byName.get(city.city) ?? []), city])
+  return [...byName.entries()]
+    .map(([name, matches]) => {
+      const codes = new Set(matches.map((match) => match.countryCode))
+      const only = codes.size === 1 ? matches[0] : null
+      const country = only ? only.countryName || only.countryCode : null
+      return {
+        key: `city:${name}`,
+        picked: {
+          kind: "city" as const,
+          city: name,
+          countryCode: only?.countryCode ?? null,
+          countryName: only?.countryName ?? null,
+        },
+        icon: <CountryFlag code={only?.countryCode} className="h-3 w-[18px]" />,
+        // The flag is hidden from screen readers, so the country goes along in words.
+        name: (
+          <>
+            {name}
+            {country && <span className="sr-only">, {country}</span>}
+          </>
+        ),
+        hits: matches.reduce((total, match) => total + match.hits, 0),
+      }
+    })
+    .sort((a, b) => b.hits - a.hits)
+}
+
 function valueGroups(data: Matches): [string, ValueRow[]][] {
   const groups: [string, ValueRow[]][] = [
     [
@@ -348,26 +378,9 @@ function valueGroups(data: Matches): [string, ValueRow[]][] {
     ],
     [
       "City",
-      data.cities.map((city) => ({
-        key: `city:${city.countryCode ?? ""}:${city.city}`,
-        picked: {
-          kind: "city",
-          city: city.city,
-          countryCode: city.countryCode,
-          countryName: city.countryName,
-        },
-        icon: <CountryFlag code={city.countryCode} className="h-3 w-[18px]" />,
-        // The flag is hidden from screen readers, so the country goes along in words.
-        name: (
-          <>
-            {city.city}
-            {(city.countryName || city.countryCode) && (
-              <span className="sr-only">, {city.countryName || city.countryCode}</span>
-            )}
-          </>
-        ),
-        hits: city.hits,
-      })),
+      // The filter takes a city by name, so a name found in several countries is one row,
+      // and only a name from one country shows that country.
+      cityRows(data.cities),
     ],
     [
       "Host",
