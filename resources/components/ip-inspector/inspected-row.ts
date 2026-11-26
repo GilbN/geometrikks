@@ -312,14 +312,18 @@ async function stepAcrossPages(
     const before = footer.dataset.page
     const page = String(Number(before) + step)
     button.click()
+    let turned = false
     const loaded = await poll(() => {
-      // Closed, moved to another IP, or the user went on with the page meanwhile.
+      // Closed, undocked, moved to another IP, or the user went on with the page meanwhile.
       const current = frame.querySelector<HTMLElement>("[data-pagination]")
-      if (inspected?.key !== from.key || inspected.ip !== from.ip) return false
+      if (!markShown || inspected?.key !== from.key || inspected.ip !== from.ip) return false
       if (!frame.isConnected || pageInteractions !== interactions || !current) return false
       // A filter set from the keyboard also turns the page.
       if (searchWithoutPage() !== query) return false
       if (current.dataset.page !== page && current.dataset.page !== before) return false
+      // Back where it started after turning: the page was clamped or reset.
+      if (current.dataset.page === page) turned = true
+      else if (turned) return false
       return current.dataset.page === page && current.dataset.pending === undefined ? true : null
     }, 10_000)
     if (!loaded) return
