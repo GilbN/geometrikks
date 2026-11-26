@@ -910,8 +910,10 @@ export async function fetchTopAsns(
 
 export async function fetchTopIpStats(
   params: TimeSeriesParams & { limit?: number } & AnalyticsFilterParams,
+  signal?: AbortSignal,
 ) {
   const { data } = await apiV1AnalyticsTopIpsGetTopIps({
+    signal,
     query: {
       startDate: params.startDate,
       endDate: params.endDate,

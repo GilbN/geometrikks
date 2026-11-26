@@ -409,6 +409,28 @@ export function useDropLists(): { data?: DropIndex; loaded: boolean } {
   return { data: dropIndex, loaded: true }
 }
 
+// Each DROP mark is an observer, so the Set is cached per response like selectDropIndex.
+const dropAsnSets = new WeakMap<DropListsResponse, ReadonlySet<number>>()
+function selectDropAsns(lists: DropListsResponse): ReadonlySet<number> {
+  let asns = dropAsnSets.get(lists)
+  if (!asns) {
+    asns = new Set(lists.asns.map((entry) => entry.asn))
+    dropAsnSets.set(lists, asns)
+  }
+  return asns
+}
+
+/** The ASNs on Spamhaus ASN-DROP, from the same download as the networks. */
+export function useDropAsns(): ReadonlySet<number> | undefined {
+  const { data: about } = useAbout()
+  const active = about?.dropLists?.enabled === true && about.dropLists.loaded
+  const { data } = useQuery({
+    ...dropListsQueryOptions(about?.dropLists?.updatedAt ?? null, active),
+    select: selectDropAsns,
+  })
+  return active ? data : undefined
+}
+
 /** The DROP network holding `ip`, or null while the lists are off, loading, or miss it. */
 export function useDropNetwork(ip: string): DropNetworkMatch | null {
   const { data: dropIndex } = useDropLists()
@@ -677,6 +699,17 @@ export function useCrowdsecStatus() {
 /** IP to decision type for every IP under a current decision (all origins,
  *  CAPI included), for badge rendering; empty until the integration is
  *  enabled and loaded. */
+// The palette's rows and every IP menu observe this list, so the Map is cached per response.
+const bannedIpMaps = new WeakMap<BannedIp[], Map<string, string>>()
+function selectBannedIps(ips: BannedIp[]): Map<string, string> {
+  let bannedIpMap = bannedIpMaps.get(ips)
+  if (bannedIpMap === undefined) {
+    bannedIpMap = new Map(ips.map((entry) => [entry.ip, entry.type]))
+    bannedIpMaps.set(ips, bannedIpMap)
+  }
+  return bannedIpMap
+}
+
 export function useBannedIps() {
   const { data: status } = useCrowdsecStatus()
   return useQuery({
@@ -687,7 +720,7 @@ export function useBannedIps() {
     // staleTime, each IP sheet or popup that mounts refetches it.
     staleTime: 60_000,
     refetchInterval: 60_000,
-    select: (ips) => new Map(ips.map((entry) => [entry.ip, entry.type])),
+    select: selectBannedIps,
   })
 }
 

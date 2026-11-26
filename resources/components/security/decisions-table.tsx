@@ -5,6 +5,7 @@
  * /crowdsec/decisions, one row per target; origin scope toggles between
  * local and crowd bans.
  */
+import { useDecisionsSearchRequest } from "@/lib/decisions-search-request"
 import { useRef, useState } from "react"
 import { Info, Search, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -56,6 +57,7 @@ export function DecisionsTable() {
   const [pageSize, setPageSize] = useState<number>(10)
   const origins = ORIGIN_SCOPES.find((s) => s.key === scope)?.origins
   const [searchInput, setSearchInput] = useState("")
+  useDecisionsSearchRequest(setSearchInput)
   const searchRef = useRef<HTMLInputElement>(null)
   const q = useDebouncedValue(searchInput.trim())
   // The server searches every origin for an IP or a range, whatever the tab.
