@@ -19,7 +19,7 @@ import {
   statusChartConfig,
   statusErrorRateChartConfig,
 } from "./chart-utils"
-import { GranularityBadge } from "./granularity-badge"
+import { GranularityBadge } from "@/components/chart-buckets-menu"
 import {
   errorRateSeries,
   isIsolated,

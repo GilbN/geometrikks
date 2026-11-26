@@ -805,7 +805,13 @@ test("filters, fit-to-data and style changes use the banned dataset", async ({ p
   // Leaving the globe eases back to the fit's zoom.
   await page.getByRole("switch", { name: "Globe", exact: true }).click()
   await page.waitForTimeout(2000)
-  await page.getByRole("button", { name: "Toggle theme", exact: true }).click()
+  // The color scheme lives in the sidebar's user menu, under Appearance.
+  await page
+    .locator('[data-slot="sidebar"]')
+    .first()
+    .getByRole("button", { name: new RegExp(`^${process.env.SMOKE_ADMIN_USER ?? "admin"}\\b`) })
+    .click()
+  await page.getByRole("menuitem", { name: /^Appearance/ }).click()
   await page.getByRole("menuitemradio", { name: "Light", exact: true }).click()
   await openCenterPopup(page, -128)
 })

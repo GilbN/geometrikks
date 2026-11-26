@@ -184,7 +184,6 @@ export function SettingsHome() {
 
   return (
     <div className="space-y-5">
-      <h1 className="sr-only">Settings</h1>
       {unseenRelease && (
         <Link
           to="/settings/about"

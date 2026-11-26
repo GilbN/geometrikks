@@ -73,14 +73,24 @@ test("production theme menu marks the saved mode and keeps Settings selection co
   expect(login.ok()).toBe(true)
   await page.setViewportSize({ width: 1280, height: 900 })
   await page.goto("/settings/appearance")
+  // The color scheme lives in the sidebar's user menu, under Appearance.
+  const openSchemes = async () => {
+    await page
+      .locator('[data-slot="sidebar"]')
+      .first()
+      .getByRole("button", { name: new RegExp(`^${process.env.SMOKE_ADMIN_USER ?? "admin"}\\b`) })
+      .click()
+    await page.getByRole("menuitem", { name: /^Appearance/ }).click()
+  }
   for (const mode of ["Light", "System", "Dark"]) {
-    await page.getByRole("button", { name: "Toggle theme", exact: true }).click()
+    await openSchemes()
     await page.getByRole("menuitemradio", { name: mode, exact: true }).click()
-    await page.getByRole("button", { name: "Toggle theme", exact: true }).click()
+    await openSchemes()
     await expect(page.getByRole("menuitemradio", { name: mode, exact: true })).toHaveAttribute(
       "aria-checked",
       "true",
     )
+    await page.keyboard.press("Escape")
     await page.keyboard.press("Escape")
   }
   const layouts: Array<{ padding: string; height: string; radius: string; background: string }> = []

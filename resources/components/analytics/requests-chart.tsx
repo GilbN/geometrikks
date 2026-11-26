@@ -11,7 +11,7 @@ import { useTimeSeries } from "@/lib/queries"
 import { ChartLegendRow } from "./chart-legend-row"
 import { ChartOptionsMenu, ScaleNotes } from "./chart-options-menu"
 import { AREA_BARS_OPTIONS, barSpacer, formatLogCount, requestsChartConfig } from "./chart-utils"
-import { GranularityBadge } from "./granularity-badge"
+import { GranularityBadge } from "@/components/chart-buckets-menu"
 import { TimeSeriesTooltip } from "./time-series-tooltip"
 
 const SERIES = ["totalRequests"] as const

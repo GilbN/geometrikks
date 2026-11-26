@@ -74,7 +74,6 @@ function SecurityPage() {
   // shows the LAPI pill on the decisions instead.
   const header = crowdsec ? (
     <PageHeader
-      title="Security"
       className="items-center phone:sr-only"
       actions={
         <LapiPill status={status} detail className="h-[30px] gap-2 px-3 text-[13px] phone:hidden" />
@@ -82,7 +81,6 @@ function SecurityPage() {
     />
   ) : (
     <PageHeader
-      title="Security"
       subtitle={
         tabs.length > 0
           ? "IPs GeoMetrikks has reported to AbuseIPDB."

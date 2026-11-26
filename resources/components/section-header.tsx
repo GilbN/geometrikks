@@ -1,11 +1,14 @@
 import { cn } from "@/lib/utils"
 
-/** Section divider: uppercase tracked label + hairline rule. */
+/** Section divider: uppercase tracked label + hairline rule, with optional
+ *  controls at its end. */
 export function SectionHeader({
   children,
+  actions,
   className,
 }: {
   children: React.ReactNode
+  actions?: React.ReactNode
   className?: string
 }) {
   return (
@@ -14,6 +17,7 @@ export function SectionHeader({
         {children}
       </h2>
       <div className="h-px flex-1 bg-border/50" />
+      {actions && <div className="flex shrink-0 items-center gap-3">{actions}</div>}
     </div>
   )
 }

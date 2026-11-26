@@ -16,10 +16,7 @@ export const Route = createFileRoute("/settings/agents")({
 function AgentsRoute() {
   const { instance } = Route.useSearch()
   return (
-    <SettingsPage
-      title="Agents"
-      subtitle="Check which instances write to this database and what each one reports."
-    >
+    <SettingsPage subtitle="Check which instances write to this database and what each one reports.">
       <AgentsOverview focusInstance={instance} />
     </SettingsPage>
   )

@@ -112,10 +112,7 @@ function AnalyticsPage() {
       toggleMuted={toggleMuted}
     >
       <div className="p-4 space-y-4">
-        <PageHeader
-          title="Analytics"
-          subtitle="Inspect request volume, delivery health, and the clients driving traffic."
-        />
+        <PageHeader subtitle="Inspect request volume, delivery health, and the clients driving traffic." />
         <JumpBar sections={SECTIONS} />
         <AnalyticsFilterBar />
         <AnalyticsMutedNote scope={muted} />

@@ -11,7 +11,7 @@ import { formatDurationOrNa, TIMING_HINT } from "@/lib/timing"
 import { ChartLegendRow } from "./chart-legend-row"
 import { ChartOptionsMenu, ScaleNotes } from "./chart-options-menu"
 import { LATENCY_OPTIONS, latencyBandChartConfig, latencyChartConfig } from "./chart-utils"
-import { GranularityBadge } from "./granularity-badge"
+import { GranularityBadge } from "@/components/chart-buckets-menu"
 import { bandRows, LATENCY_KEYS, latencyTooltipRows } from "./latency-series"
 import { TimeSeriesTooltip } from "./time-series-tooltip"
 
