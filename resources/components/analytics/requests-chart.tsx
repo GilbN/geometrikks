@@ -1,90 +1,261 @@
-import { useMemo } from "react"
-import { Area, Bar, CartesianGrid, ComposedChart, XAxis, YAxis } from "recharts"
+/**
+ * Requests over the range, stacked by status class. Views: stacked bars
+ * (default), stacked area, share of responses and error rate.
+ */
+import { useMemo, useState } from "react"
+import { Area, Bar, Line } from "recharts"
 import { SignalPanel } from "@/components/data/signal-panel"
 import { dataState } from "@/components/data/types"
-import { ChartContainer, ChartTooltip } from "@/components/ui/chart"
+import type { TimeSeriesDataPoint } from "@/generated/api/types.gen"
+import type { ChartConfig } from "@/components/ui/chart"
 import { formatNumber } from "@/lib/api"
 import { useChartOptions } from "@/lib/chart-options"
 import { scaleSeries } from "@/lib/chart-scale"
 import { formatTs } from "@/lib/datetime"
 import { useTimeSeries } from "@/lib/queries"
-import { ChartLegendRow } from "./chart-legend-row"
-import { ChartOptionsMenu, ScaleNotes } from "./chart-options-menu"
-import { AREA_BARS_OPTIONS, barSpacer, formatLogCount, requestsChartConfig } from "./chart-utils"
 import { GranularityBadge } from "@/components/chart-buckets-menu"
-import { TimeSeriesTooltip } from "./time-series-tooltip"
+import { ChartOptionsMenu, ScaleNotes } from "./chart-options-menu"
+import { ChartReadout, CursorStamp, useCursorRow, type ReadoutItem } from "./chart-readout"
+import { createChartCursor, type ChartCursor } from "./chart-cursor"
+import {
+  barSpacer,
+  formatLogCount,
+  formatRate,
+  REQUESTS_OPTIONS,
+  statusChartConfig,
+  statusErrorRateChartConfig,
+} from "./chart-utils"
+import {
+  errorRateSeries,
+  isIsolated,
+  SHARE_TICKS,
+  shareRows,
+  STATUS_KEYS,
+  statusTotal,
+} from "./status-series"
+import { TimeChart, type CursorMarks } from "./time-chart"
+import { chartRangeText, fillHourlyGaps, trafficTotals } from "./traffic-series"
 
-const SERIES = ["totalRequests"] as const
+const TITLE = "Requests"
 
-export function RequestsChart() {
+function RequestsReadout({
+  cursor,
+  buckets,
+  view,
+  granularity,
+  ready,
+}: {
+  cursor: ChartCursor
+  buckets: readonly TimeSeriesDataPoint[]
+  view: string
+  granularity?: string
+  /** Before the data arrives the legend shows its labels alone. */
+  ready: boolean
+}) {
+  const totals = useMemo(() => trafficTotals(buckets), [buckets])
+  const row = useCursorRow(cursor, buckets)
+  const source = row ?? totals
+  const requests = source.totalRequests
+  const classes = statusTotal(source)
+  const lead = ready ? (
+    <>
+      <b className="font-semibold text-foreground">{formatNumber(requests)}</b> requests
+    </>
+  ) : undefined
+  const items: ReadoutItem[] =
+    view === "error-rate"
+      ? [
+          {
+            key: "errorRate",
+            label: String(statusErrorRateChartConfig.errorRate.label),
+            short: "Error rate",
+            color: statusErrorRateChartConfig.errorRate.color,
+            value: !ready
+              ? null
+              : requests > 0
+                ? formatRate((source.status4xx + source.status5xx) / requests)
+                : "n/a",
+          },
+        ]
+      : STATUS_KEYS.map((key) => ({
+          key,
+          label: String(statusChartConfig[key].label),
+          short: String(statusChartConfig[key].label).slice(0, 3),
+          color: statusChartConfig[key].color,
+          value: !ready
+            ? null
+            : view === "share"
+              ? classes > 0
+                ? formatRate(source[key] / classes)
+                : "n/a"
+              : formatNumber(source[key]),
+        }))
+  const stamp = row ? formatTs(row.timestamp, granularity) : null
+  return <ChartReadout lead={lead} items={items} stamp={stamp} />
+}
+
+export function RequestsChart({ className }: { className?: string }) {
   const { data, error, isLoading, isError, refetch } = useTimeSeries()
-  const options = useChartOptions("requests", AREA_BARS_OPTIONS)
-  const points = useMemo(() => data?.data ?? [], [data])
-  const series = useMemo(
-    () => scaleSeries(points, SERIES, options.scale, { integer: true }),
-    [points, options.scale],
+  // The Status classes chart's key: its view ids carry over, the old Requests chart's do not.
+  const options = useChartOptions("status", REQUESTS_OPTIONS)
+  const [cursor] = useState(createChartCursor)
+  const buckets = useMemo(() => (data ? fillHourlyGaps(data) : []), [data])
+  const view = options.view.id
+  const lines = (view === "stacked" || view === "area") && options.scale === "log"
+  const stacked = useMemo(
+    () =>
+      scaleSeries(buckets, STATUS_KEYS, options.scale, {
+        integer: true,
+        clipValues: buckets.map(statusTotal),
+      }),
+    [buckets, options.scale],
   )
-  const state = dataState(isLoading, isError, points.length)
+  const share = useMemo(() => shareRows(buckets), [buckets])
+  const rate = useMemo(() => errorRateSeries(buckets, options.scale), [buckets, options.scale])
+  const state = dataState(isLoading, isError, buckets.length)
+
+  const config: ChartConfig = view === "error-rate" ? statusErrorRateChartConfig : statusChartConfig
+  const rows = view === "share" ? share : view === "error-rate" ? rate.rows : stacked.rows
+  const clipMax = view === "share" ? null : view === "error-rate" ? rate.clipMax : stacked.clipMax
+  const clipLabel =
+    clipMax == null ? null : view === "error-rate" ? formatRate(clipMax) : formatNumber(clipMax)
+  const yAxis =
+    view === "share"
+      ? { domain: [0, 1] as [number, number], ticks: SHARE_TICKS, tickFormatter: formatRate }
+      : view === "error-rate"
+        ? { ...rate.axis, tickFormatter: formatRate }
+        : {
+            ...stacked.axis,
+            tickFormatter:
+              options.scale === "log" ? formatLogCount : (v: number) => formatNumber(v),
+          }
+
+  const rates = rate.rows.map((row) => row.errorRate)
+  const marks: CursorMarks =
+    view === "error-rate"
+      ? { kind: "line", dots: [{ key: "errorRate", color: "var(--color-errorRate)" }] }
+      : lines
+        ? { kind: "line", dots: STATUS_KEYS.map((key) => ({ key, color: `var(--color-${key})` })) }
+        : view === "area"
+          ? { kind: "line", dots: [] }
+          : view === "share"
+            ? {
+                kind: "bar",
+                top: (row) => (statusTotal(row as TimeSeriesDataPoint) > 0 ? 1 : null),
+              }
+            : { kind: "bar", top: (row) => statusTotal(row as TimeSeriesDataPoint) }
+
+  const series =
+    view === "error-rate" ? (
+      <Line
+        dataKey="errorRate"
+        type="linear"
+        stroke="var(--color-errorRate)"
+        strokeWidth={2}
+        // A rate with empty buckets on both sides is a one-point line, which
+        // draws nothing; mark it so a lone bad hour still shows.
+        dot={(props: { key?: React.Key | null; index: number; cx?: number; cy?: number }) =>
+          isIsolated(rates, props.index) ? (
+            <circle
+              key={props.key ?? undefined}
+              cx={props.cx}
+              cy={props.cy}
+              r={2.5}
+              fill="var(--color-errorRate)"
+            />
+          ) : (
+            <g key={props.key ?? undefined} />
+          )
+        }
+        connectNulls={false}
+      />
+    ) : lines ? (
+      STATUS_KEYS.map((key) => (
+        <Line
+          key={key}
+          dataKey={key}
+          type="linear"
+          stroke={`var(--color-${key})`}
+          strokeWidth={2}
+          dot={false}
+          connectNulls={false}
+        />
+      ))
+    ) : view === "area" ? (
+      STATUS_KEYS.map((key) => (
+        <Area
+          key={key}
+          dataKey={key}
+          stackId="s"
+          type="linear"
+          fill={`var(--color-${key})`}
+          fillOpacity={0.45}
+          stroke={`var(--color-${key})`}
+          strokeWidth={1.5}
+          connectNulls={false}
+        />
+      ))
+    ) : (
+      STATUS_KEYS.map((key, i) => (
+        // stroke = card surface: the spacer between stacked segments, dropped when dense
+        <Bar
+          key={key}
+          dataKey={key}
+          stackId="s"
+          fill={`var(--color-${key})`}
+          {...barSpacer(buckets.length)}
+          radius={i === STATUS_KEYS.length - 1 ? [2, 2, 0, 0] : undefined}
+        />
+      ))
+    )
 
   return (
     <SignalPanel
-      title="Requests"
-      description="Request volume over the selected range."
+      title={TITLE}
+      className={className}
       state={state}
       error={error?.message ?? "Failed to load request volume."}
       onRetry={() => void refetch()}
-      bodyClassName="min-h-[240px]"
+      bodyClassName="min-h-[232px] max-md:min-h-[170px]"
       actions={
         <>
           <ScaleNotes
-            clip={series.clipMax != null ? formatNumber(series.clipMax) : null}
-            zerosRaised={series.zerosRaised}
+            clip={clipLabel}
+            zerosRaised={view === "share" || view === "error-rate" ? 0 : stacked.zerosRaised}
           />
+          <CursorStamp cursor={cursor} granularity={data?.granularity} />
           <GranularityBadge granularity={data?.granularity} />
-          <ChartOptionsMenu title="Requests" spec={AREA_BARS_OPTIONS} options={options} />
+          <ChartOptionsMenu title={TITLE} spec={REQUESTS_OPTIONS} options={options} />
         </>
       }
-      legend={<ChartLegendRow config={requestsChartConfig} label="Requests chart legend" />}
+      readout={
+        <RequestsReadout
+          cursor={cursor}
+          buckets={buckets}
+          view={view}
+          granularity={data?.granularity}
+          ready={state === "ready"}
+        />
+      }
     >
       {data && (
-        <ChartContainer config={requestsChartConfig} className="h-[240px] w-full">
-          <ComposedChart data={series.rows}>
-            <CartesianGrid vertical={false} />
-            <XAxis
-              dataKey="timestamp"
-              tickLine={false}
-              axisLine={false}
-              tickFormatter={(v: string) => formatTs(v, data.granularity)}
-            />
-            <YAxis
-              tickLine={false}
-              axisLine={false}
-              width={48}
-              tickFormatter={(v: number) =>
-                options.scale === "log" ? formatLogCount(v) : formatNumber(v)
-              }
-              {...series.axis}
-            />
-            <ChartTooltip content={<TimeSeriesTooltip granularity={data.granularity} />} />
-            {options.view.id === "bars" ? (
-              <Bar
-                dataKey="totalRequests"
-                fill="var(--color-totalRequests)"
-                radius={[2, 2, 0, 0]}
-                {...barSpacer(points.length)}
-              />
-            ) : (
-              <Area
-                dataKey="totalRequests"
-                type="monotone"
-                fill="var(--color-totalRequests)"
-                fillOpacity={0.2}
-                stroke="var(--color-totalRequests)"
-                strokeWidth={2}
-              />
-            )}
-          </ComposedChart>
-        </ChartContainer>
+        <>
+          <p className="sr-only">
+            {`${options.view.label} of requests by status class, ${chartRangeText(buckets, data.granularity)}.`}
+          </p>
+          <TimeChart
+            config={config}
+            rows={rows}
+            granularity={data.granularity}
+            cursor={cursor}
+            marks={marks}
+            yAxis={{ width: 48, ...yAxis }}
+            stackOffset={view === "share" ? "expand" : undefined}
+            className="h-[232px] max-md:h-[170px]"
+          >
+            {series}
+          </TimeChart>
+        </>
       )}
     </SignalPanel>
   )

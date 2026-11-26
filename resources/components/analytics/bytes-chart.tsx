@@ -1,95 +1,150 @@
-import { useMemo } from "react"
-import { Area, Bar, CartesianGrid, ComposedChart, XAxis, YAxis } from "recharts"
+import { useMemo, useState } from "react"
+import { Area, Bar } from "recharts"
 import { SignalPanel } from "@/components/data/signal-panel"
 import { dataState } from "@/components/data/types"
-import { ChartContainer, ChartTooltip } from "@/components/ui/chart"
+import type { TimeSeriesDataPoint } from "@/generated/api/types.gen"
 import { formatBytes } from "@/lib/api"
 import { useChartOptions } from "@/lib/chart-options"
-import { scaleSeries } from "@/lib/chart-scale"
+import { scaleSeries, type YAxisScaleProps } from "@/lib/chart-scale"
 import { formatTs } from "@/lib/datetime"
 import { useTimeSeries } from "@/lib/queries"
-import { ChartLegendRow } from "./chart-legend-row"
-import { ChartOptionsMenu, ScaleNotes } from "./chart-options-menu"
-import { AREA_BARS_OPTIONS, barSpacer, bytesChartConfig } from "./chart-utils"
 import { GranularityBadge } from "@/components/chart-buckets-menu"
-import { TimeSeriesTooltip } from "./time-series-tooltip"
+import { ChartOptionsMenu, ScaleNotes } from "./chart-options-menu"
+import { ChartReadout, CursorStamp, useCursorRow } from "./chart-readout"
+import { createChartCursor, type ChartCursor } from "./chart-cursor"
+import { barSpacer, BYTES_OPTIONS, bytesChartConfig } from "./chart-utils"
+import { TimeChart } from "./time-chart"
+import { byteTicks, chartRangeText, fillHourlyGaps } from "./traffic-series"
 
+const TITLE = "Bandwidth"
 const SERIES = ["totalBytesSent"] as const
+
+function BytesReadout({
+  cursor,
+  buckets,
+  granularity,
+  ready,
+}: {
+  cursor: ChartCursor
+  buckets: readonly TimeSeriesDataPoint[]
+  granularity?: string
+  ready: boolean
+}) {
+  const total = useMemo(
+    () => buckets.reduce((sum, bucket) => sum + bucket.totalBytesSent, 0),
+    [buckets],
+  )
+  const row = useCursorRow(cursor, buckets)
+  return (
+    <ChartReadout
+      items={[
+        {
+          key: "totalBytesSent",
+          label: String(bytesChartConfig.totalBytesSent.label),
+          color: bytesChartConfig.totalBytesSent.color,
+          value: ready ? formatBytes(row ? row.totalBytesSent : total) : null,
+        },
+      ]}
+      stamp={row ? formatTs(row.timestamp, granularity) : null}
+    />
+  )
+}
 
 export function BytesChart() {
   const { data, error, isLoading, isError, refetch } = useTimeSeries()
-  const options = useChartOptions("bytes", AREA_BARS_OPTIONS)
-  const points = useMemo(() => data?.data ?? [], [data])
+  const options = useChartOptions("bytes", BYTES_OPTIONS)
+  const [cursor] = useState(createChartCursor)
+  const buckets = useMemo(() => (data ? fillHourlyGaps(data) : []), [data])
   const series = useMemo(
-    () => scaleSeries(points, SERIES, options.scale, { base: 1024, integer: true }),
-    [points, options.scale],
+    () => scaleSeries(buckets, SERIES, options.scale, { base: 1024, integer: true }),
+    [buckets, options.scale],
   )
-  const state = dataState(isLoading, isError, points.length)
+  // Log keeps its power-of-1024 axis; linear axes step in whole KB, MB or GB,
+  // and a clipped axis ends on the tick above the clip line.
+  const axis = useMemo((): YAxisScaleProps & { clippedAt: number | null } => {
+    if (options.scale === "log") return { ...series.axis, clippedAt: null }
+    const largest = Math.max(0, ...buckets.map((bucket) => bucket.totalBytesSent))
+    const { ticks, domain } = byteTicks(series.clipMax ?? largest)
+    const clipped = series.clipMax != null
+    return { ticks, domain, allowDataOverflow: clipped, clippedAt: clipped ? domain[1] : null }
+  }, [buckets, options.scale, series])
+  const state = dataState(isLoading, isError, buckets.length)
+  const bars = options.view.id === "bars"
 
   return (
     <SignalPanel
-      title="Bandwidth"
-      description="Response bytes sent over the selected range."
+      title={TITLE}
       state={state}
       error={error?.message ?? "Failed to load bandwidth."}
       onRetry={() => void refetch()}
-      bodyClassName="min-h-[240px]"
+      bodyClassName="min-h-[196px] max-md:min-h-[170px]"
       actions={
         <>
           <ScaleNotes
-            clip={series.clipMax != null ? formatBytes(series.clipMax) : null}
+            clip={axis.clippedAt != null ? formatBytes(axis.clippedAt) : null}
             zerosRaised={series.zerosRaised}
           />
+          <CursorStamp cursor={cursor} granularity={data?.granularity} />
           <GranularityBadge granularity={data?.granularity} />
-          <ChartOptionsMenu title="Bandwidth" spec={AREA_BARS_OPTIONS} options={options} />
+          <ChartOptionsMenu title={TITLE} spec={BYTES_OPTIONS} options={options} />
         </>
       }
-      legend={<ChartLegendRow config={bytesChartConfig} label="Bandwidth chart legend" />}
+      readout={
+        <BytesReadout
+          cursor={cursor}
+          buckets={buckets}
+          granularity={data?.granularity}
+          ready={state === "ready"}
+        />
+      }
     >
       {data && (
-        <ChartContainer config={bytesChartConfig} className="h-[240px] w-full">
-          <ComposedChart data={series.rows}>
-            <CartesianGrid vertical={false} />
-            <XAxis
-              dataKey="timestamp"
-              tickLine={false}
-              axisLine={false}
-              tickFormatter={(v: string) => formatTs(v, data.granularity)}
-            />
-            <YAxis
-              tickLine={false}
-              axisLine={false}
-              width={64}
-              tickFormatter={(v: number) => formatBytes(v)}
-              {...series.axis}
-            />
-            <ChartTooltip
-              content={
-                <TimeSeriesTooltip
-                  granularity={data.granularity}
-                  formatter={(value) => formatBytes(Number(value))}
-                />
-              }
-            />
-            {options.view.id === "bars" ? (
+        <>
+          <p className="sr-only">
+            {`${options.view.label} of response bytes sent, ${chartRangeText(buckets, data.granularity)}.`}
+          </p>
+          <TimeChart
+            config={bytesChartConfig}
+            rows={series.rows}
+            granularity={data.granularity}
+            cursor={cursor}
+            marks={
+              bars
+                ? { kind: "bar", top: (row) => (row as TimeSeriesDataPoint).totalBytesSent }
+                : {
+                    kind: "line",
+                    dots: [{ key: "totalBytesSent", color: "var(--color-totalBytesSent)" }],
+                  }
+            }
+            yAxis={{
+              width: 64,
+              tickFormatter: (v: number) => formatBytes(v),
+              scale: axis.scale,
+              domain: axis.domain,
+              ticks: axis.ticks,
+              allowDataOverflow: axis.allowDataOverflow,
+            }}
+            className="h-[196px] max-md:h-[170px]"
+          >
+            {bars ? (
               <Bar
                 dataKey="totalBytesSent"
                 fill="var(--color-totalBytesSent)"
                 radius={[2, 2, 0, 0]}
-                {...barSpacer(points.length)}
+                {...barSpacer(buckets.length)}
               />
             ) : (
               <Area
                 dataKey="totalBytesSent"
-                type="monotone"
+                type="linear"
                 fill="var(--color-totalBytesSent)"
                 fillOpacity={0.2}
                 stroke="var(--color-totalBytesSent)"
                 strokeWidth={2}
               />
             )}
-          </ComposedChart>
-        </ChartContainer>
+          </TimeChart>
+        </>
       )}
     </SignalPanel>
   )

@@ -43,6 +43,7 @@ import {
   apiV1MutedIpsEntryIdDeleteMutedIp,
 } from "@/generated/api/sdk.gen"
 import { BROWSER_TZ } from "@/lib/datetime"
+import { autoChartGranularity } from "@/lib/sparklines"
 import type { BanDecisionType } from "@/lib/crowdsec"
 import type {
   AsnFacet,
@@ -1810,12 +1811,7 @@ export function parseTimeRange(
   }
 }
 
-/**
- * Auto = hourly below 7 days, daily from 7 days (168 hourly buckets are noise).
- * A week counts from 167 whole hours: a week across the spring daylight-saving
- * change has 167, and Last week ends at 23:59:59.999, a millisecond short, so
- * the span is rounded to the nearest hour first.
- */
+/** The chart buckets a page draws: the user's pick, or the Auto rule for the range. */
 export function resolveChartGranularity(
   granularity: ChartGranularity,
   range: TimeRangeValue,
@@ -1823,10 +1819,7 @@ export function resolveChartGranularity(
 ): "hourly" | "daily" {
   if (granularity !== "auto") return granularity
   const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
-  const hours = Math.round(
-    (new Date(endDate).getTime() - new Date(startDate).getTime()) / 3_600_000,
-  )
-  return hours >= 7 * 24 - 1 ? "daily" : "hourly"
+  return autoChartGranularity(Date.parse(startDate), Date.parse(endDate))
 }
 
 /**

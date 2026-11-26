@@ -1,9 +1,8 @@
 /** Row and axis helpers for the status chart's Share and Error rate views. */
 import type { TimeSeriesDataPoint } from "@/generated/api/types.gen"
-import { formatNumber } from "@/lib/api"
 import type { ChartScale } from "@/lib/chart-options"
 import { clampedYMax, type YAxisScaleProps } from "@/lib/chart-scale"
-import { formatRate, statusChartConfig } from "./chart-utils"
+import { statusChartConfig } from "./chart-utils"
 
 export type StatusKey = keyof typeof statusChartConfig
 export const STATUS_KEYS = Object.keys(statusChartConfig) as StatusKey[]
@@ -25,13 +24,6 @@ export function shareRows(points: readonly TimeSeriesDataPoint[]): ShareRow[] {
       ? point
       : { ...point, status2xx: null, status3xx: null, status4xx: null, status5xx: null },
   )
-}
-
-/** Tooltip text for the Share view: "1,234 (82.3%)". */
-export function shareLabel(value: unknown, row: unknown): string {
-  if (typeof value !== "number") return "n/a"
-  const total = statusTotal(row as StatusCounts)
-  return total > 0 ? `${formatNumber(value)} (${formatRate(value / total)})` : "n/a"
 }
 
 /**

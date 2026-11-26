@@ -14,7 +14,6 @@ import { PageHeader } from "@/components/page-header"
 import { SectionHeader } from "@/components/section-header"
 import { JumpBar, JumpTarget, type JumpSection } from "@/components/jump-bar"
 import { RequestsChart } from "@/components/analytics/requests-chart"
-import { StatusChart } from "@/components/analytics/status-chart"
 import { BytesChart } from "@/components/analytics/bytes-chart"
 import { LatencyChart } from "@/components/analytics/latency-chart"
 import { TopUrlsTable } from "@/components/analytics/top-urls-table"
@@ -85,7 +84,6 @@ function encode(filters: AnalyticsFilterState): Partial<AnalyticsSearch> {
 
 const SECTIONS: readonly JumpSection[] = [
   { id: "requests", label: "Requests" },
-  { id: "status", label: "Status" },
   { id: "bandwidth", label: "Bandwidth" },
   { id: "latency", label: "Latency" },
   { id: "top-ips", label: "Top IPs" },
@@ -117,12 +115,9 @@ function AnalyticsPage() {
         <AnalyticsFilterBar />
         <AnalyticsMutedNote scope={muted} />
         <SectionHeader>Traffic</SectionHeader>
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-2 [&>*]:min-w-0">
           <JumpTarget id="requests">
-            <RequestsChart />
-          </JumpTarget>
-          <JumpTarget id="status">
-            <StatusChart />
+            <RequestsChart className="md:col-span-2" />
           </JumpTarget>
           <JumpTarget id="bandwidth">
             <BytesChart />

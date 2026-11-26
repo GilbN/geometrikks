@@ -7,15 +7,19 @@ const DAY_MS = 24 * HOUR_MS
 /** With fewer buckets the line is a few straight segments, not a shape. */
 export const MIN_SPARKLINE_BUCKETS = 6
 
-/** Hourly up to a week (168 points at most), daily above. */
-export function sparklineGranularity(startMs: number, endMs: number): "hourly" | "daily" {
+/**
+ * What Auto chart buckets pick on every page: hourly up to a week, daily
+ * above. The extra hour keeps a week that gains an hour to daylight saving
+ * (169 hours) hourly.
+ */
+export function autoChartGranularity(startMs: number, endMs: number): "hourly" | "daily" {
   return endMs - startMs <= 7 * DAY_MS + HOUR_MS ? "hourly" : "daily"
 }
 
 export function hasSparklines(
   startMs: number,
   endMs: number,
-  granularity: "hourly" | "daily" = sparklineGranularity(startMs, endMs),
+  granularity: "hourly" | "daily" = autoChartGranularity(startMs, endMs),
 ): boolean {
   const step = granularity === "hourly" ? HOUR_MS : DAY_MS
   return Math.ceil((endMs - startMs) / step) >= MIN_SPARKLINE_BUCKETS

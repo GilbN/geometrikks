@@ -123,7 +123,6 @@ import {
   buildOverviewSparklines,
   geoLogSparklinesFromSeries,
   hasSparklines,
-  sparklineGranularity,
   type CardSparklines,
   type GeoLogSparklines,
   type OverviewSparklines,
@@ -1421,9 +1420,7 @@ export function useOverviewSparklines({
 /** Chart buckets for the card charts, and for Geo Logs' Over-time chart so that page sends one request. */
 export function useCardChartGranularity(): "hourly" | "daily" {
   const { range, customRange, granularity } = useTimeRange()
-  if (granularity !== "auto") return granularity
-  const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
-  return sparklineGranularity(Date.parse(startDate), Date.parse(endDate))
+  return resolveChartGranularity(granularity, range, customRange)
 }
 
 /** The Geo Logs cards' charts, under the page's filters like the cards. */

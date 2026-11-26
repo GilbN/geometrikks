@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - On desktop, Geo Logs gets the same filter bar as Access Logs, with the Charts switch at its right end. Pressing `/` opens its Filter menu.
 - On desktop, Debug Logs gets the filter bar too, with its View menu at the right end, and the rows fill the height under the stat cards so the pager stays on screen.
 - On desktop, Analytics gets the filter bar too, and excluding a host now picks from the logged hosts instead of typed text.
+- Analytics merges Requests and Status classes into one Requests chart stacked by status class, above Bandwidth and Request latency. Each chart's header shows the range totals, or the hovered hour's numbers, in place of the tooltip and legend. The charts default to "Linear, clip spikes", and Auto buckets now pick hourly up to 7 days on Analytics too, so Last 7 days draws hourly charts. See [App tour](https://geometrikks.dev/docs/features/app-tour#analytics).
 
 ## [0.26.0] - 2026-11-23
 
