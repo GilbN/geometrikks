@@ -229,3 +229,21 @@ test("closing the dock after steps puts focus on the marked row", async ({ page 
   await expect(dock(page)).toHaveCount(0)
   await expect(page.locator('table[data-density] tr[data-index="4"]')).toBeFocused()
 })
+
+test("when the last pages hold only the IP shown, the mark waits on the last row", async ({
+  page,
+}) => {
+  const repeated = "198.51.100.250"
+  ipOf = (index) => (index >= 49 ? repeated : ipFor(index))
+  await openAccessLogs(page)
+  await page
+    .locator("table[data-density]")
+    .evaluate((table) => table.parentElement?.scrollTo({ top: table.scrollHeight }))
+  await inspectRow(page, 49)
+  await next(page).click()
+  await expect(page.locator("[data-pagination]")).toHaveAttribute("data-page", "3")
+  await expect(dock(page)).toHaveAccessibleName(startsWith(repeated))
+  await expect(marked(page)).toHaveAttribute("data-index", "19")
+  await expect(next(page)).toHaveAttribute("aria-disabled", "true")
+  await expect(next(page)).toBeFocused()
+})

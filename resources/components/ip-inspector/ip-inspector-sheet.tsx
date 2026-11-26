@@ -2,12 +2,13 @@ import {
   cloneElement,
   useEffect,
   useLayoutEffect,
+  useReducer,
   useState,
   useSyncExternalStore,
   type ReactElement,
   type ReactNode,
 } from "react"
-import { Link, useRouterState } from "@tanstack/react-router"
+import { Link } from "@tanstack/react-router"
 import {
   BarChart3,
   Bug,
@@ -64,6 +65,8 @@ import {
   canStepInspectedRow,
   claimInspectedRow,
   inspectedRowElement,
+  inspectedRowFrame,
+  keepInspectedRowFor,
   inspectedRowInTable,
   inspectedRowVersion,
   setInspectedRow,
@@ -149,23 +152,8 @@ export function IpInspectorSheet() {
     const last = lastPageFocus()
     return row && !(last && row.contains(last)) ? row : last
   }
-  // Covers Back, Forward and closing. The IP and the entry come from one
-  // location, so they always match.
-  const opened = useRouterState({
-    select: (state) => {
-      const location = state.resolvedLocation ?? state.location
-      const inspect = (location.search as { inspect?: unknown }).inspect
-      return {
-        key: location.state.__TSR_key,
-        ip: typeof inspect === "string" && inspect ? inspect : undefined,
-      }
-    },
-    structuralSharing: true,
-  })
-  useLayoutEffect(() => {
-    if (opened.ip === undefined) setInspectedRow(null)
-    else claimInspectedRow(opened.ip)
-  }, [opened.key, opened.ip])
+  // Back, Forward and closing change the IP without an open.
+  useLayoutEffect(() => keepInspectedRowFor(ip), [ip])
   useLayoutEffect(() => {
     setInspectedRowMarkShown(open && docked)
     return () => setInspectedRowMarkShown(false)
@@ -238,6 +226,19 @@ export function IpInspectorSheet() {
 /** Previous and next row's IP, shown when the IP came from a log table row. */
 function RowStepButtons({ onStep }: { onStep: (step: 1 | -1) => void }) {
   useSyncExternalStore(subscribeInspectedRow, inspectedRowVersion)
+  // A refresh can turn the footer's Next on while the rows stay the same.
+  const frame = inspectedRowFrame()
+  const [, footerChanged] = useReducer((count: number) => count + 1, 0)
+  useEffect(() => {
+    if (!frame) return
+    const observer = new MutationObserver(footerChanged)
+    observer.observe(frame, {
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["disabled", "data-page", "data-pending"],
+    })
+    return () => observer.disconnect()
+  }, [frame])
   if (!inspectedRowInTable()) return null
   // aria-disabled rather than disabled, so a button that reaches the end keeps focus.
   const button = (step: 1 | -1) => {
