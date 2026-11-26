@@ -760,6 +760,15 @@ export function DebugLogsTable() {
                 </div>
               }
               fields={barFields}
+              valueSearch={{
+                kinds: ["country", "city"],
+                onPick: (picked) => {
+                  const add = (list: string[], value: string) =>
+                    list.includes(value) ? list : [...list, value]
+                  if (picked.kind === "country") setCountries((prev) => add(prev, picked.code))
+                  if (picked.kind === "city") setCities((prev) => add(prev, picked.city))
+                },
+              }}
               activeCount={activeFilterCount}
               onClear={clearFilters}
             />
