@@ -350,8 +350,8 @@ function valueGroups(data: Matches): [string, ValueRow[]][] {
         name: (
           <>
             {city.city}
-            {(city.countryName ?? city.countryCode) && (
-              <span className="sr-only">, {city.countryName ?? city.countryCode}</span>
+            {(city.countryName || city.countryCode) && (
+              <span className="sr-only">, {city.countryName || city.countryCode}</span>
             )}
           </>
         ),

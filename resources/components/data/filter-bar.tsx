@@ -263,8 +263,8 @@ export function FilterBar({
             variant="ghost"
             size="sm"
             onClick={() => {
-              // Clear goes away with the filters, so the add button takes the focus.
-              focusAfter.current = "add"
+              // Clear goes away with the filters, so the add button takes the focus now.
+              addRef.current?.focus()
               setOpenId(null)
               onClear()
             }}
@@ -524,16 +524,15 @@ function ListChip(
   const contentRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!open) return
-    // The popup can mount a few frames after the open, so look again until it is there.
+    // The popup can mount a few frames after the open, and a click on the trigger can take the
+    // focus back to it after that, so watch for some frames. Focus the user moved elsewhere stays.
     let frames = 0
     let frame = 0
     const check = () => {
       const content = contentRef.current
-      if (content) {
-        if (!content.contains(document.activeElement))
-          content.querySelector<HTMLInputElement>("input")?.focus()
-        return
-      }
+      const active = document.activeElement
+      const stray = !active || active === document.body || anchorRef.current?.contains(active)
+      if (content && stray) content.querySelector<HTMLInputElement>("input")?.focus()
       if (++frames < 30) frame = requestAnimationFrame(check)
     }
     frame = requestAnimationFrame(check)
