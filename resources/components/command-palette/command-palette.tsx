@@ -1,13 +1,23 @@
 /**
  * Search and commands. Ctrl+K, or the search field in the top bar, opens one
  * list of pages and actions. Each row shows its keyboard shortcut, so the
- * keys are learned along the way.
+ * keys are learned along the way. On a phone it is a full-screen sheet
+ * opened from the search button in the header.
  */
-import { useEffect, useState } from "react"
-import { useNavigate } from "@tanstack/react-router"
+import { useEffect, useRef, useState, type KeyboardEvent } from "react"
+import { useNavigate, useRouter, type RouterHistory } from "@tanstack/react-router"
 import { useQuery } from "@tanstack/react-query"
 import { defaultFilter, useCommandState } from "cmdk"
-import { ArrowDown, ArrowUp, Ban, CalendarDays, CornerDownLeft, Radio, Search } from "lucide-react"
+import {
+  ArrowDown,
+  ArrowUp,
+  Ban,
+  CalendarDays,
+  CircleX,
+  CornerDownLeft,
+  Radio,
+  Search,
+} from "lucide-react"
 
 import {
   Command,
@@ -40,7 +50,9 @@ import {
   ITEM,
   ItemIcon,
   IpSearchGroups,
+  PhoneChevron,
   RecentIpsGroup,
+  RowText,
   type IpActions,
 } from "@/components/command-palette/ip-results"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
@@ -51,9 +63,11 @@ import { requestAccessLogsTab } from "@/lib/live-tail-request"
 import { requestDecisionsSearch } from "@/lib/decisions-search-request"
 import { rememberInspectedIp, useRecentIps } from "@/lib/recent-ips"
 import { useRouteHeader } from "@/lib/route-header"
+import { useOverlayEntry } from "@/lib/overlay-history"
 import { fetchCrowdsecStatus } from "@/lib/api"
-import { NAV_ITEMS, SETTINGS_ITEM, type NavId } from "@/lib/phone-nav"
+import { NAV_ITEMS, SETTINGS_ITEM, moreItems, slotFour, type NavId } from "@/lib/phone-nav"
 import {
+  closeCommandPalette,
   closeCommandPaletteThen,
   commandPaletteOpen,
   openCommandPalette,
@@ -92,6 +106,9 @@ const PAGE_ORDER: ShortcutId[] = SHORTCUTS.filter((shortcut) => shortcut.group =
   (shortcut) => shortcut.id,
 )
 
+/** The pages a phone reaches through More, which the sheet lists before anything is typed. */
+const PHONE_PAGE_ORDER: NavId[] = ["geo-logs", "analytics", "debug-logs", "settings"]
+
 const KEY = "h-6 min-w-6 rounded-md border border-border bg-transparent px-1.5 text-xs"
 
 function Keys({ id }: { id: ShortcutId }) {
@@ -108,6 +125,11 @@ function Keys({ id }: { id: ShortcutId }) {
       </KbdGroup>
     </CommandShortcut>
   )
+}
+
+/** cmdk's Enter handler would run the highlighted row instead of the focused button. */
+function keepKeyFromList(event: KeyboardEvent) {
+  if (event.key === "Enter") event.stopPropagation()
 }
 
 /** IP rows come from the server, which already matched them, so the typed text never hides them. */
@@ -136,14 +158,69 @@ function SelectionMirror({ onChange }: { onChange: (value: string) => void }) {
   return null
 }
 
+/**
+ * Where the phone keyboard leaves the page visible. A fixed sheet keeps its
+ * full height under the keyboard, which would hide the last rows for good.
+ * It is tracked while closed too, so the sheet keeps its size as it fades out
+ * and opens at the current one.
+ */
+function useVisibleViewport(active: boolean): { top: number; height: number } | null {
+  const [box, setBox] = useState<{ top: number; height: number } | null>(null)
+  useEffect(() => {
+    const viewport = window.visualViewport
+    if (!active || !viewport) return
+    const update = () => setBox({ top: viewport.offsetTop, height: viewport.height })
+    update()
+    viewport.addEventListener("resize", update)
+    viewport.addEventListener("scroll", update)
+    return () => {
+      viewport.removeEventListener("resize", update)
+      viewport.removeEventListener("scroll", update)
+    }
+  }, [active])
+  return active ? box : null
+}
+
+const PALETTE_OVERLAY = "command-palette"
+
+/**
+ * Runs `action` once Back has taken the sheet's history entry away. Closing
+ * the sheet on a phone steps back off that entry, and a page opened before
+ * the step lands would be undone by it.
+ */
+function afterOverlayEntry(history: RouterHistory, action: () => void) {
+  if (history.location.state.overlay !== PALETTE_OVERLAY) return action()
+  let done = false
+  const finish = () => {
+    if (done) return
+    done = true
+    stop()
+    window.clearTimeout(timer)
+    action()
+  }
+  const stop = history.subscribe(() => {
+    if (history.location.state.overlay !== PALETTE_OVERLAY) finish()
+  })
+  const timer = window.setTimeout(finish, 1000)
+}
+
 export function CommandPalette() {
   const isOpen = useCommandPaletteOpen()
   const navigate = useNavigate()
+  const router = useRouter()
   const { range, customRange, lastRefresh } = useTimeRange()
   const [timeFormat] = useTimeFormat()
-  const { status: security } = useSecurityNavStatus()
+  const { status: security, isError: securityError } = useSecurityNavStatus()
   const routeHeader = useRouteHeader()
   const phone = usePhoneLayout()
+  const inputRef = useRef<HTMLInputElement>(null)
+  const sheetBox = useVisibleViewport(phone)
+  // Back closes the sheet before it leaves the page, as with the other phone overlays.
+  useOverlayEntry(PALETTE_OVERLAY, phone && isOpen, closeCommandPalette)
+  // Crossing the phone breakpoint swaps the field, and the new one needs focus to keep typing.
+  useEffect(() => {
+    if (commandPaletteOpen()) inputRef.current?.focus()
+  }, [phone])
   // A sign-out unmounts the shell. Closing here keeps the palette shut after the next sign-in.
   useEffect(() => () => resetCommandPalette(), [])
   const { ip: inspected, open: inspect } = useIpInspector()
@@ -156,12 +233,17 @@ export function CommandPalette() {
   const [search, setSearch] = useState("")
   const [selected, setSelected] = useState("")
   const [ipStatus, setIpStatus] = useState("")
+  // A touch screen hides the highlight on the picked row until the arrow keys move it.
+  const [arrowKeysUsed, setArrowKeysUsed] = useState(false)
   // Each opening starts empty. Clearing on open, not on close, keeps the list
   // as it was while the dialog fades out.
   const [wasOpen, setWasOpen] = useState(isOpen)
   if (isOpen !== wasOpen) {
     setWasOpen(isOpen)
-    if (isOpen) setSearch("")
+    if (isOpen) {
+      setSearch("")
+      setArrowKeysUsed(false)
+    }
   }
   const settledSearch = useDebouncedValue(search, 150)
   // The list follows the live text, so IP search starts and ends with the
@@ -177,6 +259,13 @@ export function CommandPalette() {
   const pages = [...NAV_ITEMS, SETTINGS_ITEM]
     .filter((item) => !item.requiresSecurityFeature || security?.enabled === true)
     .sort((a, b) => PAGE_ORDER.indexOf(GO_TO[a.id]) - PAGE_ORDER.indexOf(GO_TO[b.id]))
+  // The tab bar already holds the other pages. A search still finds them.
+  const shownPages =
+    phone && search === ""
+      ? moreItems(slotFour(security, securityError)).sort(
+          (a, b) => PHONE_PAGE_ORDER.indexOf(a.id) - PHONE_PAGE_ORDER.indexOf(b.id),
+        )
+      : pages
 
   const currentRange =
     range === "custom"
@@ -186,7 +275,7 @@ export function CommandPalette() {
   const run = (action: () => void) => {
     // Enter during the closing animation would still select a row.
     if (!commandPaletteOpen()) return
-    closeCommandPaletteThen(action)
+    closeCommandPaletteThen(() => afterOverlayEntry(router.history, action))
   }
 
   const onAddress = selected.startsWith(ADDRESS_ROW)
@@ -209,12 +298,76 @@ export function CommandPalette() {
       run(() => report.openFor({ kind: "ip", ip, asn, organization })),
   }
 
+  const goTo = (
+    <CommandGroup heading="Go to" className={GROUP}>
+      {shownPages.map((item) => (
+        <CommandItem
+          key={item.id}
+          value={item.title}
+          onSelect={() => run(() => void navigate({ to: item.url }))}
+          className={ITEM}
+        >
+          <ItemIcon icon={item.icon} />
+          <span className="min-w-0 flex-1 truncate">{item.title}</span>
+          {phone ? <PhoneChevron /> : <Keys id={GO_TO[item.id]} />}
+        </CommandItem>
+      ))}
+    </CommandGroup>
+  )
+
+  const timeRangeAction = routeHeader.timeRange && (
+    <CommandItem
+      value="change the time range"
+      onSelect={() => run(() => runShortcut("time-range"))}
+      className={ITEM}
+    >
+      <ItemIcon icon={CalendarDays} />
+      <RowText detail={`${phone ? "Now" : "now"}: ${currentRange}`}>
+        <span className="min-w-0 truncate">Change the time range…</span>
+      </RowText>
+      {!phone && <Keys id="time-range" />}
+    </CommandItem>
+  )
+
+  const actions = (
+    <CommandGroup heading={ipQuery ? "More actions" : "Actions"} className={GROUP}>
+      {/* A phone puts the range last, where its two lines sit apart from the one-line rows. */}
+      {!phone && timeRangeAction}
+      {crowdsec?.writeEnabled && (
+        <CommandItem
+          value="ban an ip or range"
+          onSelect={() => run(() => runShortcut("ban"))}
+          className={ITEM}
+        >
+          <ItemIcon icon={Ban} />
+          <span className="min-w-0 flex-1 truncate">Ban an IP or range…</span>
+          {!phone && <Keys id="ban" />}
+        </CommandItem>
+      )}
+      <CommandItem
+        value="start the live tail"
+        onSelect={() => run(() => runShortcut("live-tail"))}
+        className={ITEM}
+      >
+        <ItemIcon icon={Radio} />
+        <span className="min-w-0 flex-1 truncate">Start the live tail</span>
+        {!phone && <Keys id="live-tail" />}
+      </CommandItem>
+      {phone && timeRangeAction}
+    </CommandGroup>
+  )
+
   return (
     <Dialog open={isOpen} onOpenChange={setCommandPaletteOpen}>
       <DialogContent
         data-command-palette=""
         showCloseButton={false}
-        className="top-[17vh] translate-y-0 gap-0 overflow-hidden rounded-xl! p-0 sm:max-w-[660px]"
+        className={cn(
+          "top-[17vh] translate-y-0 gap-0 overflow-hidden rounded-xl! p-0 sm:max-w-[660px]",
+          phone &&
+            "top-0 left-0 flex h-dvh w-full max-w-none translate-x-0 flex-col rounded-none! border-0 bg-background pt-[env(safe-area-inset-top,0px)] pr-[env(safe-area-inset-right,0px)] pl-[env(safe-area-inset-left,0px)] shadow-none data-[state=closed]:zoom-out-100 data-[state=open]:zoom-in-100 sm:max-w-none",
+        )}
+        style={sheetBox ? { top: sheetBox.top, height: sheetBox.height } : undefined}
         onCloseAutoFocus={(event) => {
           const { opener, action } = takeCommandPaletteClose()
           // Opened from the keyboard there is no trigger to return to, so focus goes
@@ -233,12 +386,13 @@ export function CommandPalette() {
         </DialogHeader>
         {/* cmdk binds Ctrl+K to "up". The palette needs it to close. */}
         <Command
-          className="bg-transparent"
+          className={cn("bg-transparent", phone && "min-h-0 flex-1 rounded-none! p-0")}
           vimBindings={false}
           label="Search IPs, pages and actions"
           filter={paletteFilter}
 
           onKeyDown={(event) => {
+            if (event.key === "ArrowDown" || event.key === "ArrowUp") setArrowKeysUsed(true)
             // Ctrl+Enter opens an address in Access Logs instead of the inspector.
             const value =
               event.currentTarget
@@ -250,21 +404,67 @@ export function CommandPalette() {
             ipActions.openInAccessLogs([ip])
           }}
         >
-          <div className="relative border-b border-border/60 [&_[data-slot=command-input-wrapper]]:p-2 [&_[data-slot=input-group]]:h-11! [&_[data-slot=input-group]]:border-0 [&_[data-slot=input-group]]:bg-transparent [&_[data-slot=command-input]]:text-base">
-            <CommandInput
-              placeholder="Search IPs, pages and actions"
-              className="pr-14"
-              value={search}
-              onValueChange={setSearch}
-            />
-            <Kbd
-              aria-hidden
-              className={cn(KEY, "pointer-events-none absolute top-1/2 right-4 -translate-y-1/2")}
-            >
-              Esc
-            </Kbd>
-          </div>
-          <CommandList className="max-h-[min(28rem,60vh)] px-1.5 py-2">
+          {phone ? (
+            <div className="flex items-center gap-3 border-b border-border/60 py-2.5 pr-4 pl-4 [&_[data-slot=command-input-wrapper]]:p-0 [&_[data-slot=input-group]]:h-11! [&_[data-slot=input-group]]:rounded-xl! [&_[data-slot=input-group]]:border-border [&_[data-slot=command-input]]:text-base">
+              <div className="relative min-w-0 flex-1">
+                <CommandInput
+                  ref={inputRef}
+                  placeholder="Search IPs, pages and actions"
+                  className={cn(search !== "" && "pr-9")}
+                  value={search}
+                  onValueChange={setSearch}
+                />
+                {search !== "" && (
+                  <button
+                    type="button"
+                    aria-label="Clear the search"
+                    onKeyDown={keepKeyFromList}
+                    onClick={() => {
+                      setSearch("")
+                      inputRef.current?.focus()
+                    }}
+                    className="absolute top-1/2 right-1 grid size-9 -translate-y-1/2 place-items-center rounded-full text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring"
+                  >
+                    <CircleX aria-hidden className="size-5" />
+                  </button>
+                )}
+              </div>
+              <button
+                type="button"
+                onKeyDown={keepKeyFromList}
+                onClick={closeCommandPalette}
+                className="-mr-2 shrink-0 rounded-md px-2 py-2 text-[15px] font-medium text-primary focus-visible:outline-2 focus-visible:outline-ring"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <div className="relative border-b border-border/60 [&_[data-slot=command-input-wrapper]]:p-2 [&_[data-slot=input-group]]:h-11! [&_[data-slot=input-group]]:border-0 [&_[data-slot=input-group]]:bg-transparent [&_[data-slot=command-input]]:text-base">
+              <CommandInput
+                ref={inputRef}
+                placeholder="Search IPs, pages and actions"
+                className="pr-14"
+                value={search}
+                onValueChange={setSearch}
+              />
+              <Kbd
+                aria-hidden
+                className={cn(KEY, "pointer-events-none absolute top-1/2 right-4 -translate-y-1/2")}
+              >
+                Esc
+              </Kbd>
+            </div>
+          )}
+          <CommandList
+            className={cn(
+              "max-h-[min(28rem,60vh)] px-1.5 py-2",
+              phone &&
+                "max-h-none flex-1 overscroll-contain px-1 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom,0px))]",
+              phone &&
+                !arrowKeysUsed &&
+                "pointer-coarse:[&_[cmdk-item][data-selected=true]]:bg-transparent pointer-coarse:[&_[cmdk-item][data-selected=true]]:ring-transparent pointer-coarse:[&_[cmdk-item][data-selected=true]>span>svg]:text-muted-foreground",
+            )}
+          >
             <CommandEmpty>Nothing matches.</CommandEmpty>
             {ipQuery ? (
               <IpSearchGroups
@@ -281,54 +481,17 @@ export function CommandPalette() {
                 <RecentIpsGroup ips={recentIps} actions={ipActions} enabled={isOpen} />
               )
             )}
-            <CommandGroup heading="Go to" className={GROUP}>
-              {pages.map((item) => (
-                <CommandItem
-                  key={item.id}
-                  value={item.title}
-                  onSelect={() => run(() => void navigate({ to: item.url }))}
-                  className={ITEM}
-                >
-                  <ItemIcon icon={item.icon} />
-                  {item.title}
-                  <Keys id={GO_TO[item.id]} />
-                </CommandItem>
-              ))}
-            </CommandGroup>
-            <CommandGroup heading={ipQuery ? "More actions" : "Actions"} className={GROUP}>
-              {routeHeader.timeRange && !phone && (
-                <CommandItem
-                  value="change the time range"
-                  onSelect={() => run(() => runShortcut("time-range"))}
-                  className={ITEM}
-                >
-                  <ItemIcon icon={CalendarDays} />
-                  Change the time range…
-                  <span className="text-muted-foreground">now: {currentRange}</span>
-                  <Keys id="time-range" />
-                </CommandItem>
-              )}
-              {crowdsec?.writeEnabled && (
-                <CommandItem
-                  value="ban an ip or range"
-                  onSelect={() => run(() => runShortcut("ban"))}
-                  className={ITEM}
-                >
-                  <ItemIcon icon={Ban} />
-                  Ban an IP or range…
-                  <Keys id="ban" />
-                </CommandItem>
-              )}
-              <CommandItem
-                value="start the live tail"
-                onSelect={() => run(() => runShortcut("live-tail"))}
-                className={ITEM}
-              >
-                <ItemIcon icon={Radio} />
-                Start the live tail
-                <Keys id="live-tail" />
-              </CommandItem>
-            </CommandGroup>
+            {phone ? (
+              <>
+                {actions}
+                {goTo}
+              </>
+            ) : (
+              <>
+                {goTo}
+                {actions}
+              </>
+            )}
           </CommandList>
           <NoMatchStatus />
           <div role="status" className="sr-only">
@@ -337,45 +500,47 @@ export function CommandPalette() {
           <SelectionMirror onChange={setSelected} />
         </Command>
         {/* Outside Command, whose Enter handler would run the highlighted row instead. */}
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-border/60 px-4 py-2.5 text-xs text-muted-foreground">
-          <span aria-hidden className="flex items-center gap-1.5">
-            <KbdGroup>
-              <Kbd className={KEY}>
-                <ArrowUp />
-              </Kbd>
-              <Kbd className={KEY}>
-                <ArrowDown />
-              </Kbd>
-            </KbdGroup>
-            move
-          </span>
-          <span aria-hidden className="flex items-center gap-1.5">
-            <Kbd className={KEY}>
-              <CornerDownLeft />
-            </Kbd>
-            {onAddress ? "open the inspector" : "open"}
-          </span>
-          {onAddress && (
+        {!phone && (
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-border/60 px-4 py-2.5 text-xs text-muted-foreground">
             <span aria-hidden className="flex items-center gap-1.5">
               <KbdGroup>
-                <Kbd className={KEY}>{modifierLabel()}</Kbd>
                 <Kbd className={KEY}>
-                  <CornerDownLeft />
+                  <ArrowUp />
+                </Kbd>
+                <Kbd className={KEY}>
+                  <ArrowDown />
                 </Kbd>
               </KbdGroup>
-              open in Access Logs
+              move
             </span>
-          )}
-          <button
-            type="button"
-            onClick={() => run(() => openShortcutsCheatSheet())}
-            aria-label="All shortcuts"
-            className="flex items-center gap-1.5 rounded-sm hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
-          >
-            <Kbd className={KEY}>?</Kbd>
-            all shortcuts
-          </button>
-        </div>
+            <span aria-hidden className="flex items-center gap-1.5">
+              <Kbd className={KEY}>
+                <CornerDownLeft />
+              </Kbd>
+              {onAddress ? "open the inspector" : "open"}
+            </span>
+            {onAddress && (
+              <span aria-hidden className="flex items-center gap-1.5">
+                <KbdGroup>
+                  <Kbd className={KEY}>{modifierLabel()}</Kbd>
+                  <Kbd className={KEY}>
+                    <CornerDownLeft />
+                  </Kbd>
+                </KbdGroup>
+                open in Access Logs
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => run(() => openShortcutsCheatSheet())}
+              aria-label="All shortcuts"
+              className="flex items-center gap-1.5 rounded-sm hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+            >
+              <Kbd className={KEY}>?</Kbd>
+              all shortcuts
+            </button>
+          </div>
+        )}
       </DialogContent>
       {report.dialog}
     </Dialog>
@@ -410,5 +575,20 @@ export function CommandPaletteField() {
         <span className="sr-only">Search and commands</span>
       </Button>
     </>
+  )
+}
+
+/** The phone header's search button, round like the refresh button beside it. */
+export function PhoneSearchButton() {
+  return (
+    <Button
+      variant="outline"
+      size="icon-sm"
+      onClick={(event) => openCommandPalette(event.currentTarget)}
+      className="shrink-0 rounded-full"
+    >
+      <Search className="size-4" />
+      <span className="sr-only">Search and commands</span>
+    </Button>
   )
 }

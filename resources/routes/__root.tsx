@@ -35,7 +35,11 @@ import { IpInspectorProvider } from "@/lib/ip-inspector"
 import { OverlayHistoryProvider } from "@/lib/overlay-history"
 import { IpInspectorSheet } from "@/components/ip-inspector/ip-inspector-sheet"
 import { KeyboardShortcuts } from "@/components/shortcuts/keyboard-shortcuts"
-import { CommandPalette, CommandPaletteField } from "@/components/command-palette/command-palette"
+import {
+  CommandPalette,
+  CommandPaletteField,
+  PhoneSearchButton,
+} from "@/components/command-palette/command-palette"
 import { isChromelessRoute } from "@/lib/auth-redirect"
 import { loadSidebarOpenPreference } from "@/lib/sidebar-preference"
 import {
@@ -330,8 +334,13 @@ function RootLayout() {
                               )}
                               <AppBreadcrumb />
                             </div>
-                            <div className="flex shrink-0 items-center gap-1 sm:gap-3">
-                              {!phone && <CommandPaletteField />}
+                            <div
+                              className={cn(
+                                "flex shrink-0 items-center",
+                                phone ? "gap-1.5" : "gap-1 sm:gap-3",
+                              )}
+                            >
+                              {phone ? <PhoneSearchButton /> : <CommandPaletteField />}
                               <TimeRangeToolbar />
                             </div>
                           </header>

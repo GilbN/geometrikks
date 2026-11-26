@@ -232,3 +232,82 @@ test("reopening after an IP search starts on the recently inspected list", async
   )
   await expect(palette(page).getByText("IP addresses seen")).toHaveCount(0)
 })
+
+test.describe("on a phone", () => {
+  test.use({ viewport: { width: 393, height: 852 }, hasTouch: true, isMobile: true })
+
+  test("the header's search button opens a full-screen sheet that Cancel closes", async ({
+    page,
+  }) => {
+    await page.goto("/access-logs")
+    const button = page.locator("header").getByRole("button", { name: "Search and commands" })
+    await button.click()
+    await expect(palette(page)).toBeVisible()
+    const box = await palette(page).boundingBox()
+    expect(box?.width).toBe(393)
+    // The tab bar holds the other pages, so only the ones under More are listed.
+    await expect(palette(page).getByRole("option", { name: "Geo Logs" })).toBeVisible()
+    await expect(palette(page).getByRole("option", { name: "Map" })).toHaveCount(0)
+    await page.keyboard.type("map")
+    await expect(palette(page).getByRole("option", { name: "Map" })).toBeVisible()
+    await palette(page).getByRole("button", { name: "Clear the search" }).click()
+    await expect(palette(page).getByRole("combobox")).toHaveValue("")
+
+    await palette(page).getByRole("button", { name: "Cancel" }).click()
+    await expect(palette(page)).toBeHidden()
+    await expect(button).toBeFocused()
+  })
+
+  test("Back closes the sheet and stays on the page", async ({ page }) => {
+    await page.goto("/")
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Overview")
+    await page.goto("/access-logs")
+    await page.locator("header").getByRole("button", { name: "Search and commands" }).click()
+    await expect(palette(page)).toBeVisible()
+    await page.goBack()
+    await expect(palette(page)).toBeHidden()
+    await expect(page).toHaveURL(/\/access-logs/)
+  })
+
+  test("Enter on the clear button clears instead of running a row", async ({ page }) => {
+    await page.goto("/access-logs")
+    await page.locator("header").getByRole("button", { name: "Search and commands" }).click()
+    await page.keyboard.type("map")
+    await palette(page).getByRole("button", { name: "Clear the search" }).focus()
+    await page.keyboard.press("Enter")
+    await expect(palette(page).getByRole("combobox")).toHaveValue("")
+    await expect(page).toHaveURL(/\/access-logs/)
+  })
+
+  test("a touch screen shows the picked row once the arrow keys move it", async ({ page }) => {
+    await page.goto("/access-logs")
+    await page.locator("header").getByRole("button", { name: "Search and commands" }).click()
+    const picked = palette(page).locator('[cmdk-item][data-selected="true"]')
+    const background = () => picked.evaluate((row) => getComputedStyle(row).backgroundColor)
+    await expect(picked).toHaveCount(1)
+    expect(await background()).toBe("rgba(0, 0, 0, 0)")
+    await page.keyboard.press("ArrowDown")
+    await expect.poll(background).not.toBe("rgba(0, 0, 0, 0)")
+  })
+
+  test("Change the time range opens the range drawer", async ({ page }) => {
+    await page.goto("/access-logs")
+    await page.locator("header").getByRole("button", { name: "Search and commands" }).click()
+    await palette(page)
+      .getByRole("option", { name: /Change the time range/ })
+      .click()
+    await expect(palette(page)).toBeHidden()
+    await expect(page.getByRole("dialog", { name: "Time range and refresh" })).toBeVisible()
+  })
+
+  test("an IP row opens the inspector", async ({ page }) => {
+    await mockIpSearch(page)
+    await page.goto("/access-logs")
+    await page.locator("header").getByRole("button", { name: "Search and commands" }).click()
+    await page.keyboard.type("198.51")
+    const row = palette(page).getByRole("option", { name: /^198\.51\.100\.14 / })
+    await expect(row).toContainText("Example Hosting · 71 requests")
+    await row.click()
+    await expect(page).toHaveURL(/inspect=198\.51\.100\.14/)
+  })
+})
