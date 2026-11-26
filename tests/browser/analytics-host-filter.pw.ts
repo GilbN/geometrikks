@@ -181,18 +181,18 @@ function topUrlsCard(page: Page) {
   return cardTitled(page, "Top URLs")
 }
 
-function hostCombobox(page: Page) {
-  return page
-    .getByRole("region", { name: "Traffic filters" })
-    .getByRole("combobox")
-    .filter({ hasText: /^Host( \(\d+\))?$/ })
+const bar = (page: Page) => page.getByRole("region", { name: "Traffic filters" })
+
+/** Opens Host from the Filter menu: an "is" chip, or "is not" beside an existing "is" chip. */
+async function pickHostField(page: Page) {
+  await bar(page).getByRole("button", { name: "Add a filter" }).click()
+  await page.getByRole("option", { name: /^Host/ }).click()
 }
 
-test("Host and Exclude host filter every Analytics request", async ({ page }) => {
+test("Host and Host is not filter every Analytics request", async ({ page }) => {
   const analyticsRequests = await openAnalytics(page)
-  const rail = page.getByRole("region", { name: "Traffic filters" })
 
-  await hostCombobox(page).click()
+  await pickHostField(page)
   await page.getByRole("option", { name: "cloud.example.com", exact: true }).click()
   await page.keyboard.press("Escape")
   await expect.poll(() => hostParam(page, "host")).toEqual(["cloud.example.com"])
@@ -200,11 +200,11 @@ test("Host and Exclude host filter every Analytics request", async ({ page }) =>
     .poll(() => endpointsCarrying(analyticsRequests, { hostIn: "cloud.example.com" }))
     .toEqual(FILTERED_ENDPOINTS)
 
-  const excludeHost = rail.getByRole("textbox", { name: "Exclude host", exact: true })
-  await excludeHost.fill("git.example.com")
-  await excludeHost.press("Enter")
+  await pickHostField(page)
+  await page.getByRole("option", { name: "git.example.com", exact: true }).click()
+  await page.keyboard.press("Escape")
   await expect(
-    rail.getByRole("button", { name: "Remove exclusion git.example.com", exact: true }),
+    bar(page).getByRole("combobox", { name: "Host is not git.example.com", exact: true }),
   ).toBeVisible()
   await expect.poll(() => hostParam(page, "hostx")).toEqual(["git.example.com"])
   await expect
@@ -216,7 +216,7 @@ test("Host and Exclude host filter every Analytics request", async ({ page }) =>
     )
     .toEqual(FILTERED_ENDPOINTS)
 
-  await expect(rail.getByRole("button", { name: "Clear 2 filters", exact: true })).toBeVisible()
+  await expect(bar(page).getByRole("button", { name: "Clear", exact: true })).toBeVisible()
 })
 
 test("a shared link's host and excluded host survive the round trip and clear together", async ({
@@ -226,16 +226,15 @@ test("a shared link's host and excluded host survive the round trip and clear to
     page,
     analyticsQuery({ host: ["cloud.example.com"], hostx: ["git.example.com"] }),
   )
-  const rail = page.getByRole("region", { name: "Traffic filters" })
 
-  await expect(hostCombobox(page)).toHaveText(/^Host \(1\)/)
-  await hostCombobox(page).click()
+  const included = bar(page).getByRole("combobox", { name: "Host is cloud.example.com" })
+  await included.click()
   await expect(
     page.getByRole("option", { name: "cloud.example.com", exact: true }),
   ).toHaveAttribute("aria-selected", "true")
   await page.keyboard.press("Escape")
   await expect(
-    rail.getByRole("button", { name: "Remove exclusion git.example.com", exact: true }),
+    bar(page).getByRole("combobox", { name: "Host is not git.example.com", exact: true }),
   ).toBeVisible()
   await expect
     .poll(() =>
@@ -246,7 +245,7 @@ test("a shared link's host and excluded host survive the round trip and clear to
     )
     .toEqual(FILTERED_ENDPOINTS)
 
-  await rail.getByRole("button", { name: "Clear 2 filters", exact: true }).click()
+  await bar(page).getByRole("button", { name: "Clear", exact: true }).click()
   await expect
     .poll(() => {
       const params = new URL(page.url()).searchParams
@@ -258,7 +257,9 @@ test("a shared link's host and excluded host survive the round trip and clear to
 test("a linked host the facets lack is listed as selected and removable", async ({ page }) => {
   await openAnalytics(page, analyticsQuery({ host: ["gone.example", "cloud.example.com"] }))
 
-  await hostCombobox(page).click()
+  await bar(page)
+    .getByRole("combobox", { name: /^Host is / })
+    .click()
   const gone = page.getByRole("option", { name: "gone.example", exact: true })
   await expect(gone).toHaveAttribute("aria-selected", "true")
   await gone.click()
@@ -270,8 +271,9 @@ test("a host param that is not a JSON list loads with no host filter", async ({ 
   page.on("pageerror", (error) => pageErrors.push(error))
   const analyticsRequests = await openAnalytics(page, "?host=garbage")
 
-  await expect(hostCombobox(page)).toHaveText(/^Host$/)
-  await expect(page.getByRole("button", { name: /^Clear \d+ filters?$/ })).toHaveCount(0)
+  await expect(bar(page).getByRole("button", { name: "Add a filter" })).toBeVisible()
+  await expect(bar(page).locator('[data-slot="filter-chip"]')).toHaveCount(0)
+  await expect(bar(page).getByRole("button", { name: "Clear", exact: true })).toHaveCount(0)
   await expect
     .poll(() =>
       FILTERED_ENDPOINTS.filter((endpoint) =>

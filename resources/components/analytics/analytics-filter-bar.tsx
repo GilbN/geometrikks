@@ -3,14 +3,17 @@
  * every chart and top-list on the page via AnalyticsFiltersContext (not
  * geo-time-series, which stays unfiltered). Host/country/city/ASN options are
  * lazy-loaded facets.
- * Renders in a FilterRail on desktop and inside a FiltersDrawer on phones.
+ * Renders as a FilterBar on desktop and inside a FiltersDrawer on phones.
  */
 import { CountryFlag } from "@/components/country-flag"
 import { useState } from "react"
-import { MutedIpsChip } from "@/components/data/muted-ips-chip"
-import { FilterField, FilterPair, FilterRail, FilterRow } from "@/components/data/filter-rail"
+import { Flag, Globe, Hash, MapPin, Network } from "lucide-react"
+import { FilterBar } from "@/components/data/filter-bar"
+import { listField, typedField, type FilterBarField } from "@/components/data/filter-bar-fields"
+import { FilterRow } from "@/components/data/filter-rail"
 import { FilterChip, TagInput } from "@/components/data/tag-input"
-import { FilterCombobox } from "@/components/ui/filter-combobox"
+import type { PickedValue } from "@/components/command-palette/filter-value-results"
+import { countryDisplayName } from "@/lib/country-flags"
 import {
   FilterExcludedIpRows,
   FilterListRow,
@@ -53,7 +56,9 @@ export function AnalyticsFilterBar() {
     ...new Set([...(facets?.hosts ?? []), ...filters.hosts, ...filters.hostsExclude]),
   ]
   const asnLabel = useAsnLabel(facets?.asns)
-  const countryName = (code: string) => facets?.countries.find((c) => c.code === code)?.name
+  // The browser names a country until the facets arrive, as on a shared link.
+  const countryName = (code: string) =>
+    facets?.countries.find((c) => c.code === code)?.name ?? countryDisplayName(code)
   const countryLabel = (code: string) => {
     const name = countryName(code)
     return name ? `${name} (${code})` : code
@@ -67,12 +72,6 @@ export function AnalyticsFilterBar() {
     setFilters((prev) => ({ ...prev, [key]: prev[key].filter((v) => v !== ip) }))
   const setHosts = (key: HostKey) => (values: string[]) =>
     setFilters((prev) => ({ ...prev, [key]: values }))
-  const addHostExclude = (host: string) =>
-    setFilters((prev) =>
-      prev.hostsExclude.includes(host)
-        ? prev
-        : { ...prev, hostsExclude: [...prev.hostsExclude, host] },
-    )
   const removeHostExclude = (host: string) =>
     setFilters((prev) => ({ ...prev, hostsExclude: prev.hostsExclude.filter((v) => v !== host) }))
   const setAsns = (key: AsnKey) => (values: number[]) =>
@@ -129,118 +128,6 @@ export function AnalyticsFilterBar() {
       )
     )
   }
-
-  const ipPair = () => (
-    <FilterPair
-      label="IP address"
-      excludeLabel="Exclude IP"
-      include={
-        <TagInput
-          onAdd={addIp("ips")}
-          validate={isValidIpFilter}
-          hint={ipFilterHint}
-          placeholder="203.0.113.7"
-          className="w-36"
-          data-page-filter=""
-        />
-      }
-      exclude={
-        <TagInput
-          exclude
-          onAdd={addIp("ipsExclude")}
-          validate={isValidIpFilter}
-          hint={ipFilterHint}
-          placeholder="Exclude"
-          className="w-32"
-        />
-      }
-    />
-  )
-  const hostPair = () => (
-    <FilterPair
-      label="Host"
-      excludeLabel="Exclude host"
-      include={
-        <FilterCombobox
-          label="Host"
-          options={hostOptions}
-          selected={filters.hosts}
-          onChange={setHosts("hosts")}
-          loading={!facets}
-          emptyText="No hosts"
-          onOpenChange={(open) => open && setFacetsEnabled(true)}
-        />
-      }
-      exclude={
-        <TagInput
-          exclude
-          onAdd={addHostExclude}
-          placeholder="Exclude"
-          aria-label="Exclude host"
-          className="w-36"
-        />
-      }
-    />
-  )
-  const country = () => (
-    <FilterField label="Country" hideLabel>
-      <FilterCombobox
-        label="Country"
-        iconFor={(code) => <CountryFlag code={code} />}
-        options={facets?.countries.map((c) => c.code) ?? []}
-        selected={filters.countryCodes}
-        onChange={(values) => setFilters((prev) => ({ ...prev, countryCodes: values }))}
-        labelFor={countryLabel}
-        loading={!facets}
-        emptyText="No geo data"
-        onOpenChange={(open) => open && setFacetsEnabled(true)}
-      />
-    </FilterField>
-  )
-  const city = () => (
-    <FilterField label="City" hideLabel>
-      <FilterCombobox
-        label="City"
-        options={facets?.cities ?? []}
-        selected={filters.cities}
-        onChange={(values) => setFilters((prev) => ({ ...prev, cities: values }))}
-        loading={!facets}
-        emptyText="No geo data"
-        onOpenChange={(open) => open && setFacetsEnabled(true)}
-      />
-    </FilterField>
-  )
-
-  const asnPair = () => (
-    <FilterPair
-      label="ASN"
-      excludeLabel="Exclude ASN"
-      include={
-        <FilterCombobox<number>
-          label="ASN"
-          options={facets?.asns.map((a) => a.asn) ?? []}
-          selected={filters.asns}
-          onChange={setAsns("asns")}
-          labelFor={asnLabel}
-          loading={!facets}
-          emptyText="No ASN data"
-          onOpenChange={(open) => open && setFacetsEnabled(true)}
-        />
-      }
-      exclude={
-        <FilterCombobox<number>
-          label="Exclude ASN"
-          options={facets?.asns.map((a) => a.asn) ?? []}
-          selected={filters.asnsExclude}
-          onChange={setAsns("asnsExclude")}
-          labelFor={asnLabel}
-          loading={!facets}
-          emptyText="No ASN data"
-          onOpenChange={(open) => open && setFacetsEnabled(true)}
-        />
-      }
-    />
-  )
 
   const urlCount = countActiveAnalyticsFilters(filters)
   const { activeCount, clearCount } = mutedDrawerCounts(urlCount, muted.flag)
@@ -340,17 +227,120 @@ export function AnalyticsFilterBar() {
     )
   }
 
+  const onPick = (picked: PickedValue) =>
+    setFilters((prev) => {
+      const add = <T,>(list: T[], value: T) => (list.includes(value) ? list : [...list, value])
+      const drop = <T,>(list: T[], value: T) => list.filter((entry) => entry !== value)
+      switch (picked.kind) {
+        case "country":
+          return { ...prev, countryCodes: add(prev.countryCodes, picked.code) }
+        case "city":
+          return { ...prev, cities: add(prev.cities, picked.city) }
+        case "host":
+          return {
+            ...prev,
+            hosts: add(prev.hosts, picked.host),
+            hostsExclude: drop(prev.hostsExclude, picked.host),
+          }
+        case "asn":
+          return {
+            ...prev,
+            asns: add(prev.asns, picked.asn),
+            asnsExclude: drop(prev.asnsExclude, picked.asn),
+          }
+        case "server":
+          return prev
+      }
+    })
+
+  const loadFacets = () => setFacetsEnabled(true)
+  const fields: FilterBarField[] = [
+    typedField({
+      id: "ip",
+      label: "IP address",
+      chipLabel: "IP",
+      icon: Hash,
+      include: filters.ips,
+      exclude: filters.ipsExclude,
+      onChange: (ips, ipsExclude) => setFilters((prev) => ({ ...prev, ips, ipsExclude })),
+      labelFor: String,
+      mono: true,
+      validate: isValidIpFilter,
+      hint: ipFilterHint,
+      placeholder: "203.0.113.7",
+      help: "Takes an address or a CIDR range.",
+    }),
+    listField({
+      id: "host",
+      label: "Host",
+      icon: Globe,
+      include: filters.hosts,
+      exclude: filters.hostsExclude,
+      onChange: (hosts, hostsExclude) => setFilters((prev) => ({ ...prev, hosts, hostsExclude })),
+      labelFor: String,
+      mono: true,
+      options: hostOptions,
+      loading: !facets,
+      emptyText: "No hosts",
+      onOpen: loadFacets,
+    }),
+    listField({
+      id: "country",
+      label: "Country",
+      icon: Flag,
+      include: filters.countryCodes,
+      onChange: (countryCodes) => setFilters((prev) => ({ ...prev, countryCodes })),
+      labelFor: countryLabel,
+      chipValue: (code) => (
+        <>
+          <CountryFlag code={code} />
+          {countryName(code) ?? code}
+        </>
+      ),
+      iconFor: (code) => <CountryFlag code={code} />,
+      options: facets?.countries.map((c) => c.code) ?? [],
+      loading: !facets,
+      emptyText: "No geo data",
+      onOpen: loadFacets,
+    }),
+    listField({
+      id: "city",
+      label: "City",
+      icon: MapPin,
+      include: filters.cities,
+      onChange: (cities) => setFilters((prev) => ({ ...prev, cities })),
+      labelFor: String,
+      options: facets?.cities ?? [],
+      loading: !facets,
+      emptyText: "No geo data",
+      onOpen: loadFacets,
+    }),
+    listField({
+      id: "asn",
+      label: "ASN",
+      icon: Network,
+      include: filters.asns,
+      exclude: filters.asnsExclude,
+      onChange: (asns, asnsExclude) => setFilters((prev) => ({ ...prev, asns, asnsExclude })),
+      labelFor: asnLabel,
+      chipValue: (asn) => `AS${asn}`,
+      options: facets?.asns.map((a) => a.asn) ?? [],
+      loading: !facets,
+      emptyText: "No ASN data",
+      onOpen: loadFacets,
+    }),
+  ]
+
   return (
-    <FilterRail label="Traffic filters" activeCount={urlCount} onClear={clear}>
-      <FilterRow>
-        {ipPair()}
-        {hostPair()}
-        {country()}
-        {city()}
-        {asnPair()}
-        <MutedIpsChip scope={muted} onToggle={toggleMuted} />
-      </FilterRow>
-      {chipRow(["ips", "ipsExclude", "hostsExclude", "asns", "asnsExclude"])}
-    </FilterRail>
+    <FilterBar
+      label="Traffic filters"
+      pageId="analytics"
+      fields={fields}
+      activeCount={urlCount}
+      onClear={clear}
+      muted={muted}
+      onToggleMuted={toggleMuted}
+      valueSearch={{ onPick, kinds: ["country", "city", "host", "asn"] }}
+    />
   )
 }

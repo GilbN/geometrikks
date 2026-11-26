@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - On desktop, Access Logs History replaces its filter panel and table header with one filter bar for the tabs, search field, filter chips, Filter menu and View menu. The Filter menu searches fields and values by name, pins fields to the bar, switches IP address, host, server and ASN between is and is not, and holds the Hide my IP and Hide muted IPs switches. See [App tour](https://geometrikks.dev/docs/features/app-tour#access-logs).
 - On desktop, Geo Logs gets the same filter bar as Access Logs, with the Charts switch at its right end. Pressing `/` opens its Filter menu.
 - On desktop, Debug Logs gets the filter bar too, with its View menu at the right end, and the rows fill the height under the stat cards so the pager stays on screen.
+- On desktop, Analytics gets the filter bar too, and excluding a host now picks from the logged hosts instead of typed text.
 
 ## [0.26.0] - 2026-11-23
 
