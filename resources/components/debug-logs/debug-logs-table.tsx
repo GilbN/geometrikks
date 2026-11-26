@@ -513,7 +513,7 @@ export function DebugLogsTable() {
 
   const activeFilterCount =
     (search ? 1 : 0) +
-    (ip ? 1 : 0) +
+    (ip && isValidIpFilter(ip) ? 1 : 0) +
     (malformedFilter !== "all" ? 1 : 0) +
     (countries.length ? 1 : 0) +
     (cities.length ? 1 : 0)
@@ -616,7 +616,8 @@ export function DebugLogsTable() {
       chipLabel: "IP",
       icon: Hash,
       // The page filters by one address or range, so a new one replaces it.
-      include: ipDraft ? [ipDraft] : [],
+      // An address the request leaves out, such as a broken one from a link, shows no chip.
+      include: ipDraft && !ipInvalid ? [ipDraft] : [],
       onChange: (include) => setIpInput(include.at(-1) ?? ""),
       labelFor: String,
       mono: true,

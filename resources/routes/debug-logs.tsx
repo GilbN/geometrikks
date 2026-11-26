@@ -24,7 +24,7 @@ export const Route = createFileRoute("/debug-logs")({
 function DebugLogsPage() {
   return (
     // Held to the window while the table fills it, so the pager stays on screen.
-    <div className="flex min-h-full flex-col gap-4 p-4 has-[[data-table-fill]]:h-full has-[[data-table-fill]]:min-h-[36rem]">
+    <div className="flex min-h-full flex-col gap-4 p-4 has-[[data-table-fill]]:h-full has-[[data-table-fill]]:min-h-[30rem]">
       <PageHeader subtitle="Inspect captured source lines, parse failures, and their linked request context." />
       <DebugLogsStats />
       <DebugLogsTable />
