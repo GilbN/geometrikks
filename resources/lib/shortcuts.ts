@@ -209,6 +209,11 @@ function normalize(key: string, code: string | undefined): string {
   return position ? position[1].toLowerCase() : key
 }
 
+/** The key a shortcut sees for this press, on any keyboard layout. */
+export function shortcutKey(event: { key: string; code?: string }): string {
+  return normalize(event.key, event.code)
+}
+
 /**
  * Which shortcut a key press finishes, given the first key of a sequence when
  * one is waiting. Shift is allowed, since "?" needs it on most layouts; any
