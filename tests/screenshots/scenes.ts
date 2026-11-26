@@ -90,7 +90,7 @@ const MUTED_ENTRIES = MUTED_NOTES.length
 /**
  * The muted list loads after the page, and the page then reloads its rows without the muted
  * addresses. The switch shows once the list is in: as a button with the count on the desktop
- * filter bar (a switch on the older filter panels), as a count on the phone's Filters button.
+ * filter bar, as a count on the phone's Filters button.
  */
 async function mutedSwitch(page: Page, shot: PlannedShot): Promise<void> {
   const control =
@@ -98,9 +98,6 @@ async function mutedSwitch(page: Page, shot: PlannedShot): Promise<void> {
       ? page
           .getByRole("button", { name: "Hide muted IPs", pressed: true })
           .filter({ hasText: String(MUTED_ENTRIES) })
-          .or(
-            page.getByRole("button", { name: `Muted IPs hidden · ${MUTED_ENTRIES}`, exact: true }),
-          )
       : page.getByRole("button", { name: /^Filters\b.*\(\d+\)$/ })
   await expect(control).toBeVisible({ timeout: LOAD_TIMEOUT })
 }
