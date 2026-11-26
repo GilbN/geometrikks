@@ -263,7 +263,7 @@ export function IpSearchGroups({
                 `${number.format(requests)} ${requests === 1 ? "request" : "requests"}`
               }
             >
-              <span className="min-w-0 truncate phone:whitespace-normal">
+              <span className="min-w-0 truncate phone:whitespace-normal phone:[overflow-wrap:anywhere]">
                 Access Logs<span className="phone:hidden"> where</span>
                 <span className="hidden phone:inline">,</span> IP starts with{" "}
                 <span className="font-mono font-semibold text-primary">{label}</span>
@@ -278,7 +278,7 @@ export function IpSearchGroups({
               className={ITEM}
             >
               <ItemIcon icon={Shield} />
-              <span className="min-w-0 flex-1 truncate phone:whitespace-normal">
+              <span className="min-w-0 flex-1 truncate phone:whitespace-normal phone:[overflow-wrap:anywhere]">
                 Security decisions matching{" "}
                 <span className="font-mono font-semibold text-primary">{label}</span>
               </span>
