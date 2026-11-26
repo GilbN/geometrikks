@@ -3,9 +3,9 @@
  * pages to filter by it, and what to do about it. Searches cover everything
  * kept, not only the selected range, through the per-IP daily rollups.
  */
-import { useEffect } from "react"
+import { useEffect, type ReactNode } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { FileText, Mail, ScanSearch, Shield, ShieldBan } from "lucide-react"
+import { ChevronRight, FileText, Mail, ScanSearch, Shield, ShieldBan } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 
 import { CommandGroup, CommandItem, CommandShortcut } from "@/components/ui/command"
@@ -33,14 +33,38 @@ const SHOWN = 8
 
 export const GROUP =
   "**:[[cmdk-group-heading]]:text-[11px] **:[[cmdk-group-heading]]:font-semibold **:[[cmdk-group-heading]]:tracking-[0.08em] **:[[cmdk-group-heading]]:uppercase"
+/** On a phone the rows are taller, for a thumb, and a tap shows no keyboard highlight. */
 export const ITEM =
-  "min-h-10 gap-3 rounded-lg! px-2.5 text-sm ring-1 ring-transparent data-selected:bg-primary/12 data-selected:ring-primary/50"
+  "min-h-10 gap-3 rounded-lg! px-2.5 text-sm ring-1 ring-transparent data-selected:bg-primary/12 data-selected:ring-primary/50 phone:min-h-14 phone:gap-3.5 phone:px-2 phone:text-[15px] phone:data-selected:bg-transparent phone:data-selected:ring-transparent phone:active:bg-muted/60 phone:[&>svg:last-child]:hidden"
 
 export function ItemIcon({ icon: Icon }: { icon: LucideIcon }) {
   return (
-    <span className="grid size-7 shrink-0 place-items-center rounded-md bg-muted/60">
-      <Icon className="size-4 text-muted-foreground" />
+    <span className="grid size-7 shrink-0 place-items-center rounded-md bg-muted/60 phone:size-9 phone:rounded-lg">
+      <Icon className="size-4 text-muted-foreground phone:size-[18px]" />
     </span>
+  )
+}
+
+/** A row's name with its detail beside it, or below it on a phone. */
+export function RowText({ children, detail }: { children: ReactNode; detail?: ReactNode }) {
+  return (
+    <span className="flex min-w-0 flex-1 items-center gap-3 phone:flex-col phone:items-start phone:gap-0.5 phone:*:max-w-full">
+      {children}
+      {detail ? (
+        <span className="min-w-0 truncate text-muted-foreground phone:text-[13px] phone:first-letter:uppercase">
+          {detail}
+        </span>
+      ) : null}
+    </span>
+  )
+}
+
+/** On a phone, rows that open a page or the inspector end in a chevron. */
+export function PhoneChevron() {
+  return (
+    <CommandShortcut aria-hidden className="hidden phone:flex">
+      <ChevronRight className="size-4" />
+    </CommandShortcut>
   )
 }
 
@@ -75,7 +99,7 @@ function useIpStats(ips: string[] | null, enabled: boolean) {
 function Highlighted({ ip, typed }: { ip: string; typed: string }) {
   const matches = ip.toLowerCase().startsWith(typed.toLowerCase())
   return (
-    <span className="min-w-0 font-mono text-[13px] [overflow-wrap:anywhere]">
+    <span className="min-w-0 font-mono text-[13px] [overflow-wrap:anywhere] phone:text-[15px]">
       {matches ? (
         <>
           <span className="font-semibold text-primary">{ip.slice(0, typed.length)}</span>
@@ -180,21 +204,34 @@ export function IpSearchGroups({
             className={ITEM}
           >
             <ItemIcon icon={ScanSearch} />
-            <Highlighted ip={row.ipAddress} typed={query.typed} />
-            <span className="min-w-0 truncate text-muted-foreground">
-              {[
-                row.asn != null ? `AS${row.asn} ${row.asOrganization ?? ""}`.trim() : null,
-                `${number.format(row.hits)} ${row.hits === 1 ? "request" : "requests"}`,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            </span>
+            <RowText
+              detail={
+                <>
+                  {row.asn != null && (
+                    <>
+                      {/* A phone has room for the name only. */}
+                      <span className="phone:hidden">
+                        AS{row.asn}
+                        {row.asOrganization ? " " : ""}
+                      </span>
+                      {row.asOrganization}
+                      {row.asOrganization ? " · " : <span className="phone:hidden"> · </span>}
+                    </>
+                  )}
+                  {number.format(row.hits)} {row.hits === 1 ? "request" : "requests"}
+                </>
+              }
+            >
+              <Highlighted ip={row.ipAddress} typed={query.typed} />
+            </RowText>
             {/* As a shortcut slot it hides cmdk's check icon, which would take half the free space. */}
             <CommandShortcut className="flex shrink-0 items-center gap-1.5 tracking-normal">
               {(bannedIps?.has(row.ipAddress) || coveredByBannedRange(row.ipAddress)) && (
                 <BanMark ip={row.ipAddress} />
               )}
               <DropMark ip={row.ipAddress} asn={row.asn} />
+              {/* Badges take the chevron's place on a phone. */}
+              <ChevronRight aria-hidden className="hidden size-4 phone:only:block" />
             </CommandShortcut>
           </CommandItem>
         ))}
@@ -221,15 +258,19 @@ export function IpSearchGroups({
             className={ITEM}
           >
             <ItemIcon icon={FileText} />
-            <span className="min-w-0 truncate">
-              Access Logs where IP starts with{" "}
-              <span className="font-mono font-semibold text-primary">{label}</span>
-            </span>
-            {requests !== null && (
-              <span className="shrink-0 text-muted-foreground">
-                {number.format(requests)} {requests === 1 ? "request" : "requests"}
+            <RowText
+              detail={
+                requests !== null &&
+                `${number.format(requests)} ${requests === 1 ? "request" : "requests"}`
+              }
+            >
+              <span className="min-w-0 truncate">
+                Access Logs<span className="phone:hidden"> where</span>
+                <span className="hidden phone:inline">,</span> IP starts with{" "}
+                <span className="font-mono font-semibold text-primary">{label}</span>
               </span>
-            )}
+            </RowText>
+            <PhoneChevron />
           </CommandItem>
           {crowdsecEnabled && (query.cidr || query.address) && (
             <CommandItem
@@ -238,10 +279,11 @@ export function IpSearchGroups({
               className={ITEM}
             >
               <ItemIcon icon={Shield} />
-              <span className="min-w-0 truncate">
+              <span className="min-w-0 flex-1 truncate">
                 Security decisions matching{" "}
                 <span className="font-mono font-semibold text-primary">{label}</span>
               </span>
+              <PhoneChevron />
             </CommandItem>
           )}
         </CommandGroup>
@@ -255,7 +297,7 @@ export function IpSearchGroups({
               className={ITEM}
             >
               <ItemIcon icon={ShieldBan} />
-              <span className="min-w-0 truncate">
+              <span className="min-w-0 truncate phone:whitespace-normal">
                 Ban <span className="font-mono">{query.address ?? query.cidr}</span>
                 {query.address ? "…" : " as a range…"}
               </span>
@@ -274,7 +316,7 @@ export function IpSearchGroups({
               className={ITEM}
             >
               <ItemIcon icon={Mail} />
-              <span className="min-w-0 truncate">
+              <span className="min-w-0 truncate phone:whitespace-normal">
                 Write an abuse report for <span className="font-mono">{reportIp}</span>
               </span>
             </CommandItem>
@@ -321,8 +363,12 @@ export function RecentIpsGroup({
             className={ITEM}
           >
             <ItemIcon icon={ScanSearch} />
-            <span className="min-w-0 font-mono text-[13px] [overflow-wrap:anywhere]">{ip}</span>
-            {detail && <span className="min-w-0 truncate text-muted-foreground">{detail}</span>}
+            <RowText detail={detail}>
+              <span className="min-w-0 font-mono text-[13px] [overflow-wrap:anywhere] phone:text-[15px]">
+                {ip}
+              </span>
+            </RowText>
+            <PhoneChevron />
           </CommandItem>
         )
       })}

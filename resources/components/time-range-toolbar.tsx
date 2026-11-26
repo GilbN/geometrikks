@@ -180,11 +180,17 @@ export function PhoneTimeRangeControls({ chip = false }: { chip?: boolean }) {
   const { range, customRange } = useTimeRange()
   const routeHeader = useRouteHeader()
   const rangeLabel = timeRangeLabel(range, customRange)
+  const phone = usePhoneLayout()
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  // The palette's "Change the time range" opens this drawer on a phone.
+  useShortcutAction("time-range", phone ? () => setDrawerOpen(true) : null)
 
   return (
     <>
       <RefreshButton className={chip ? CHIP_REFRESH : undefined} />
       <TimeRangePicker
+        open={drawerOpen}
+        onOpenChange={setDrawerOpen}
         refreshControls={{
           chartBuckets: routeHeader.chartBuckets,
           cardCharts: routeHeader.cardCharts,

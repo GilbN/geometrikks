@@ -119,7 +119,7 @@ export function TimeRangePicker({
   trigger: React.ReactNode
   align?: "start" | "end"
   refreshControls?: { chartBuckets: boolean; cardCharts?: CardChartsPage }
-  /** Controls the desktop menu, for the T shortcut. The phone drawer keeps its own state. */
+  /** Controls the menu or the phone drawer, for the T shortcut and the palette. */
   open?: boolean
   onOpenChange?: (open: boolean) => void
   onCloseAutoFocus?: (event: Event) => void
@@ -134,7 +134,10 @@ export function TimeRangePicker({
     setGranularity,
   } = useTimeRange()
   const asDrawer = usePhoneLayout()
-  const [rangeDrawerOpen, setRangeDrawerOpen] = useState(false)
+  const [ownDrawerOpen, setOwnDrawerOpen] = useState(false)
+  // The phone drawer follows `open` too when given, for the palette's range action.
+  const rangeDrawerOpen = open ?? ownDrawerOpen
+  const setRangeDrawerOpen = onOpenChange ?? setOwnDrawerOpen
   const overlayId = useId()
   useOverlayEntry(`time-range-${overlayId}`, asDrawer && rangeDrawerOpen, () =>
     setRangeDrawerOpen(false),

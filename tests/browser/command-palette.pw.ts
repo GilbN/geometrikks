@@ -232,3 +232,50 @@ test("reopening after an IP search starts on the recently inspected list", async
   )
   await expect(palette(page).getByText("IP addresses seen")).toHaveCount(0)
 })
+
+test.describe("on a phone", () => {
+  test.use({ viewport: { width: 393, height: 852 }, hasTouch: true, isMobile: true })
+
+  test("the header's search button opens a full-screen sheet that Cancel closes", async ({
+    page,
+  }) => {
+    await page.goto("/access-logs")
+    const button = page.locator("header").getByRole("button", { name: "Search and commands" })
+    await button.click()
+    await expect(palette(page)).toBeVisible()
+    const box = await palette(page).boundingBox()
+    expect(box?.width).toBe(393)
+    // The tab bar holds the other pages, so only the ones under More are listed.
+    await expect(palette(page).getByRole("option", { name: "Geo Logs" })).toBeVisible()
+    await expect(palette(page).getByRole("option", { name: "Map" })).toHaveCount(0)
+    await page.keyboard.type("map")
+    await expect(palette(page).getByRole("option", { name: "Map" })).toBeVisible()
+    await palette(page).getByRole("button", { name: "Clear the search" }).click()
+    await expect(palette(page).getByRole("combobox")).toHaveValue("")
+
+    await palette(page).getByRole("button", { name: "Cancel" }).click()
+    await expect(palette(page)).toBeHidden()
+    await expect(button).toBeFocused()
+  })
+
+  test("Change the time range opens the range drawer", async ({ page }) => {
+    await page.goto("/access-logs")
+    await page.locator("header").getByRole("button", { name: "Search and commands" }).click()
+    await palette(page)
+      .getByRole("option", { name: /Change the time range/ })
+      .click()
+    await expect(palette(page)).toBeHidden()
+    await expect(page.getByRole("dialog", { name: "Time range and refresh" })).toBeVisible()
+  })
+
+  test("an IP row opens the inspector", async ({ page }) => {
+    await mockIpSearch(page)
+    await page.goto("/access-logs")
+    await page.locator("header").getByRole("button", { name: "Search and commands" }).click()
+    await page.keyboard.type("198.51")
+    const row = palette(page).getByRole("option", { name: /^198\.51\.100\.14 / })
+    await expect(row).toContainText("Example Hosting · 71 requests")
+    await row.click()
+    await expect(page).toHaveURL(/inspect=198\.51\.100\.14/)
+  })
+})
