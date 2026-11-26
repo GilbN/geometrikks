@@ -279,6 +279,17 @@ test.describe("on a phone", () => {
     await expect(page).toHaveURL(/\/access-logs/)
   })
 
+  test("a touch screen shows the picked row once the arrow keys move it", async ({ page }) => {
+    await page.goto("/access-logs")
+    await page.locator("header").getByRole("button", { name: "Search and commands" }).click()
+    const picked = palette(page).locator('[cmdk-item][data-selected="true"]')
+    const background = () => picked.evaluate((row) => getComputedStyle(row).backgroundColor)
+    await expect(picked).toHaveCount(1)
+    expect(await background()).toBe("rgba(0, 0, 0, 0)")
+    await page.keyboard.press("ArrowDown")
+    await expect.poll(background).not.toBe("rgba(0, 0, 0, 0)")
+  })
+
   test("Change the time range opens the range drawer", async ({ page }) => {
     await page.goto("/access-logs")
     await page.locator("header").getByRole("button", { name: "Search and commands" }).click()

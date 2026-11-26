@@ -5,7 +5,7 @@
  * opened from the search button in the header.
  */
 import { useEffect, useRef, useState, type KeyboardEvent } from "react"
-import { useNavigate } from "@tanstack/react-router"
+import { useNavigate, useRouter, type RouterHistory } from "@tanstack/react-router"
 import { useQuery } from "@tanstack/react-query"
 import { defaultFilter, useCommandState } from "cmdk"
 import {
@@ -181,9 +181,33 @@ function useVisibleViewport(active: boolean): { top: number; height: number } | 
   return active ? box : null
 }
 
+const PALETTE_OVERLAY = "command-palette"
+
+/**
+ * Runs `action` once Back has taken the sheet's history entry away. Closing
+ * the sheet on a phone steps back off that entry, and a page opened before
+ * the step lands would be undone by it.
+ */
+function afterOverlayEntry(history: RouterHistory, action: () => void) {
+  if (history.location.state.overlay !== PALETTE_OVERLAY) return action()
+  let done = false
+  const finish = () => {
+    if (done) return
+    done = true
+    stop()
+    window.clearTimeout(timer)
+    action()
+  }
+  const stop = history.subscribe(() => {
+    if (history.location.state.overlay !== PALETTE_OVERLAY) finish()
+  })
+  const timer = window.setTimeout(finish, 1000)
+}
+
 export function CommandPalette() {
   const isOpen = useCommandPaletteOpen()
   const navigate = useNavigate()
+  const router = useRouter()
   const { range, customRange, lastRefresh } = useTimeRange()
   const [timeFormat] = useTimeFormat()
   const { status: security, isError: securityError } = useSecurityNavStatus()
@@ -192,7 +216,7 @@ export function CommandPalette() {
   const inputRef = useRef<HTMLInputElement>(null)
   const sheetBox = useVisibleViewport(phone)
   // Back closes the sheet before it leaves the page, as with the other phone overlays.
-  useOverlayEntry("command-palette", phone && isOpen, closeCommandPalette)
+  useOverlayEntry(PALETTE_OVERLAY, phone && isOpen, closeCommandPalette)
   // Crossing the phone breakpoint swaps the field, and the new one needs focus to keep typing.
   useEffect(() => {
     if (commandPaletteOpen()) inputRef.current?.focus()
@@ -209,12 +233,17 @@ export function CommandPalette() {
   const [search, setSearch] = useState("")
   const [selected, setSelected] = useState("")
   const [ipStatus, setIpStatus] = useState("")
+  // A touch screen hides the highlight on the picked row until the arrow keys move it.
+  const [arrowKeysUsed, setArrowKeysUsed] = useState(false)
   // Each opening starts empty. Clearing on open, not on close, keeps the list
   // as it was while the dialog fades out.
   const [wasOpen, setWasOpen] = useState(isOpen)
   if (isOpen !== wasOpen) {
     setWasOpen(isOpen)
-    if (isOpen) setSearch("")
+    if (isOpen) {
+      setSearch("")
+      setArrowKeysUsed(false)
+    }
   }
   const settledSearch = useDebouncedValue(search, 150)
   // The list follows the live text, so IP search starts and ends with the
@@ -246,7 +275,7 @@ export function CommandPalette() {
   const run = (action: () => void) => {
     // Enter during the closing animation would still select a row.
     if (!commandPaletteOpen()) return
-    closeCommandPaletteThen(action)
+    closeCommandPaletteThen(() => afterOverlayEntry(router.history, action))
   }
 
   const onAddress = selected.startsWith(ADDRESS_ROW)
@@ -363,6 +392,7 @@ export function CommandPalette() {
           filter={paletteFilter}
 
           onKeyDown={(event) => {
+            if (event.key === "ArrowDown" || event.key === "ArrowUp") setArrowKeysUsed(true)
             // Ctrl+Enter opens an address in Access Logs instead of the inspector.
             const value =
               event.currentTarget
@@ -430,6 +460,9 @@ export function CommandPalette() {
               "max-h-[min(28rem,60vh)] px-1.5 py-2",
               phone &&
                 "max-h-none flex-1 overscroll-contain px-1 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom,0px))]",
+              phone &&
+                !arrowKeysUsed &&
+                "pointer-coarse:[&_[cmdk-item][data-selected=true]]:bg-transparent pointer-coarse:[&_[cmdk-item][data-selected=true]]:ring-transparent pointer-coarse:[&_[cmdk-item][data-selected=true]>span>svg]:text-muted-foreground",
             )}
           >
             <CommandEmpty>Nothing matches.</CommandEmpty>
