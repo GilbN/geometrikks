@@ -51,7 +51,7 @@ These work on Access Logs History, Geo Logs and Debug Logs.
 
 ## Search and commands
 
-Press `Ctrl+K` (`Cmd+K` on a Mac) from any page to open the search-and-commands palette, including while you type in a field. Press the same keys again or `Esc` to close it. It searches pages, actions and IP addresses. On desktop, the search field in the top bar ("Search IPs, pages and actions…", showing `Ctrl K`, or `⌘ K` on a Mac) opens the same palette, and shrinks to a search icon button on narrow windows. On a phone, a search button in the header opens it as a full-screen sheet.
+Press `Ctrl+K` (`Cmd+K` on a Mac) from any page to open the search-and-commands palette, including while you type in a field. Press the same keys again or `Esc` to close it. It searches pages, actions, IP addresses, countries, cities, hosts, server names and networks. On desktop, the search field in the top bar ("Search IPs, hosts, pages…", showing `Ctrl K`, or `⌘ K` on a Mac) opens the same palette, and shrinks to a search icon button on narrow windows. On a phone, a search button in the header opens it as a full-screen sheet.
 
 When opened empty, the palette lists:
 
@@ -69,12 +69,29 @@ Type an IP address or its start to search all traffic GeoMetrikks has kept, not 
 - **Filter a page** offers "Access Logs where IP starts with …" to open Access Logs filtered to every address starting with the text. The count shown covers all kept data, while the page opens on the selected time range. With CrowdSec set up, a whole address or whole parts such as `198.51` also add "Security decisions matching …", which opens the Security decisions tab searched for that text.
 - **Actions** adds "Ban 198.51.0.0/16 as a range…" for whole parts, or "Ban …" for a whole address, when CrowdSec has write access. Both open the ban dialog filled in. "Write an abuse report for …" opens an [abuse report](./abuse-reports.mdx) for the typed address or the busiest match.
 
+### Name search
+
+Type 2 or more characters to search countries, cities, hosts, server names and networks by name. If the text is an IP address or the start of one, IP search runs instead. Name search matches anywhere in the name, ignoring case and accents, so `malmo` finds Malmö. A country also matches its exact two-letter code, so `no` finds Norway. A network matches its AS number from the first digits, with or without `AS`, so `2494` or `AS2494` finds AS24940 Hetzner.
+
+Results appear in order under **Countries**, **Cities**, **Hosts**, **Servers** and **Networks**, up to 4 per group, busiest first by request count. Each row shows its kind and request count, such as "Country · NO · 38,680 requests" or "Network · AS2119 · 23,986 requests". A city row also names its country, as in "City · Sweden · 15 requests", so Paris in France and Paris in the United States appear as separate rows. Counts cover all kept data, not only the selected time range, and include muted IPs. Country and city counts cover requests GeoIP placed. Counts can trail new traffic by up to five minutes. The first name search after the app starts can take a moment while the server adds up its totals, and shows "Searching countries, hosts and networks…" meanwhile.
+
+Pick a match with `Enter` or a click to turn it into a chip in the search field. The list switches to "Filter a page by country", or the picked kind, with one row per page, such as Analytics with "country is Norway" beside it. Type to filter that page list, and press `Enter` to open the page on the selected time range with that filter set. Access Logs opens on its History tab. A city brings its country along as a second filter when GeoIP gave one. Press `Backspace` in the empty field, press `Esc` or click the chip's `×` button to remove the chip and return to the search. Press `Esc` again to close the palette.
+
+| Kind | Pages |
+| --- | --- |
+| Country | Analytics, Access Logs, Geo Logs, Map |
+| City | Analytics, Access Logs, Geo Logs, Map |
+| Host | Analytics, Access Logs |
+| Server | Access Logs, Geo Logs, Map |
+| Network | Analytics, Access Logs, Geo Logs |
+
 ### On a phone
 
 A round search button sits in the header on every page except the map, which has no header on a phone. It opens the palette as a full-screen sheet. Cancel closes it.
 
 - Opened empty, the sheet lists **Recently inspected**, then **Actions**, then **Go to**. Go to lists only the pages under More in the tab bar, since the tab bar holds the rest. Typing still finds every page, Map included.
 - "Change the time range…" opens the time range drawer.
+- Name search shows the same groups in the "IP, host, country or action" sheet, with the kind and count on a second line and a picked match as a chip in the search field.
 
 ## When shortcuts don't fire
 
