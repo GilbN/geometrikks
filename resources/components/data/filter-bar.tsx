@@ -135,7 +135,7 @@ export function FilterBar({
     if (field && !active.includes(id) && !isPinnedEmpty(field)) focusAfter.current = "add"
     // A chip that kept its key through a merge takes its own key on closing and mounts again.
     else if (field && openKey.current && openKey.current.key !== keyFor(field, mode))
-      focusAfter.current = { fieldId, mode }
+      focusAfter.current = isPinnedEmpty(field) ? { fieldId } : { fieldId, mode }
     setOpenId((current) => (current === id ? null : current))
   }
   const switchTo = (field: FilterBarField, from: FilterMode) => (to: FilterMode) => {
@@ -263,6 +263,8 @@ export function FilterBar({
             variant="ghost"
             size="sm"
             onClick={() => {
+              // Clear goes away with the filters, so the add button takes the focus.
+              focusAfter.current = "add"
               setOpenId(null)
               onClear()
             }}
@@ -522,11 +524,19 @@ function ListChip(
   const contentRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!open) return
-    const frame = requestAnimationFrame(() => {
+    // The popup can mount a few frames after the open, so look again until it is there.
+    let frames = 0
+    let frame = 0
+    const check = () => {
       const content = contentRef.current
-      if (content && !content.contains(document.activeElement))
-        content.querySelector<HTMLInputElement>("input")?.focus()
-    })
+      if (content) {
+        if (!content.contains(document.activeElement))
+          content.querySelector<HTMLInputElement>("input")?.focus()
+        return
+      }
+      if (++frames < 30) frame = requestAnimationFrame(check)
+    }
+    frame = requestAnimationFrame(check)
     return () => cancelAnimationFrame(frame)
   }, [open])
   useEffect(() => {

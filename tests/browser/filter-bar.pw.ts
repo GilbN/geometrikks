@@ -137,7 +137,7 @@ test("a pinned field stays in the bar and its x keeps the button", async ({ page
 
   await pinned.click()
   const picker = page.getByPlaceholder("Search status…")
-  await picker.click()
+  await expect(picker).toBeFocused()
   await picker.evaluate((input) => input.setAttribute("data-before-tick", ""))
   await page.keyboard.type("404")
   await page.keyboard.press("Enter")
@@ -162,6 +162,7 @@ test("filters set elsewhere show as chips, and Clear takes them all", async ({ p
   await expect.poll(() => param(page, "hostx")).toBeNull()
   expect(param(page, "method")).toBeNull()
   await expect(bar(page).locator('[data-slot="filter-chip"]')).toHaveCount(0)
+  await expect(addFilter(page)).toBeFocused()
 })
 
 test("an empty picker keeps the page and gives focus back to the add button", async ({ page }) => {

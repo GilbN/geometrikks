@@ -346,7 +346,15 @@ function valueGroups(data: Matches): [string, ValueRow[]][] {
           countryName: city.countryName,
         },
         icon: <CountryFlag code={city.countryCode} className="h-3 w-[18px]" />,
-        name: city.city,
+        // The flag is hidden from screen readers, so the country goes along in words.
+        name: (
+          <>
+            {city.city}
+            {(city.countryName ?? city.countryCode) && (
+              <span className="sr-only">, {city.countryName ?? city.countryCode}</span>
+            )}
+          </>
+        ),
         hits: city.hits,
       })),
     ],
