@@ -1,31 +1,37 @@
 /**
- * Asks Access Logs to open on its Live tail tab. The tab is page state, not
- * part of the URL, so a request made before the page mounts waits here until
- * the page takes it.
+ * Asks Access Logs to open on its Live tail or History tab. The tab is page
+ * state, not part of the URL, so a request made before the page mounts waits
+ * here until the page takes it.
  */
 import { useEffect } from "react"
 
-const EVENT = "geometrikks:live-tail"
-/** A request the page has not taken lapses, so a navigation that never
- *  arrived can't open the tab on some later visit. */
-const LAPSE_MS = 5000
-let requestedAt: number | null = null
+export type AccessLogsTab = "history" | "live"
 
-export function requestLiveTail(): void {
-  requestedAt = Date.now()
+const EVENT = "geometrikks:access-logs-tab"
+/** A request the page has not taken lapses, so a navigation that never
+ *  arrived can't switch the tab on some later visit. */
+const LAPSE_MS = 5000
+let request: { tab: AccessLogsTab; at: number } | null = null
+
+export function requestAccessLogsTab(tab: AccessLogsTab): void {
+  request = { tab, at: Date.now() }
   window.dispatchEvent(new Event(EVENT))
 }
 
-/** Calls `start` for a request made before or while the page is mounted. */
-export function useLiveTailRequest(start: () => void): void {
+export function requestLiveTail(): void {
+  requestAccessLogsTab("live")
+}
+
+/** Calls `select` for a request made before or while the page is mounted. */
+export function useAccessLogsTabRequest(select: (tab: AccessLogsTab) => void): void {
   useEffect(() => {
     const take = () => {
-      const fresh = requestedAt !== null && Date.now() - requestedAt < LAPSE_MS
-      requestedAt = null
-      if (fresh) start()
+      const pending = request
+      request = null
+      if (pending && Date.now() - pending.at < LAPSE_MS) select(pending.tab)
     }
     take()
     window.addEventListener(EVENT, take)
     return () => window.removeEventListener(EVENT, take)
-  }, [start])
+  }, [select])
 }

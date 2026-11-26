@@ -46,6 +46,9 @@ import {
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { useIpInspector } from "@/lib/ip-inspector"
 import { parseIpQuery } from "@/lib/ip-prefix"
+import { isValidIp } from "@/lib/crowdsec"
+import { requestAccessLogsTab } from "@/lib/live-tail-request"
+import { requestDecisionsSearch } from "@/lib/decisions-search-request"
 import { rememberInspectedIp, useRecentIps } from "@/lib/recent-ips"
 import { useRouteHeader } from "@/lib/route-header"
 import { fetchCrowdsecStatus } from "@/lib/api"
@@ -122,6 +125,17 @@ function NoMatchStatus() {
   )
 }
 
+/**
+ * Mirrors cmdk's picked row for the footer. Selection stays uncontrolled, so
+ * cmdk picks the first row as results arrive and keeps aria-activedescendant
+ * in step.
+ */
+function SelectionMirror({ onChange }: { onChange: (value: string) => void }) {
+  const value = useCommandState((state) => state.value)
+  useEffect(() => onChange(value ?? ""), [value, onChange])
+  return null
+}
+
 export function CommandPalette() {
   const isOpen = useCommandPaletteOpen()
   const navigate = useNavigate()
@@ -134,16 +148,26 @@ export function CommandPalette() {
   useEffect(() => () => resetCommandPalette(), [])
   const { ip: inspected, open: inspect } = useIpInspector()
   useEffect(() => {
-    if (inspected) rememberInspectedIp(inspected)
+    // A hand-edited ?inspect= link can hold anything. The list keeps real addresses only.
+    if (inspected && isValidIp(inspected)) rememberInspectedIp(inspected)
   }, [inspected])
   const recentIps = useRecentIps()
   const report = useAbuseReportDialog()
   const [search, setSearch] = useState("")
   const [selected, setSelected] = useState("")
-  // Every opening starts with an empty field.
-  if (!isOpen && search !== "") setSearch("")
-  if (!isOpen && selected !== "") setSelected("")
-  const ipQuery = parseIpQuery(useDebouncedValue(search, 150))
+  const [ipStatus, setIpStatus] = useState("")
+  // Each opening starts empty. Clearing on open, not on close, keeps the list
+  // as it was while the dialog fades out.
+  const [wasOpen, setWasOpen] = useState(isOpen)
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen)
+    if (isOpen) {
+      setSearch("")
+      setSelected("")
+    }
+  }
+  const settledSearch = useDebouncedValue(search, 150)
+  const ipQuery = parseIpQuery(settledSearch)
   const { data: crowdsec } = useQuery({
     queryKey: queryKeys.crowdsec.status,
     queryFn: fetchCrowdsecStatus,
@@ -171,9 +195,16 @@ export function CommandPalette() {
   const ipActions: IpActions = {
     inspect: (ip) => run(() => inspect(ip)),
     openInAccessLogs: (ips) =>
-      run(() => void navigate({ to: "/access-logs", search: { ip: ips } })),
+      run(() => {
+        // A filter means nothing to the Live tail, so the page opens on History.
+        requestAccessLogsTab("history")
+        void navigate({ to: "/access-logs", search: { ip: ips } })
+      }),
     searchDecisions: (query) =>
-      run(() => void navigate({ to: "/security", search: { tab: "decisions", q: query } })),
+      run(() => {
+        requestDecisionsSearch(query)
+        void navigate({ to: "/security", search: { tab: "decisions" } })
+      }),
     banRange: (target) => run(() => openBanDialogFor(target)),
     report: ({ ip, asn, organization }) =>
       run(() => report.openFor({ kind: "ip", ip, asn, organization })),
@@ -207,11 +238,14 @@ export function CommandPalette() {
           vimBindings={false}
           label="Search IPs, pages and actions"
           filter={paletteFilter}
-          value={selected}
-          onValueChange={setSelected}
+
           onKeyDown={(event) => {
             // Ctrl+Enter opens an address in Access Logs instead of the inspector.
-            const ip = selected.startsWith(ADDRESS_ROW) ? selected.slice(ADDRESS_ROW.length) : null
+            const value =
+              event.currentTarget
+                .querySelector('[cmdk-item][data-selected="true"]')
+                ?.getAttribute("data-value") ?? ""
+            const ip = value.startsWith(ADDRESS_ROW) ? value.slice(ADDRESS_ROW.length) : null
             if (event.key !== "Enter" || !(event.ctrlKey || event.metaKey) || !ip) return
             event.preventDefault()
             ipActions.openInAccessLogs([ip])
@@ -240,7 +274,8 @@ export function CommandPalette() {
                 crowdsecEnabled={crowdsec?.enabled === true}
                 canBan={crowdsec?.writeEnabled === true}
                 enabled={isOpen}
-                onTopAddress={setSelected}
+                current={settledSearch === search}
+                onStatus={setIpStatus}
               />
             ) : (
               search === "" && (
@@ -297,6 +332,10 @@ export function CommandPalette() {
             </CommandGroup>
           </CommandList>
           <NoMatchStatus />
+          <div role="status" className="sr-only">
+            {ipStatus}
+          </div>
+          <SelectionMirror onChange={setSelected} />
         </Command>
         {/* Outside Command, whose Enter handler would run the highlighted row instead. */}
         <div className="flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-border/60 px-4 py-2.5 text-xs text-muted-foreground">
@@ -328,7 +367,6 @@ export function CommandPalette() {
               open in Access Logs
             </span>
           )}
-          {onAddress && <span className="ml-auto">Paste any IP</span>}
           <button
             type="button"
             onClick={() => run(() => openShortcutsCheatSheet())}

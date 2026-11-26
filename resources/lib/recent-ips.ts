@@ -3,6 +3,7 @@
  * palette lists before anything is typed. Kept in this browser only.
  */
 import { useSyncExternalStore } from "react"
+import { isValidIp } from "@/lib/crowdsec"
 
 export const RECENT_IPS_KEY = "geometrikks-recent-ips"
 const MAX_RECENT = 5
@@ -23,7 +24,7 @@ function read(): string[] {
     const parsed: unknown = raw ? JSON.parse(raw) : []
     if (Array.isArray(parsed)) {
       ips = parsed
-        .filter((entry): entry is string => typeof entry === "string")
+        .filter((entry): entry is string => typeof entry === "string" && isValidIp(entry))
         .slice(0, MAX_RECENT)
     }
   } catch {

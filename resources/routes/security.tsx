@@ -29,15 +29,11 @@ import {
 
 interface SecuritySearch {
   tab?: string
-  /** Starts the decisions search with this IP or range. */
-  q?: string
 }
 
 export const Route = createFileRoute("/security")({
-  validateSearch: (search: Record<string, unknown>): SecuritySearch => ({
-    ...(typeof search.tab === "string" ? { tab: search.tab } : {}),
-    ...(typeof search.q === "string" ? { q: search.q } : {}),
-  }),
+  validateSearch: (search: Record<string, unknown>): SecuritySearch =>
+    typeof search.tab === "string" ? { tab: search.tab } : {},
   component: SecurityPage,
 })
 
@@ -52,7 +48,7 @@ function SecurityPage() {
   const { data: status, isLoading, isError } = useCrowdsecStatus()
   const { data: abuseIpdbStatus, isLoading: abuseIpdbLoading } = useAbuseIpdbStatus()
   const { data: about, isLoading: aboutLoading } = useAbout()
-  const { tab: requestedTab, q: initialQuery = "" } = Route.useSearch()
+  const { tab: requestedTab } = Route.useSearch()
   const hash = useLocation({ select: (location) => location.hash })
   const navigate = useNavigate({ from: "/security" })
   useCrowdsecLiveUpdates()
@@ -178,9 +174,7 @@ function SecurityPage() {
           .filter((tab) => tab === activeTab || openedTabs.includes(tab))
           .map((tab) => (
             <TabsContent key={tab} value={tab} forceMount className="data-[state=inactive]:hidden">
-              {tab === "decisions" && (
-                <DecisionsTable key={initialQuery} initialQuery={initialQuery} />
-              )}
+              {tab === "decisions" && <DecisionsTable />}
               {tab === "alerts" &&
                 (status?.writeEnabled ? <AlertsTable /> : <AlertHistoryUnavailable />)}
               {tab === "drop" && <DropNetworksCard />}

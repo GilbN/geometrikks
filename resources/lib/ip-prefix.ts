@@ -26,7 +26,8 @@ const IPV6_TEXT = /^[0-9a-f]{1,4}(:[0-9a-f]{0,4}){1,7}$/i
 export function parseIpQuery(text: string): IpQuery | null {
   const typed = text.trim()
   if (IPV4_TEXT.test(typed)) return ipv4Query(typed)
-  if (typed.includes("::")) return fullIpv6(typed)
+  // "::" and a dotted IPv4 tail only ever name one whole address.
+  if (typed.includes("::") || (typed.includes(":") && typed.includes("."))) return fullIpv6(typed)
   if (IPV6_TEXT.test(typed)) return ipv6Query(typed)
   return null
 }
@@ -109,6 +110,10 @@ function ipv6Query(typed: string): IpQuery | null {
   if (parts.some((part) => part === "")) return null
   const fixed = parts.map((part) => parseInt(part, 16))
   const pad = (groups: number[]) => [...groups, ...Array(8 - groups.length).fill(0)]
+  // ::ffff: holds IPv4 addresses, which the server already matches through their IPv4 form.
+  if (fixed.length >= 6 && fixed.slice(0, 5).every((group) => group === 0) && fixed[5] === 0xffff) {
+    return null
+  }
 
   if (last === "") {
     const cidr = `${ipv6(pad(fixed))}/${16 * fixed.length}`
@@ -116,7 +121,7 @@ function ipv6Query(typed: string): IpQuery | null {
   }
   const value = parseInt(last, 16)
   if (fixed.length === 7) {
-    const address = ipv6([...fixed, value])
+    const address = canonicalIpv6(ipv6([...fixed, value]))
     return last.length === 4
       ? { typed, ranges: [`${address}/128`], cidr: null, address }
       : { typed, ranges: groupBlocks(fixed, last, pad), cidr: null, address }
@@ -135,22 +140,39 @@ function groupBlocks(
   pad: (groups: number[]) => number[],
 ): string[] {
   const value = parseInt(digits, 16)
+  const block = (extra: number) =>
+    `${ipv6(pad([...fixed, value * 16 ** extra]))}/${16 * fixed.length + 16 - 4 * extra}`
+  // Addresses are written without leading zeros, so "0" is the zero group and
+  // "0d" can only be the start of a padded 0dxx.
+  if (digits === "0") return [block(0)]
+  const longest = 4 - digits.length
+  const shortest = digits.startsWith("0") ? longest : 0
   const blocks: string[] = []
-  for (let extra = 4 - digits.length; extra >= 0; extra--) {
-    // A leading zero adds nothing new. 0 to fff already holds 0 to ff.
-    if (value === 0 && extra < 4 - digits.length) break
-    const groupValue = value * 16 ** extra
-    blocks.push(`${ipv6(pad([...fixed, groupValue]))}/${16 * fixed.length + 16 - 4 * extra}`)
-  }
+  for (let extra = longest; extra >= shortest; extra--) blocks.push(block(extra))
   return blocks
 }
 
-/** A whole IPv6 address written with "::". It matches only itself. */
+/** The address as browsers and the server write it, in lower case with zeros compressed. */
+function canonicalIpv6(text: string): string {
+  return new URL(`http://[${text}]/`).hostname.slice(1, -1)
+}
+
+/** A whole IPv6 address written with "::" or a dotted tail. It matches only itself. */
 function fullIpv6(typed: string): IpQuery | null {
+  if (!/^[0-9a-f:.]+$/i.test(typed)) return null
+  let host: string
   try {
-    const host = new URL(`http://[${typed}]/`).hostname.slice(1, -1)
-    return { typed, ranges: [`${host}/128`], cidr: null, address: host }
+    host = canonicalIpv6(typed)
   } catch {
     return null
   }
+  // An IPv4-mapped address finds its rows through the IPv4 form.
+  const mapped = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(host)
+  if (mapped) {
+    const high = parseInt(mapped[1], 16)
+    const low = parseInt(mapped[2], 16)
+    const ipv4Address = [high >> 8, high & 255, low >> 8, low & 255].join(".")
+    return { typed, ranges: [`${ipv4Address}/32`], cidr: null, address: ipv4Address }
+  }
+  return { typed, ranges: [`${host}/128`], cidr: null, address: host }
 }

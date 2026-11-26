@@ -409,8 +409,16 @@ export function useDropLists(): { data?: DropIndex; loaded: boolean } {
   return { data: dropIndex, loaded: true }
 }
 
-const selectDropAsns = (lists: DropListsResponse): ReadonlySet<number> =>
-  new Set(lists.asns.map((entry) => entry.asn))
+// Each DROP mark is an observer, so the Set is cached per response like selectDropIndex.
+const dropAsnSets = new WeakMap<DropListsResponse, ReadonlySet<number>>()
+function selectDropAsns(lists: DropListsResponse): ReadonlySet<number> {
+  let asns = dropAsnSets.get(lists)
+  if (!asns) {
+    asns = new Set(lists.asns.map((entry) => entry.asn))
+    dropAsnSets.set(lists, asns)
+  }
+  return asns
+}
 
 /** The ASNs on Spamhaus ASN-DROP, from the same download as the networks. */
 export function useDropAsns(): ReadonlySet<number> | undefined {

@@ -3,17 +3,18 @@
  * pages to filter by it, and what to do about it. Searches cover everything
  * kept, not only the selected range, through the per-IP daily rollups.
  */
-import { useEffect, useMemo } from "react"
+import { useEffect } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { FileText, Mail, ScanSearch, Shield, ShieldBan } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 
-import { CommandGroup, CommandItem } from "@/components/ui/command"
+import { CommandGroup, CommandItem, CommandShortcut } from "@/components/ui/command"
 import { DecisionBadge } from "@/components/crowdsec/decision-badge"
 import { DropBadge } from "@/components/drop/drop-badge"
 import { fetchTopIpStats } from "@/lib/api"
 import { countryDisplayName } from "@/lib/country-flags"
 import { timeLeftText } from "@/lib/crowdsec-alerts"
+import { decisionLabel, winningDecision } from "@/lib/crowdsec"
 import type { IpQuery } from "@/lib/ip-prefix"
 import { useBannedIps, useDropAsns, useDropNetwork, useIpDecisions } from "@/lib/queries"
 import { cn } from "@/lib/utils"
@@ -47,13 +48,17 @@ const number = new Intl.NumberFormat()
 function useIpStats(ips: string[] | null, enabled: boolean) {
   return useQuery({
     queryKey: ["command-palette", "ips", ips],
-    queryFn: () =>
-      fetchTopIpStats({
-        startDate: EVERYTHING_KEPT,
-        endDate: new Date().toISOString(),
-        ips: ips ?? [],
-        limit: SEARCH_LIMIT,
-      }),
+    // The signal drops a search the next keystroke replaced.
+    queryFn: ({ signal }) =>
+      fetchTopIpStats(
+        {
+          startDate: EVERYTHING_KEPT,
+          endDate: new Date().toISOString(),
+          ips: ips ?? [],
+          limit: SEARCH_LIMIT,
+        },
+        signal,
+      ),
     enabled: enabled && ips !== null && ips.length > 0,
     staleTime: 30_000,
     placeholderData: (previous) => previous,
@@ -64,7 +69,7 @@ function useIpStats(ips: string[] | null, enabled: boolean) {
 function Highlighted({ ip, typed }: { ip: string; typed: string }) {
   const matches = ip.toLowerCase().startsWith(typed.toLowerCase())
   return (
-    <span className="font-mono text-[13px]">
+    <span className="min-w-0 font-mono text-[13px] [overflow-wrap:anywhere]">
       {matches ? (
         <>
           <span className="font-semibold text-primary">{ip.slice(0, typed.length)}</span>
@@ -77,13 +82,14 @@ function Highlighted({ ip, typed }: { ip: string; typed: string }) {
   )
 }
 
+/** Only rows the banned list names look up their decision, so a search costs no LAPI calls for the rest. */
 function BanMark({ ip }: { ip: string }) {
   const { data: decisions } = useIpDecisions(ip)
-  const ban = decisions?.find((decision) => decision.type === "ban") ?? decisions?.[0]
-  if (!ban) return null
+  const decision = winningDecision(decisions)
+  if (!decision) return null
   return (
-    <DecisionBadge type={ban.type} insideButton className="shrink-0">
-      {ban.type === "ban" ? "Banned" : ban.type} · {timeLeftText(ban.duration)}
+    <DecisionBadge type={decision.type} insideButton className="shrink-0">
+      {decisionLabel(decision.type)} · {timeLeftText(decision.duration)}
     </DecisionBadge>
   )
 }
@@ -112,35 +118,40 @@ export function IpSearchGroups({
   crowdsecEnabled,
   canBan,
   enabled,
-  onTopAddress,
+  current,
+  onStatus,
 }: {
   query: IpQuery
   actions: IpActions
   crowdsecEnabled: boolean
   canBan: boolean
   enabled: boolean
-  /** The rows arrive after the palette has picked a row. This moves the pick to the first address. */
-  onTopAddress: (value: string) => void
+  /** False while the typed text is ahead of the query, so no row acts on an older search. */
+  current: boolean
+  /** The search's state in words, for a live region outside the listbox. */
+  onStatus: (text: string) => void
 }) {
-  const { data, isFetching, isError } = useIpStats(query.ranges, enabled)
+  const { data, isError, isPlaceholderData } = useIpStats(query.ranges, enabled)
+  // Rows for an older search stay hidden until this one answers, so Enter never opens the wrong address.
+  const fresh = current && data !== undefined && !isPlaceholderData
   const { data: bannedIps } = useBannedIps()
-  const rows = data?.items.slice(0, SHOWN) ?? []
+  const rows = fresh ? data.items.slice(0, SHOWN) : []
   const requests =
-    data && data.distinctIps <= SEARCH_LIMIT
+    fresh && data.distinctIps <= SEARCH_LIMIT
       ? data.items.reduce((sum, item) => sum + item.hits, 0)
       : null
-  const activeBans = useMemo(() => {
-    if (!bannedIps) return 0
-    const typed = query.typed.toLowerCase()
-    let count = 0
-    for (const ip of bannedIps.keys()) if (ip.toLowerCase().startsWith(typed)) count++
-    return count
-  }, [bannedIps, query.typed])
-  const top = rows[0]
-  const topValue = top ? `${ADDRESS_ROW}${top.ipAddress}` : null
+  const status = isError
+    ? "The search failed."
+    : !fresh
+      ? "Searching."
+      : rows.length === 0
+        ? `No address starting with ${query.typed}.`
+        : `${rows.length} ${rows.length === 1 ? "address" : "addresses"} found.`
   useEffect(() => {
-    if (topValue) onTopAddress(topValue)
-  }, [topValue, onTopAddress])
+    onStatus(status)
+    return () => onStatus("")
+  }, [status, onStatus])
+  const top = rows[0]
   const reportIp = query.address ?? top?.ipAddress ?? null
   const reportRow = rows.find((row) => row.ipAddress === reportIp)
   const label = query.typed
@@ -165,10 +176,11 @@ export function IpSearchGroups({
                 .filter(Boolean)
                 .join(" · ")}
             </span>
-            <span className="ml-auto flex shrink-0 items-center gap-1.5">
-              <BanMark ip={row.ipAddress} />
+            {/* As a shortcut slot it hides cmdk's check icon, which would take half the free space. */}
+            <CommandShortcut className="flex shrink-0 items-center gap-1.5 tracking-normal">
+              {bannedIps?.has(row.ipAddress) && <BanMark ip={row.ipAddress} />}
               <DropMark ip={row.ipAddress} asn={row.asn} />
-            </span>
+            </CommandShortcut>
           </CommandItem>
         ))}
         {rows.length === 0 && (
@@ -180,49 +192,46 @@ export function IpSearchGroups({
             <ItemIcon icon={ScanSearch} />
             {isError
               ? "The search failed. Try again in a moment."
-              : isFetching || !data
+              : !fresh
                 ? "Searching…"
                 : `No address starting with ${label} in the data kept.`}
           </CommandItem>
         )}
       </CommandGroup>
-      <CommandGroup heading="Filter a page" className={GROUP}>
-        <CommandItem
-          value={`${IP_ROW}filter:access-logs`}
-          onSelect={() => actions.openInAccessLogs(query.ranges)}
-          className={ITEM}
-        >
-          <ItemIcon icon={FileText} />
-          <span className="min-w-0 truncate">
-            Access Logs where IP starts with{" "}
-            <span className="font-mono font-semibold text-primary">{label}</span>
-          </span>
-          {requests !== null && (
-            <span className="shrink-0 text-muted-foreground">
-              {number.format(requests)} {requests === 1 ? "request" : "requests"}
-            </span>
-          )}
-        </CommandItem>
-        {crowdsecEnabled && (query.cidr || query.address) && (
+      {fresh && (
+        <CommandGroup heading="Filter a page" className={GROUP}>
           <CommandItem
-            value={`${IP_ROW}filter:security`}
-            onSelect={() => actions.searchDecisions(query.address ?? query.cidr ?? label)}
+            value={`${IP_ROW}filter:access-logs`}
+            onSelect={() => actions.openInAccessLogs(query.ranges)}
             className={ITEM}
           >
-            <ItemIcon icon={Shield} />
+            <ItemIcon icon={FileText} />
             <span className="min-w-0 truncate">
-              Security decisions matching{" "}
+              Access Logs where IP starts with{" "}
               <span className="font-mono font-semibold text-primary">{label}</span>
             </span>
-            {activeBans > 0 && (
+            {requests !== null && (
               <span className="shrink-0 text-muted-foreground">
-                {activeBans} active {activeBans === 1 ? "ban" : "bans"}
+                {number.format(requests)} {requests === 1 ? "request" : "requests"}
               </span>
             )}
           </CommandItem>
-        )}
-      </CommandGroup>
-      {((canBan && (query.cidr || query.address)) || reportIp) && (
+          {crowdsecEnabled && (query.cidr || query.address) && (
+            <CommandItem
+              value={`${IP_ROW}filter:security`}
+              onSelect={() => actions.searchDecisions(query.address ?? query.cidr ?? label)}
+              className={ITEM}
+            >
+              <ItemIcon icon={Shield} />
+              <span className="min-w-0 truncate">
+                Security decisions matching{" "}
+                <span className="font-mono font-semibold text-primary">{label}</span>
+              </span>
+            </CommandItem>
+          )}
+        </CommandGroup>
+      )}
+      {fresh && ((canBan && (query.cidr || query.address)) || reportIp) && (
         <CommandGroup heading="Actions" className={GROUP}>
           {canBan && (query.cidr || query.address) && (
             <CommandItem
@@ -281,7 +290,7 @@ export function RecentIpsGroup({
         const row = stats.get(ip)
         const detail = [
           bannedIps?.has(ip)
-            ? "banned"
+            ? decisionLabel(bannedIps.get(ip) ?? "ban").toLowerCase()
             : row?.countryCode
               ? countryDisplayName(row.countryCode)
               : null,
@@ -297,7 +306,7 @@ export function RecentIpsGroup({
             className={ITEM}
           >
             <ItemIcon icon={ScanSearch} />
-            <span className="font-mono text-[13px]">{ip}</span>
+            <span className="min-w-0 font-mono text-[13px] [overflow-wrap:anywhere]">{ip}</span>
             {detail && <span className="min-w-0 truncate text-muted-foreground">{detail}</span>}
           </CommandItem>
         )

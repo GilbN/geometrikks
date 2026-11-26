@@ -63,6 +63,28 @@ describe("parseIpQuery, IPv6", () => {
     ])
   })
 
+  it("takes an address with a dotted IPv4 tail as itself", () => {
+    expect(parseIpQuery("0:0:0:0:0:ffff:192.0.2.1")?.address).toBe("192.0.2.1")
+  })
+
+  it("reads a leading zero as written, not as a shorter group", () => {
+    expect(parseIpQuery("2001:0")?.ranges).toEqual(["2001:0:0:0:0:0:0:0/32"])
+    expect(parseIpQuery("2001:0d")?.ranges).toEqual(["2001:d00:0:0:0:0:0:0/24"])
+  })
+
+  it("leaves IPv4-mapped prefixes to the IPv4 search, and maps a whole one", () => {
+    expect(parseIpQuery("0:0:0:0:0:ffff:")).toBeNull()
+    expect(parseIpQuery("::ffff:198.51.100.7")).toMatchObject({
+      ranges: ["198.51.100.7/32"],
+      address: "198.51.100.7",
+    })
+  })
+
+  it("writes a whole address the way the server does", () => {
+    expect(parseIpQuery("2001:db8:0:0:0:0:0:1")?.address).toBe("2001:db8::1")
+    expect(parseIpQuery("::1]/foo")).toBeNull()
+  })
+
   it("matches an address written with :: only as itself", () => {
     expect(parseIpQuery("2001:db8::1")).toMatchObject({
       ranges: ["2001:db8::1/128"],

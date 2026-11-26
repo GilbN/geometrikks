@@ -121,7 +121,10 @@ let nextBanTarget = ""
 /** Opens the ban dialog with `target`, an IP or CIDR range, already filled in. */
 export function openBanDialogFor(target: string): boolean {
   nextBanTarget = target
-  return runShortcut("ban")
+  const opened = runShortcut("ban")
+  // The built-in takes the target. If something else handled B, it must not linger.
+  nextBanTarget = ""
+  return opened
 }
 
 /** Runs a shortcut's action as if its keys were pressed, for the command palette. */

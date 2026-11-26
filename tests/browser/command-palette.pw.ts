@@ -184,10 +184,30 @@ test("a partial octet searches every range that starts with it", async ({ page }
   await expect
     .poll(() => asked.at(-1)?.getAll("ipAddress"))
     .toEqual(["203.0.11.0/24", "203.0.110.0/23", "203.0.112.0/21"])
-  await expect(palette(page).getByText("No address starting with 203.0.11")).toBeVisible()
+  await expect(
+    palette(page).getByRole("option", { name: /No address starting with 203\.0\.11/ }),
+  ).toBeVisible()
+  await expect(
+    palette(page).getByRole("status").filter({ hasText: "No address starting with 203.0.11." }),
+  ).toBeAttached()
   await palette(page)
     .getByRole("option", { name: /Access Logs where IP starts with/ })
     .click()
   await expect(page).toHaveURL(/access-logs\?ip=/)
   expect(decodeURIComponent(page.url())).toContain('"203.0.112.0/21"')
+})
+
+test("filtering Access Logs from the palette leaves the Live tail for History", async ({
+  page,
+}) => {
+  await mockIpSearch(page)
+  await page.goto("/access-logs")
+  await page.getByRole("tab", { name: /Live tail/ }).click()
+  await expect(page.getByRole("tab", { name: /Live tail/, selected: true })).toBeVisible()
+  await page.keyboard.press("Control+k")
+  await page.keyboard.type("198.51")
+  await expect(palette(page).getByRole("option", { name: /^198\.51\.100\.14 / })).toBeVisible()
+  await page.keyboard.press("Control+Enter")
+  await expect(page).toHaveURL(/access-logs\?ip=/)
+  await expect(page.getByRole("tab", { name: /History/, selected: true })).toBeVisible()
 })
