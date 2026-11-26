@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The search and commands palette also finds IP addresses across all kept traffic, with partial octets such as `203.0.11`, and lists the last 5 inspected addresses when opened empty. Enter opens an address in the IP inspector and Ctrl+Enter opens it in Access Logs. See [Keyboard shortcuts](https://geometrikks.dev/docs/features/keyboard-shortcuts#ip-search).
 - The search and commands palette finds countries, cities, hosts, server names and networks by name, country code or AS number, ranked by request count across all kept data. Pick a match to turn it into a chip, then choose a page to open with that filter set. See [Keyboard shortcuts](https://geometrikks.dev/docs/features/keyboard-shortcuts#name-search).
 - On a phone, a search button in the header opens search and commands as a full-screen sheet to find IPs, run actions, change the time range or jump to a page. See [Keyboard shortcuts](https://geometrikks.dev/docs/features/keyboard-shortcuts#on-a-phone).
-- On windows 1600 px wide or wider, the IP inspector docks beside the page by default, and the page stays usable next to it. A button next to Close switches between the dock and the side sheet, and your browser remembers the choice.
+- On windows 1600 px wide or wider, the IP inspector docks beside the page by default, and the page stays usable next to it. A button next to Close switches between the dock and the side sheet, and your browser remembers the choice. While docked, it marks the log table row its IP came from, and its arrows or `J` and `K` step to the next row with another IP, loading the next page at the end.
 
 ### Changed
 

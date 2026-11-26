@@ -42,6 +42,15 @@ const DockContext = createContext<DockState | null>(null)
 
 const INSPECTOR_OVERLAY = "inspector"
 
+const openListeners = new Set<(ip: string) => void>()
+
+/** Runs on every open. Opening the IP already shown leaves the URL as it is,
+ *  so the URL alone misses it. */
+export function onIpInspectorOpen(listener: (ip: string) => void): () => void {
+  openListeners.add(listener)
+  return () => openListeners.delete(listener)
+}
+
 export function IpInspectorProvider({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate()
   const overlays = useOverlayHistory()
@@ -68,6 +77,7 @@ export function IpInspectorProvider({ children }: { children: React.ReactNode })
   const open = useCallback(
     (nextIp: string, fromLocationId?: number) => {
       setOrigin(fromLocationId ?? null)
+      for (const listener of openListeners) listener(nextIp)
       // Pushed, not replaced: Back closes the sheet. The dock stays usable
       // while it is open, so a second IP replaces the entry and one Back
       // still closes it.

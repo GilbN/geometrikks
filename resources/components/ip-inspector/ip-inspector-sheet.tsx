@@ -1,9 +1,20 @@
-import { cloneElement, useEffect, useState, type ReactElement, type ReactNode } from "react"
+import {
+  cloneElement,
+  useEffect,
+  useLayoutEffect,
+  useReducer,
+  useState,
+  useSyncExternalStore,
+  type ReactElement,
+  type ReactNode,
+} from "react"
 import { Link } from "@tanstack/react-router"
 import {
   BarChart3,
   Bug,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   FileText,
   RotateCcw,
   RotateCw,
@@ -25,7 +36,15 @@ import type { CustomTimeRange, TimeRangeValue } from "@/lib/api"
 import { bgpAsUrl, crowdsecCtiUrl, decisionLabel, isValidIp, winningDecision } from "@/lib/crowdsec"
 import { cn } from "@/lib/utils"
 import { formatTs } from "@/lib/datetime"
-import { useInspectOnNavigate, useIpInspector, useIpInspectorDock } from "@/lib/ip-inspector"
+import {
+  useInspectOnNavigate,
+  useIpInspector,
+  onIpInspectorOpen,
+  useIpInspectorActions,
+  useIpInspectorDock,
+} from "@/lib/ip-inspector"
+import { useShortcutAction } from "@/components/shortcuts/keyboard-shortcuts"
+import { moveRow } from "@/components/data/table-shortcuts"
 import { abuseipdbCheckUrl, isPublicIp } from "@/lib/abuseipdb"
 import { useCoverBar } from "@/lib/phone-chrome"
 import { usePhoneMapSide } from "@/hooks/use-phone-map"
@@ -42,6 +61,20 @@ import {
 import { useTimeRange } from "@/lib/time-range-context"
 import { rangeSubtitle } from "@/lib/time-range-labels"
 import { DockToggle, InspectorDock, useLastPageFocus } from "./inspector-dock"
+import {
+  canStepInspectedRow,
+  claimInspectedRow,
+  inspectedRowElement,
+  inspectedRowFrame,
+  keepInspectedRowFor,
+  inspectedRowInTable,
+  inspectedRowVersion,
+  setInspectedRow,
+  setInspectedRowMarkShown,
+  stepInspectedRow,
+  subscribeInspectedRow,
+  trackRowInteraction,
+} from "./inspected-row"
 import { IpLatestRequests } from "./ip-latest-requests"
 import { IpLocationsBlock } from "./ip-locations-block"
 import { IpSignalsStrip } from "./ip-signals-strip"
@@ -102,6 +135,38 @@ export function IpInspectorSheet() {
     setBeforeZoom(null)
   }
 
+  // The table row this IP came from, for the row mark and the step arrows.
+  useEffect(() => trackRowInteraction(), [])
+  useEffect(() => {
+    const stop = onIpInspectorOpen(claimInspectedRow)
+    return () => {
+      stop()
+      setInspectedRow(null)
+    }
+  }, [])
+  // Focus leaving with the dock goes back to the marked row, or to the control
+  // in it that opened the inspector. After a few steps that row can be far
+  // from the opener.
+  const returnFocus = () => {
+    const row = inspectedRowElement()
+    const last = lastPageFocus()
+    return row && !(last && row.contains(last)) ? row : last
+  }
+  // Back, Forward and closing change the IP without an open.
+  useLayoutEffect(() => keepInspectedRowFor(ip), [ip])
+  useLayoutEffect(() => {
+    setInspectedRowMarkShown(open && docked)
+    return () => setInspectedRowMarkShown(false)
+  }, [open, docked])
+  const { open: inspect } = useIpInspectorActions()
+  const stepping = open && docked
+  // Without a row to step from, J and K move row focus as usual.
+  useShortcutAction("row-next", stepping ? () => stepInspectedRow(1, inspect) || moveRow(1) : null)
+  useShortcutAction(
+    "row-previous",
+    stepping ? () => stepInspectedRow(-1, inspect) || moveRow(-1) : null,
+  )
+
   const title = (
     // One row: IP, ban action, then the range picker; wraps only when a custom range needs the room.
     <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -140,15 +205,65 @@ export function IpInspectorSheet() {
           title={title}
           description={description}
           footer={footer}
-          actions={<DockToggle docked onDockedChange={undock} />}
+          actions={
+            <>
+              <RowStepButtons onStep={(step) => stepInspectedRow(step, inspect)} />
+              <DockToggle docked onDockedChange={undock} />
+            </>
+          }
           onClose={close}
-          returnFocus={lastPageFocus}
+          returnFocus={returnFocus}
           focusToggle={focusDockToggle}
           contentKey={ip}
         >
           {body}
         </InspectorDock>
       )}
+    </>
+  )
+}
+
+/** Previous and next row's IP, shown when the IP came from a log table row. */
+function RowStepButtons({ onStep }: { onStep: (step: 1 | -1) => void }) {
+  useSyncExternalStore(subscribeInspectedRow, inspectedRowVersion)
+  // A refresh can turn the footer's Next on while the rows stay the same.
+  const frame = inspectedRowFrame()
+  const [, footerChanged] = useReducer((count: number) => count + 1, 0)
+  useEffect(() => {
+    if (!frame) return
+    const observer = new MutationObserver(footerChanged)
+    observer.observe(frame, {
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["disabled", "data-page", "data-pending"],
+    })
+    return () => observer.disconnect()
+  }, [frame])
+  if (!inspectedRowInTable()) return null
+  // aria-disabled rather than disabled, so a button that reaches the end keeps focus.
+  const button = (step: 1 | -1) => {
+    const can = canStepInspectedRow(step)
+    const label = step === 1 ? "Next IP in the table" : "Previous IP in the table"
+    const Icon = step === 1 ? ChevronRight : ChevronLeft
+    return (
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        className="-my-1.5 aria-disabled:cursor-default aria-disabled:opacity-50 pointer-coarse:-my-3 pointer-coarse:size-11"
+        title={label}
+        aria-label={label}
+        aria-disabled={!can}
+        data-row-step=""
+        onClick={() => can && onStep(step)}
+      >
+        <Icon />
+      </Button>
+    )
+  }
+  return (
+    <>
+      {button(-1)}
+      {button(1)}
     </>
   )
 }
