@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vite-plus/test"
-import { defaultPageSize, formatClockTime, formatTableTime, parseTableView } from "./table-view"
+import {
+  defaultPageSize,
+  formatClockTime,
+  formatTableTime,
+  parseFilterPins,
+  parseTableView,
+} from "./table-view"
 
 const NOW = new Date(2026, 10, 23, 12, 0, 0)
 
@@ -50,5 +56,18 @@ describe("defaultPageSize", () => {
   it("fills a screen with compact rows and keeps 20 for comfortable ones", () => {
     expect(defaultPageSize("compact")).toBe(50)
     expect(defaultPageSize("comfortable")).toBe(20)
+  })
+})
+
+describe("parseFilterPins", () => {
+  it("keeps field ids in the order they were pinned, once each", () => {
+    expect(parseFilterPins('["status","host","status"]')).toEqual(["status", "host"])
+  })
+
+  it("drops anything that isn't a list of ids", () => {
+    expect(parseFilterPins(null)).toEqual([])
+    expect(parseFilterPins("{")).toEqual([])
+    expect(parseFilterPins('{"status":true}')).toEqual([])
+    expect(parseFilterPins('["status",4]')).toEqual(["status"])
   })
 })

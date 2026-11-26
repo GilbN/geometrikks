@@ -171,6 +171,55 @@ function MaxSelectedNote({ maxSelected }: { maxSelected: number }) {
   )
 }
 
+/**
+ * The search field and checklist inside a desktop Combobox popup. The filter
+ * bar's chips open the same list under their own trigger.
+ */
+export function FilterComboboxOptions<T extends string | number>({
+  label,
+  selected,
+  labelFor,
+  iconFor,
+  loading = false,
+  emptyText,
+  maxSelected,
+  textClassName = "text-xs",
+  listClassName,
+}: Pick<
+  FilterComboboxProps<T>,
+  "label" | "selected" | "iconFor" | "loading" | "emptyText" | "maxSelected"
+> & {
+  labelFor: (value: T) => string
+  textClassName?: string
+  listClassName?: string
+}) {
+  const atMax = maxSelected !== undefined && selected.length >= maxSelected
+  return (
+    <>
+      <ComboboxInput
+        placeholder={`Search ${label.toLowerCase()}…`}
+        showTrigger={false}
+        className={textClassName}
+      />
+      <ComboboxList className={listClassName}>
+        {(item: T) => (
+          <ComboboxItem
+            key={item}
+            value={item}
+            disabled={atMax && !selected.includes(item)}
+            className={textClassName}
+          >
+            {iconFor?.(item)}
+            {labelFor(item)}
+          </ComboboxItem>
+        )}
+      </ComboboxList>
+      <ComboboxEmpty>{loading ? "Loading…" : (emptyText ?? "No matches")}</ComboboxEmpty>
+      {atMax && <MaxSelectedNote maxSelected={maxSelected} />}
+    </>
+  )
+}
+
 export function FilterCombobox<T extends string | number>({
   label,
   options,
@@ -193,7 +242,6 @@ export function FilterCombobox<T extends string | number>({
   }
   const drawer = usePhoneDrawer("filter-combobox", open, () => changeOpen(false))
   const count = selected.length
-  const atMax = maxSelected !== undefined && count >= maxSelected
   const triggerLabel = `${label}${count > 0 ? ` (${count})` : ""}`
 
   if (drawer.phone) {
@@ -279,26 +327,15 @@ export function FilterCombobox<T extends string | number>({
         <ChevronsUpDown className="ml-1 h-3.5 w-3.5" />
       </ComboboxPrimitive.Trigger>
       <ComboboxContent className={cn("min-w-56", contentClassName)}>
-        <ComboboxInput
-          placeholder={`Search ${label.toLowerCase()}…`}
-          showTrigger={false}
-          className="text-xs"
+        <FilterComboboxOptions
+          label={label}
+          selected={selected}
+          labelFor={labelFor}
+          iconFor={iconFor}
+          loading={loading}
+          emptyText={emptyText}
+          maxSelected={maxSelected}
         />
-        <ComboboxList>
-          {(item: T) => (
-            <ComboboxItem
-              key={item}
-              value={item}
-              disabled={atMax && !selected.includes(item)}
-              className="text-xs"
-            >
-              {iconFor?.(item)}
-              {labelFor(item)}
-            </ComboboxItem>
-          )}
-        </ComboboxList>
-        <ComboboxEmpty>{loading ? "Loading…" : (emptyText ?? "No matches")}</ComboboxEmpty>
-        {atMax && <MaxSelectedNote maxSelected={maxSelected} />}
       </ComboboxContent>
     </Combobox>
   )

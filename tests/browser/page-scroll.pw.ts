@@ -212,8 +212,12 @@ async function clickVisibleLink(page: Page, href: string) {
   }, href)
 }
 
+// A wide Access Logs table scrolls inside its card under the filter bar, so
+// the desktop cases use a window narrow enough for rows that scroll the page.
+const DESKTOP = { width: 1024, height: 768 }
+
 const viewports = [
-  { name: "desktop", use: { viewport: { width: 1360, height: 900 } } },
+  { name: "desktop", use: { viewport: DESKTOP } },
   {
     name: "portrait phone",
     use: { viewport: { width: 393, height: 852 }, hasTouch: true, isMobile: true },
@@ -287,7 +291,7 @@ for (const viewport of viewports) {
 }
 
 test.describe("desktop", () => {
-  test.use({ viewport: { width: 1360, height: 900 } })
+  test.use({ viewport: DESKTOP })
 
   test("Back restores the scroll after the next page replaces its URL on mount", async ({
     page,

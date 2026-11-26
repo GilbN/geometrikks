@@ -11,7 +11,7 @@ async function login(page: Page) {
   ).toBe(true)
 }
 
-test("the Muted IPs chip hides the list and a tap shows it again", async ({ page }) => {
+test("the Muted IPs button hides the list and a click shows it again", async ({ page }) => {
   await login(page)
   await page.route("**/api/v1/muted-ips", (route) =>
     route.fulfill({
@@ -33,7 +33,7 @@ test("the Muted IPs chip hides the list and a tap shows it again", async ({ page
   })
 
   await page.goto("/access-logs")
-  const chip = page.getByRole("button", { name: "Muted IPs hidden · 1" })
+  const chip = page.getByRole("button", { name: "Hide muted IPs", pressed: true })
   await expect(chip).toBeVisible()
   // A cold load fetches twice with the flag: once before the list confirms, once after.
   await page.waitForLoadState("networkidle")
@@ -42,7 +42,7 @@ test("the Muted IPs chip hides the list and a tap shows it again", async ({ page
 
   const before = logRequests.length
   await chip.click()
-  await expect(page.getByRole("button", { name: "Muted IPs shown" })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Hide muted IPs", pressed: false })).toBeVisible()
   await expect.poll(() => logRequests.length).toBeGreaterThan(before)
   expect(logRequests[before]).not.toContain("excludeMutedIps")
 })
