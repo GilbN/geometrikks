@@ -118,17 +118,17 @@ export function StatusChart() {
         strokeWidth={2}
         // A rate with empty buckets on both sides is a one-point line, which
         // draws nothing; mark it so a lone bad hour still shows.
-        dot={(props: { key?: string; index: number; cx?: number; cy?: number }) =>
+        dot={(props: { key?: React.Key | null; index: number; cx?: number; cy?: number }) =>
           isIsolated(rates, props.index) ? (
             <circle
-              key={props.key}
+              key={props.key ?? undefined}
               cx={props.cx}
               cy={props.cy}
               r={2.5}
               fill="var(--color-errorRate)"
             />
           ) : (
-            <g key={props.key} />
+            <g key={props.key ?? undefined} />
           )
         }
         connectNulls={false}
@@ -158,7 +158,10 @@ export function StatusChart() {
     >
       {data && (
         <ChartContainer config={config} className="h-[240px] w-full">
-          <ComposedChart data={rows} stackOffset={view === "share" ? "expand" : undefined}>
+          <ComposedChart
+            data={rows as readonly Record<string, unknown>[]}
+            stackOffset={view === "share" ? "expand" : undefined}
+          >
             <CartesianGrid vertical={false} />
             <XAxis
               dataKey="timestamp"
