@@ -9,7 +9,7 @@
  * shows up as a chip. Only the open picker and a field picked but not yet
  * given a value live here.
  */
-import { Fragment, useEffect, useRef, useState } from "react"
+import { Fragment, useEffect, useId, useRef, useState } from "react"
 import { Combobox as ComboboxPrimitive } from "@base-ui/react"
 import { Ban, ChevronDown, EyeOff, Eye, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -141,17 +141,20 @@ export function FilterBar({
     items.push(chip(byId.get(fieldId)!, mode, "value"))
   }
   // A field picked from the menu shows as a chip with its picker open until it gets a value.
-  const draft =
-    open && !active.includes(openId!) && !pinned.includes(open.fieldId)
-      ? byId.get(open.fieldId)
-      : null
-  if (draft && open) items.push(chip(draft, open.mode, "draft"))
+  // An empty pinned field opens from its own button instead.
+  const draft = open && !active.includes(openId!) ? byId.get(open.fieldId) : undefined
+  const pinnedEmpty =
+    draft !== undefined && pinned.includes(draft.id) && activeModes(draft).length === 0
+  if (draft && open && !pinnedEmpty) items.push(chip(draft, open.mode, "draft"))
 
   const pickField = (fieldId: string) => {
     const field = byId.get(fieldId)
     if (!field) return
     const modes = activeModes(field)
-    setOpenId(chipId(fieldId, modes.includes("is") || modes.length === 0 ? "is" : "not"))
+    // A field that has only an "is" chip gets a new "is not" one; its own chip reopens on a click.
+    const mode: FilterMode =
+      modes.length === 0 ? "is" : field.exclude && !modes.includes("not") ? "not" : modes[0]
+    setOpenId(chipId(fieldId, mode))
   }
 
   return (
@@ -462,6 +465,7 @@ function ListChip(
 function TypedChip(props: Omit<ChipProps, "field"> & { field: TypedFilterBarField }) {
   const { field, mode, open, onOpenChange, onModeChange } = props
   const anchorRef = useRef<HTMLSpanElement>(null)
+  const hintId = useId()
   const [draft, setDraft] = useState("")
   const values = chipValues(field, mode) as string[]
   const value = draft.trim()
@@ -508,10 +512,13 @@ function TypedChip(props: Omit<ChipProps, "field"> & { field: TypedFilterBarFiel
             placeholder={field.placeholder}
             aria-label={`${field.label} ${mode === "not" ? "is not" : "is"}`}
             aria-invalid={invalid}
+            aria-describedby={hintText ? hintId : undefined}
             className="h-9 font-mono text-[13px]"
           />
           {hintText && (
-            <p className="mt-1 px-1 font-mono text-[11px] break-all text-destructive">{hintText}</p>
+            <p id={hintId} className="mt-1 px-1 font-mono text-[11px] break-all text-destructive">
+              {hintText}
+            </p>
           )}
         </div>
         {values.length > 0 && (

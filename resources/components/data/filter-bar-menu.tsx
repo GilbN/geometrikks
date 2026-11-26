@@ -70,12 +70,14 @@ export function AddFilterMenu({
   const typed = text.trim().toLowerCase()
   const settled = useDebouncedValue(text, 150)
   const asking = valueSearch !== undefined && typed.length >= NAME_SEARCH_MIN
-  const { data, isFetching } = useFilterValueSearch(settled, open && asking)
+  const { data, isFetching, isPlaceholderData } = useFilterValueSearch(settled, open && asking)
+  // Rows for older text would let Enter pick a match for something no longer typed.
+  const current = !isPlaceholderData && settled.trim() === text.trim()
   const shownFields = fields.filter((field) => field.label.toLowerCase().includes(typed))
-  const groups = asking && data ? valueGroups(data) : []
+  const groups = asking && current && data ? valueGroups(data) : []
   const showMyIp = myIp !== undefined && (myIp.ip !== null || myIp.behindUntrustedProxy)
   const showMuted = muted !== undefined && onToggleMuted !== undefined && muted.chip !== "none"
-  const searching = asking && (isFetching || settled.trim() !== text.trim())
+  const searching = asking && (isFetching || !current)
 
   const changeOpen = (next: boolean) => {
     setOpen(next)
@@ -90,7 +92,6 @@ export function AddFilterMenu({
     onPickField(fieldId)
   }
   const pickValue = (value: PickedValue) => {
-    picked.current = true
     setOpen(false)
     valueSearch?.onPick(value)
   }
