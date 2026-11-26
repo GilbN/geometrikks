@@ -7,7 +7,7 @@
 import { memo, useCallback, useEffect, useId, useMemo, useState } from "react"
 import { useSearch } from "@tanstack/react-router"
 import { CountryFlag, CountryLabel } from "@/components/country-flag"
-import { Search } from "lucide-react"
+import { FileWarning, Flag, Hash, MapPin, Search } from "lucide-react"
 import { TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useNarrowLayout } from "@/components/data/narrow-layout"
 import { sortOptions } from "@/components/data/sort-options"
@@ -19,16 +19,11 @@ import { VirtualTable, VirtualTableBody } from "@/components/data/virtual-table"
 import { useTimeRange } from "@/lib/time-range-context"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { PaginationFooter } from "@/components/ui/pagination-footer"
-import { FilterCombobox } from "@/components/ui/filter-combobox"
-import { FilterField, FilterRail, FilterRow } from "@/components/data/filter-rail"
+import { FilterField } from "@/components/data/filter-rail"
+import { FilterBar } from "@/components/data/filter-bar"
+import { listField, typedField, type FilterBarField } from "@/components/data/filter-bar-fields"
+import { FilterBarToolsProvider } from "@/components/data/filter-bar-slot"
 import { FilterChoiceRow, FilterListRow, FilterSection } from "@/components/ui/filter-rows"
 import { FiltersDrawer } from "@/components/ui/filters-drawer"
 import { DebugLogDetailSheet } from "@/components/debug-logs/debug-log-detail-sheet"
@@ -472,6 +467,8 @@ export function DebugLogsTable() {
   // Detail sheet.
   const [selected, setSelected] = useState<AccessLogDebugEntry | null>(null)
   const [layoutRef, narrow] = useNarrowLayout<HTMLDivElement>()
+  // Under the filter bar the rows take the height the page has left.
+  const fill = !phone && !narrow
 
   // Keep banned badges in sync with external cscli/console decisions.
   useCrowdsecLiveUpdates()
@@ -528,7 +525,7 @@ export function DebugLogsTable() {
     setCities([])
   }
 
-  function renderFilters(inDrawer: boolean) {
+  function renderDrawerFilters() {
     const searchField = (
       <FilterField label="Search">
         <div className="relative">
@@ -537,14 +534,13 @@ export function DebugLogsTable() {
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Raw line or parse error"
-            className={cn("h-8 pl-7 text-xs", inDrawer ? "w-full" : "w-64")}
-            data-page-filter={inDrawer ? undefined : ""}
+            className="h-8 w-full pl-7 text-xs"
           />
         </div>
       </FilterField>
     )
     const ipField = (
-      <FilterField label="IP address" className={inDrawer ? "w-full" : "w-36"}>
+      <FilterField label="IP address" className="w-full">
         <Input
           value={ipInput}
           onChange={(e) => setIpInput(e.target.value)}
@@ -564,106 +560,109 @@ export function DebugLogsTable() {
         )}
       </FilterField>
     )
-    const malformedField = (
-      <FilterField label="Lines" hideLabel>
-        <Select
-          value={malformedFilter}
-          onValueChange={(v) => setMalformedFilter(v as MalformedFilter)}
-        >
-          <SelectTrigger size="sm" className="h-8 w-40 text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {MALFORMED_OPTIONS.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </FilterField>
-    )
-    const countryField = (
-      <FilterField label="Country" hideLabel>
-        <FilterCombobox
-          label="Country"
-          iconFor={(code) => <CountryFlag code={code} />}
-          options={facets?.countries.map((c) => c.code) ?? []}
-          selected={countries}
-          onChange={setCountries}
-          labelFor={(code) => {
-            const name = facets?.countries.find((c) => c.code === code)?.name
-            return name ? `${name} (${code})` : code
-          }}
-          loading={!facets}
-          emptyText="No geo data"
-          onOpenChange={(open) => open && setFacetsEnabled(true)}
-        />
-      </FilterField>
-    )
-    const cityField = (
-      <FilterField label="City" hideLabel>
-        <FilterCombobox
-          label="City"
-          options={facets?.cities ?? []}
-          selected={cities}
-          onChange={setCities}
-          loading={!facets}
-          emptyText="No geo data"
-          onOpenChange={(open) => open && setFacetsEnabled(true)}
-        />
-      </FilterField>
-    )
-    if (inDrawer) {
-      return (
-        <>
-          {searchField}
-          {ipField}
-          <FilterSection>
-            <FilterChoiceRow
-              label="Lines"
-              options={MALFORMED_OPTIONS}
-              value={malformedFilter}
-              onChange={setMalformedFilter}
-            />
-            <FilterListRow
-              label="Country"
-              search
-              iconFor={(code) => <CountryFlag code={code} />}
-              options={facets?.countries.map((c) => c.code) ?? []}
-              selected={countries}
-              onChange={setCountries}
-              labelFor={(code) => {
-                const name = facets?.countries.find((c) => c.code === code)?.name
-                return name ? `${name} (${code})` : code
-              }}
-              valueFor={(code) => facets?.countries.find((c) => c.code === code)?.name ?? code}
-              loading={!facets}
-              emptyText="No geo data"
-            />
-            <FilterListRow
-              label="City"
-              search
-              options={facets?.cities ?? []}
-              selected={cities}
-              onChange={setCities}
-              loading={!facets}
-              emptyText="No geo data"
-            />
-          </FilterSection>
-        </>
-      )
-    }
     return (
-      <FilterRow>
+      <>
         {searchField}
         {ipField}
-        {malformedField}
-        {countryField}
-        {cityField}
-      </FilterRow>
+        <FilterSection>
+          <FilterChoiceRow
+            label="Lines"
+            options={MALFORMED_OPTIONS}
+            value={malformedFilter}
+            onChange={setMalformedFilter}
+          />
+          <FilterListRow
+            label="Country"
+            search
+            iconFor={(code) => <CountryFlag code={code} />}
+            options={facets?.countries.map((c) => c.code) ?? []}
+            selected={countries}
+            onChange={setCountries}
+            labelFor={(code) => {
+              const name = facets?.countries.find((c) => c.code === code)?.name
+              return name ? `${name} (${code})` : code
+            }}
+            valueFor={(code) => facets?.countries.find((c) => c.code === code)?.name ?? code}
+            loading={!facets}
+            emptyText="No geo data"
+          />
+          <FilterListRow
+            label="City"
+            search
+            options={facets?.cities ?? []}
+            selected={cities}
+            onChange={setCities}
+            loading={!facets}
+            emptyText="No geo data"
+          />
+        </FilterSection>
+      </>
     )
   }
+
+  const countryLabelFor = (code: string) => {
+    const name = facets?.countries.find((c) => c.code === code)?.name
+    return name ? `${name} (${code})` : code
+  }
+  const loadFacets = () => setFacetsEnabled(true)
+  const barFields: FilterBarField[] = [
+    typedField({
+      id: "ip",
+      label: "IP address",
+      chipLabel: "IP",
+      icon: Hash,
+      // The page filters by one address or range, so a new one replaces it.
+      include: ipDraft ? [ipDraft] : [],
+      onChange: (include) => setIpInput(include.at(-1) ?? ""),
+      labelFor: String,
+      mono: true,
+      validate: isValidIpFilter,
+      hint: ipFilterHint,
+      placeholder: "203.0.113.7",
+      help: "Takes one address or a CIDR range.",
+    }),
+    listField<MalformedFilter>({
+      id: "lines",
+      label: "Lines",
+      icon: FileWarning,
+      // One choice at a time: the last tick wins, and none means all lines.
+      include: malformedFilter === "all" ? [] : [malformedFilter],
+      onChange: (include) => setMalformedFilter(include.at(-1) ?? "all"),
+      labelFor: (value) => MALFORMED_OPTIONS.find((option) => option.value === value)!.label,
+      options: ["malformed", "wellformed"],
+    }),
+    listField({
+      id: "country",
+      label: "Country",
+      icon: Flag,
+      include: countries,
+      onChange: setCountries,
+      labelFor: countryLabelFor,
+      chipValue: (code) => (
+        <>
+          <CountryFlag code={code} />
+          {facets?.countries.find((c) => c.code === code)?.name ?? code}
+        </>
+      ),
+      iconFor: (code) => <CountryFlag code={code} />,
+      options: facets?.countries.map((c) => c.code) ?? [],
+      loading: !facets,
+      emptyText: "No geo data",
+      onOpen: loadFacets,
+    }),
+    listField({
+      id: "city",
+      label: "City",
+      icon: MapPin,
+      include: cities,
+      onChange: setCities,
+      labelFor: String,
+      options: facets?.cities ?? [],
+      loading: !facets,
+      emptyText: "No geo data",
+      onOpen: loadFacets,
+    }),
+  ]
 
   const viewMenu = (
     <TableViewMenu
@@ -729,95 +728,123 @@ export function DebugLogsTable() {
   })
 
   return (
-    <IpFilterTargetsProvider targetsFor={filterTargetsFor}>
-      {/* Around the sheet too, so its IP actions menu gets the page's filters. */}
-      <div className="space-y-4">
-        {phone ? (
-          <div onClick={() => setFacetsEnabled(true)}>
-            <FiltersDrawer activeCount={activeFilterCount} onClear={clearFilters}>
-              {renderFilters(true)}
-            </FiltersDrawer>
-          </div>
-        ) : (
-          <FilterRail label="Debug filters" activeCount={activeFilterCount} onClear={clearFilters}>
-            {renderFilters(false)}
-          </FilterRail>
-        )}
+    <FilterBarToolsProvider>
+      <IpFilterTargetsProvider targetsFor={filterTargetsFor}>
+        {/* Around the sheet too, so its IP actions menu gets the page's filters. */}
+        <div className={cn(phone ? "space-y-4" : "flex min-h-0 flex-col gap-4")}>
+          {phone ? (
+            <div onClick={() => setFacetsEnabled(true)}>
+              <FiltersDrawer activeCount={activeFilterCount} onClear={clearFilters}>
+                {renderDrawerFilters()}
+              </FiltersDrawer>
+            </div>
+          ) : (
+            <FilterBar
+              label="Debug filters"
+              pageId="debug-logs"
+              search={
+                <div className="relative">
+                  <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
+                    aria-label="Search"
+                    placeholder="Raw line or parse error"
+                    className="h-8 w-[214px] pl-8 md:text-[13px]"
+                    data-page-filter=""
+                  />
+                </div>
+              }
+              fields={barFields}
+              activeCount={activeFilterCount}
+              onClear={clearFilters}
+            />
+          )}
 
-        <div ref={layoutRef}>
-          <DataTableFrame
-            title="Captured source lines"
-            description="Raw parser input and linked request context. Select a row for the complete record."
-            count={data ? total : undefined}
-            stickyHeader={narrow && isMobile}
-            tools={
-              narrow ? (
-                <TableSortDrawer
-                  options={SORT_OPTIONS}
-                  sortField={sortField}
-                  sortOrder={sortOrder}
-                  onSortChange={setSort}
-                />
-              ) : (
-                viewMenu
-              )
-            }
-            state={state}
-            error="Failed to load debug logs."
-            empty="No debug lines match these filters."
-            footer={
-              <PaginationFooter
-                page={page}
-                pageCount={pageCount}
-                total={total}
-                onPageChange={setPage}
-                disabled={isPlaceholderData}
-                pageSize={pageSize}
-                pageSizes={PAGE_SIZES}
-                onPageSizeChange={setPageSize}
-              />
-            }
+          <div
+            ref={layoutRef}
+            data-table-fill={fill || undefined}
+            className={cn(fill && "flex min-h-0 flex-col")}
           >
-            <VirtualTable
-              narrow={narrow}
-              density={density}
-              columns={layout === "combined" ? combinedColumns : shownColumns}
-              rowCount={rows.length}
-              resetKey={JSON.stringify([
-                page,
-                pageSize,
-                sortField,
-                sortOrder,
-                search,
-                ip,
-                cities,
-                countries,
-                malformedFilter,
-                range,
-                customRange,
-              ])}
+            <DataTableFrame
+              fill={fill}
+              title="Captured source lines"
+              description="Raw parser input and linked request context. Select a row for the complete record."
+              count={data ? total : undefined}
+              stickyHeader={narrow && isMobile}
+              tools={
+                narrow ? (
+                  <TableSortDrawer
+                    options={SORT_OPTIONS}
+                    sortField={sortField}
+                    sortOrder={sortOrder}
+                    onSortChange={setSort}
+                  />
+                ) : (
+                  viewMenu
+                )
+              }
+              state={state}
+              error="Failed to load debug logs."
+              empty="No debug lines match these filters."
+              footer={
+                <PaginationFooter
+                  page={page}
+                  pageCount={pageCount}
+                  total={total}
+                  onPageChange={setPage}
+                  disabled={isPlaceholderData}
+                  pageSize={pageSize}
+                  pageSizes={PAGE_SIZES}
+                  onPageSizeChange={setPageSize}
+                />
+              }
             >
-              {!narrow && (
-                <TableHeader>
-                  <TableRow>{layout === "combined" ? combinedHeader : separateHeader}</TableRow>
-                </TableHeader>
-              )}
-              <DebugLogTableBody
-                key={narrow ? "narrow" : "wide"}
-                rows={rows}
-                shownColumns={shownColumns}
-                combinedColumns={combinedColumns}
-                layout={layout}
+              <VirtualTable
                 narrow={narrow}
-                timeFormat={timeFormat}
-                onSelect={setSelected}
-              />
-            </VirtualTable>
-          </DataTableFrame>
-        </div>
+                fill={fill}
+                density={density}
+                columns={layout === "combined" ? combinedColumns : shownColumns}
+                rowCount={rows.length}
+                resetKey={JSON.stringify([
+                  page,
+                  pageSize,
+                  sortField,
+                  sortOrder,
+                  search,
+                  ip,
+                  cities,
+                  countries,
+                  malformedFilter,
+                  range,
+                  customRange,
+                ])}
+              >
+                {!narrow && (
+                  <TableHeader>
+                    <TableRow>{layout === "combined" ? combinedHeader : separateHeader}</TableRow>
+                  </TableHeader>
+                )}
+                <DebugLogTableBody
+                  key={narrow ? "narrow" : "wide"}
+                  rows={rows}
+                  shownColumns={shownColumns}
+                  combinedColumns={combinedColumns}
+                  layout={layout}
+                  narrow={narrow}
+                  timeFormat={timeFormat}
+                  onSelect={setSelected}
+                />
+              </VirtualTable>
+            </DataTableFrame>
+          </div>
 
-        <DebugLogDetailSheet entry={selected} onOpenChange={(open) => !open && setSelected(null)} />
-      </div>
-    </IpFilterTargetsProvider>
+          <DebugLogDetailSheet
+            entry={selected}
+            onOpenChange={(open) => !open && setSelected(null)}
+          />
+        </div>
+      </IpFilterTargetsProvider>
+    </FilterBarToolsProvider>
   )
 }
