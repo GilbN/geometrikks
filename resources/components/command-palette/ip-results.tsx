@@ -36,7 +36,7 @@ export const GROUP =
   "**:[[cmdk-group-heading]]:text-[11px] **:[[cmdk-group-heading]]:font-semibold **:[[cmdk-group-heading]]:tracking-[0.08em] **:[[cmdk-group-heading]]:uppercase"
 /** On a phone the rows are taller, for a thumb, and a touch screen shows no keyboard highlight. */
 export const ITEM =
-  "min-h-10 gap-3 rounded-lg! px-2.5 text-sm ring-1 ring-transparent data-selected:bg-primary/12 data-selected:ring-primary/50 phone:min-h-14 phone:gap-3.5 phone:px-2 phone:text-[15px] phone:pointer-coarse:data-selected:bg-transparent phone:pointer-coarse:data-selected:ring-transparent phone:active:bg-muted/60 phone:[&>svg:last-child]:hidden"
+  "min-h-10 gap-3 rounded-lg! px-2.5 text-sm ring-1 ring-transparent data-selected:bg-primary/12 data-selected:ring-primary/50 phone:min-h-14 phone:gap-3.5 phone:px-2 phone:text-[15px] phone:pointer-coarse:data-selected:bg-transparent phone:pointer-coarse:data-selected:ring-transparent phone:pointer-coarse:data-selected:[&>span>svg]:text-muted-foreground phone:active:bg-muted/60 phone:[&>svg:last-child]:hidden"
 
 export function ItemIcon({ icon: Icon }: { icon: LucideIcon }) {
   return (
@@ -296,7 +296,7 @@ export function IpSearchGroups({
               className={ITEM}
             >
               <ItemIcon icon={ShieldBan} />
-              <span className="min-w-0 truncate phone:whitespace-normal">
+              <span className="min-w-0 truncate phone:whitespace-normal phone:[overflow-wrap:anywhere]">
                 Ban <span className="font-mono">{query.address ?? query.cidr}</span>
                 {query.address ? "…" : " as a range…"}
               </span>
@@ -315,7 +315,7 @@ export function IpSearchGroups({
               className={ITEM}
             >
               <ItemIcon icon={Mail} />
-              <span className="min-w-0 truncate phone:whitespace-normal">
+              <span className="min-w-0 truncate phone:whitespace-normal phone:[overflow-wrap:anywhere]">
                 Write an abuse report for <span className="font-mono">{reportIp}</span>
               </span>
             </CommandItem>
