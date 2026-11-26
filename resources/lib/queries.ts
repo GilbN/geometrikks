@@ -699,6 +699,17 @@ export function useCrowdsecStatus() {
 /** IP to decision type for every IP under a current decision (all origins,
  *  CAPI included), for badge rendering; empty until the integration is
  *  enabled and loaded. */
+// The palette's rows and every IP menu observe this list, so the Map is cached per response.
+const bannedIpMaps = new WeakMap<BannedIp[], Map<string, string>>()
+function selectBannedIps(ips: BannedIp[]): Map<string, string> {
+  let bannedIpMap = bannedIpMaps.get(ips)
+  if (bannedIpMap === undefined) {
+    bannedIpMap = new Map(ips.map((entry) => [entry.ip, entry.type]))
+    bannedIpMaps.set(ips, bannedIpMap)
+  }
+  return bannedIpMap
+}
+
 export function useBannedIps() {
   const { data: status } = useCrowdsecStatus()
   return useQuery({
@@ -709,7 +720,7 @@ export function useBannedIps() {
     // staleTime, each IP sheet or popup that mounts refetches it.
     staleTime: 60_000,
     refetchInterval: 60_000,
-    select: (ips) => new Map(ips.map((entry) => [entry.ip, entry.type])),
+    select: selectBannedIps,
   })
 }
 

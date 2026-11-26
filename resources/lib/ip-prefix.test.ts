@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test"
-import { parseIpQuery } from "@/lib/ip-prefix"
+import { ipv4InCidr, parseIpQuery } from "@/lib/ip-prefix"
 
 describe("parseIpQuery, IPv4", () => {
   it("waits for a whole first octet and its dot", () => {
@@ -80,6 +80,18 @@ describe("parseIpQuery, IPv6", () => {
     })
   })
 
+  it("maps an expanded IPv4-mapped address and refuses mapped prefixes", () => {
+    expect(parseIpQuery("0:0:0:0:0:ffff:c633:6407")?.address).toBe("198.51.100.7")
+    expect(parseIpQuery("0:0:0:0:0:ffff")).toBeNull()
+    expect(parseIpQuery("0:0:0:0:0:f")).toBeNull()
+  })
+
+  it("keeps the exact address when the last group is padded", () => {
+    const ranges = parseIpQuery("2001:db8:1:2:3:4:5:0d")?.ranges
+    expect(ranges).toContain("2001:db8:1:2:3:4:5:d/128")
+    expect(ranges).toContain("2001:db8:1:2:3:4:5:d00/120")
+  })
+
   it("writes a whole address the way the server does", () => {
     expect(parseIpQuery("2001:db8:0:0:0:0:0:1")?.address).toBe("2001:db8::1")
     expect(parseIpQuery("::1]/foo")).toBeNull()
@@ -90,5 +102,13 @@ describe("parseIpQuery, IPv6", () => {
       ranges: ["2001:db8::1/128"],
       address: "2001:db8::1",
     })
+  })
+})
+
+describe("ipv4InCidr", () => {
+  it("tells whether an address sits in a range", () => {
+    expect(ipv4InCidr("198.51.100.14", "198.51.100.0/24")).toBe(true)
+    expect(ipv4InCidr("198.51.101.14", "198.51.100.0/24")).toBe(false)
+    expect(ipv4InCidr("2001:db8::1", "198.51.100.0/24")).toBe(false)
   })
 })

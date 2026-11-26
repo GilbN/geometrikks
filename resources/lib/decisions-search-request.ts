@@ -7,7 +7,7 @@ import { useEffect } from "react"
 
 const EVENT = "geometrikks:decisions-search"
 /** A request the table has not taken lapses, so it can't fill the box on a later visit. */
-const LAPSE_MS = 5000
+const LAPSE_MS = 15_000
 let request: { query: string; at: number } | null = null
 
 export function requestDecisionsSearch(query: string): void {

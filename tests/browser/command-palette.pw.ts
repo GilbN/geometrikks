@@ -211,3 +211,24 @@ test("filtering Access Logs from the palette leaves the Live tail for History", 
   await expect(page).toHaveURL(/access-logs\?ip=/)
   await expect(page.getByRole("tab", { name: /History/, selected: true })).toBeVisible()
 })
+
+test("reopening after an IP search starts on the recently inspected list", async ({ page }) => {
+  await mockIpSearch(page)
+  await page.goto("/access-logs?inspect=198.51.100.200")
+  await expect(page.getByRole("dialog")).toBeVisible()
+  await page.keyboard.press("Escape")
+  await expect(page).not.toHaveURL(/inspect=/)
+
+  await page.keyboard.press("Control+k")
+  await page.keyboard.type("198.51")
+  await expect(palette(page).getByRole("option", { name: /^198\.51\.100\.14 / })).toBeVisible()
+  await page.keyboard.press("Escape")
+  await expect(palette(page)).toBeHidden()
+
+  await page.keyboard.press("Control+k")
+  await expect(palette(page).getByRole("option", { name: /^198\.51\.100\.200 / })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  )
+  await expect(palette(page).getByText("IP addresses seen")).toHaveCount(0)
+})

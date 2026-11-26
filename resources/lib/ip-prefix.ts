@@ -9,6 +9,8 @@
  * address space, which is slow to count over everything kept.
  */
 
+import { parseIpv4Number } from "@/lib/drop-lists"
+
 export interface IpQuery {
   /** What the user typed, trimmed. Results highlight this part. */
   typed: string
@@ -110,9 +112,11 @@ function ipv6Query(typed: string): IpQuery | null {
   if (parts.some((part) => part === "")) return null
   const fixed = parts.map((part) => parseInt(part, 16))
   const pad = (groups: number[]) => [...groups, ...Array(8 - groups.length).fill(0)]
-  // ::ffff: holds IPv4 addresses, which the server already matches through their IPv4 form.
-  if (fixed.length >= 6 && fixed.slice(0, 5).every((group) => group === 0) && fixed[5] === 0xffff) {
-    return null
+  // ::ffff: holds IPv4 addresses. A whole one maps to its IPv4 form. A prefix
+  // of the space would ask the server for every IPv4 row, so it searches nothing.
+  if (fixed.length >= 5 && fixed.slice(0, 5).every((group) => group === 0)) {
+    const sixth = fixed.length > 5 ? fixed[5].toString(16) : last
+    if (sixth.startsWith("f")) return fixed.length === 7 && last !== "" ? fullIpv6(typed) : null
   }
 
   if (last === "") {
@@ -122,9 +126,11 @@ function ipv6Query(typed: string): IpQuery | null {
   const value = parseInt(last, 16)
   if (fixed.length === 7) {
     const address = canonicalIpv6(ipv6([...fixed, value]))
-    return last.length === 4
-      ? { typed, ranges: [`${address}/128`], cidr: null, address }
-      : { typed, ranges: groupBlocks(fixed, last, pad), cidr: null, address }
+    if (last.length === 4) return { typed, ranges: [`${address}/128`], cidr: null, address }
+    // "0d" as the last group is either the address ending in :d or the start of :0dxx.
+    const blocks = groupBlocks(fixed, last, pad)
+    const ranges = last.startsWith("0") ? [`${address}/128`, ...blocks] : blocks
+    return { typed, ranges: [...new Set(ranges)], cidr: null, address }
   }
   const ranges = groupBlocks(fixed, last, pad)
   return { typed, ranges, cidr: ranges.length === 1 ? ranges[0] : null, address: null }
@@ -175,4 +181,25 @@ function fullIpv6(typed: string): IpQuery | null {
     return { typed, ranges: [`${ipv4Address}/32`], cidr: null, address: ipv4Address }
   }
   return { typed, ranges: [`${host}/128`], cidr: null, address: host }
+}
+
+/** Whether an IPv4 address falls in an IPv4 CIDR range. IPv6 never matches. */
+export function ipv4InCidr(ip: string, cidr: string): boolean {
+  const [base, bits] = cidr.split("/")
+  const address = parseIpv4Number(ip)
+  const network = parseIpv4Number(base)
+  const length = Number(bits)
+  if (address === null || network === null || !(length >= 0 && length <= 32)) return false
+  const size = 2 ** (32 - length)
+  return Math.floor(address / size) === Math.floor(network / size)
+}
+
+/** An address as the server writes it, so the same IPv6 typed two ways is one entry. */
+export function canonicalIp(ip: string): string {
+  if (!ip.includes(":")) return ip
+  try {
+    return canonicalIpv6(ip)
+  } catch {
+    return ip
+  }
 }

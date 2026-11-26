@@ -15,8 +15,14 @@ import { fetchTopIpStats } from "@/lib/api"
 import { countryDisplayName } from "@/lib/country-flags"
 import { timeLeftText } from "@/lib/crowdsec-alerts"
 import { decisionLabel, winningDecision } from "@/lib/crowdsec"
-import type { IpQuery } from "@/lib/ip-prefix"
-import { useBannedIps, useDropAsns, useDropNetwork, useIpDecisions } from "@/lib/queries"
+import { ipv4InCidr, type IpQuery } from "@/lib/ip-prefix"
+import {
+  useBannedIps,
+  useBannedRanges,
+  useDropAsns,
+  useDropNetwork,
+  useIpDecisions,
+} from "@/lib/queries"
 import { cn } from "@/lib/utils"
 
 /** Earlier than any install's data, so the daily rollups reach back to the first day kept. */
@@ -131,26 +137,33 @@ export function IpSearchGroups({
   /** The search's state in words, for a live region outside the listbox. */
   onStatus: (text: string) => void
 }) {
-  const { data, isError, isPlaceholderData } = useIpStats(query.ranges, enabled)
+  const { data, isError, isPlaceholderData } = useIpStats(query.ranges, enabled && current)
   // Rows for an older search stay hidden until this one answers, so Enter never opens the wrong address.
   const fresh = current && data !== undefined && !isPlaceholderData
   const { data: bannedIps } = useBannedIps()
+  const { data: bannedRanges } = useBannedRanges()
+  const coveredByBannedRange = (ip: string) =>
+    [...(bannedRanges?.keys() ?? [])].some((cidr) => ipv4InCidr(ip, cidr))
   const rows = fresh ? data.items.slice(0, SHOWN) : []
   const requests =
     fresh && data.distinctIps <= SEARCH_LIMIT
       ? data.items.reduce((sum, item) => sum + item.hits, 0)
       : null
-  const status = isError
-    ? "The search failed."
-    : !fresh
-      ? "Searching."
-      : rows.length === 0
-        ? `No address starting with ${query.typed}.`
-        : `${rows.length} ${rows.length === 1 ? "address" : "addresses"} found.`
+  const status = !current
+    ? "Searching."
+    : isError && !fresh
+      ? "The search failed."
+      : !fresh
+        ? "Searching."
+        : rows.length === 0
+          ? `No address starting with ${query.typed}.`
+          : `${rows.length} ${rows.length === 1 ? "address" : "addresses"} found.`
   useEffect(() => {
     onStatus(status)
     return () => onStatus("")
   }, [status, onStatus])
+  // A failed search still leaves the typed text to filter by, ban or report.
+  const usable = fresh || (current && isError)
   const top = rows[0]
   const reportIp = query.address ?? top?.ipAddress ?? null
   const reportRow = rows.find((row) => row.ipAddress === reportIp)
@@ -178,7 +191,9 @@ export function IpSearchGroups({
             </span>
             {/* As a shortcut slot it hides cmdk's check icon, which would take half the free space. */}
             <CommandShortcut className="flex shrink-0 items-center gap-1.5 tracking-normal">
-              {bannedIps?.has(row.ipAddress) && <BanMark ip={row.ipAddress} />}
+              {(bannedIps?.has(row.ipAddress) || coveredByBannedRange(row.ipAddress)) && (
+                <BanMark ip={row.ipAddress} />
+              )}
               <DropMark ip={row.ipAddress} asn={row.asn} />
             </CommandShortcut>
           </CommandItem>
@@ -190,7 +205,7 @@ export function IpSearchGroups({
             className={cn(ITEM, "text-muted-foreground")}
           >
             <ItemIcon icon={ScanSearch} />
-            {isError
+            {isError && current && !fresh
               ? "The search failed. Try again in a moment."
               : !fresh
                 ? "Searching…"
@@ -198,7 +213,7 @@ export function IpSearchGroups({
           </CommandItem>
         )}
       </CommandGroup>
-      {fresh && (
+      {usable && (
         <CommandGroup heading="Filter a page" className={GROUP}>
           <CommandItem
             value={`${IP_ROW}filter:access-logs`}
@@ -231,7 +246,7 @@ export function IpSearchGroups({
           )}
         </CommandGroup>
       )}
-      {fresh && ((canBan && (query.cidr || query.address)) || reportIp) && (
+      {usable && ((canBan && (query.cidr || query.address)) || reportIp) && (
         <CommandGroup heading="Actions" className={GROUP}>
           {canBan && (query.cidr || query.address) && (
             <CommandItem

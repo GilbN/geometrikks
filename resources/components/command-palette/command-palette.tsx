@@ -45,7 +45,7 @@ import {
 } from "@/components/command-palette/ip-results"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { useIpInspector } from "@/lib/ip-inspector"
-import { parseIpQuery } from "@/lib/ip-prefix"
+import { canonicalIp, parseIpQuery } from "@/lib/ip-prefix"
 import { isValidIp } from "@/lib/crowdsec"
 import { requestAccessLogsTab } from "@/lib/live-tail-request"
 import { requestDecisionsSearch } from "@/lib/decisions-search-request"
@@ -149,7 +149,7 @@ export function CommandPalette() {
   const { ip: inspected, open: inspect } = useIpInspector()
   useEffect(() => {
     // A hand-edited ?inspect= link can hold anything. The list keeps real addresses only.
-    if (inspected && isValidIp(inspected)) rememberInspectedIp(inspected)
+    if (inspected && isValidIp(inspected)) rememberInspectedIp(canonicalIp(inspected))
   }, [inspected])
   const recentIps = useRecentIps()
   const report = useAbuseReportDialog()
@@ -161,13 +161,12 @@ export function CommandPalette() {
   const [wasOpen, setWasOpen] = useState(isOpen)
   if (isOpen !== wasOpen) {
     setWasOpen(isOpen)
-    if (isOpen) {
-      setSearch("")
-      setSelected("")
-    }
+    if (isOpen) setSearch("")
   }
   const settledSearch = useDebouncedValue(search, 150)
-  const ipQuery = parseIpQuery(settledSearch)
+  // The list follows the live text, so IP search starts and ends with the
+  // keystroke. Only the request waits for the text to settle.
+  const ipQuery = parseIpQuery(search)
   const { data: crowdsec } = useQuery({
     queryKey: queryKeys.crowdsec.status,
     queryFn: fetchCrowdsecStatus,
