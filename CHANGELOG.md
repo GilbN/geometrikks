@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Desktop keyboard shortcuts move between pages (`G` then a letter), focus the page filter (`/`), open the time range (`T`) and step through log table rows (`J` and `K`). Press `?`, or pick Keyboard shortcuts in the user menu, for the full list. Settings > Appearance turns single-key shortcuts off if they clash with a browser extension. [Keyboard shortcuts](https://geometrikks.dev/docs/features/keyboard-shortcuts) lists every key.
 - `Ctrl+K` (`Cmd+K` on a Mac) or the desktop top-bar search field opens a search-and-commands palette from any page, even in a field or with single-key shortcuts off. Type to jump to a sidebar page, change the time range, ban an IP or range with CrowdSec write access, or start the live tail. See [Keyboard shortcuts](https://geometrikks.dev/docs/features/keyboard-shortcuts#search-and-commands).
 - The search and commands palette also finds IP addresses across all kept traffic, with partial octets such as `203.0.11`, and lists the last 5 inspected addresses when opened empty. Enter opens an address in the IP inspector and Ctrl+Enter opens it in Access Logs. See [Keyboard shortcuts](https://geometrikks.dev/docs/features/keyboard-shortcuts#ip-search).
+- On a phone, a search button in the header opens search and commands as a full-screen sheet to find IPs, run actions, change the time range or jump to a page. See [Keyboard shortcuts](https://geometrikks.dev/docs/features/keyboard-shortcuts#on-a-phone).
 
 ### Changed
 
