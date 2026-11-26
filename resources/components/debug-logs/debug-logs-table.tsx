@@ -46,6 +46,7 @@ import {
 } from "@/lib/ip-filter-targets"
 import { useAccessLogDebug, useAccessLogFacets, useCrowdsecLiveUpdates } from "@/lib/queries"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
+import { countryDisplayName } from "@/lib/country-flags"
 import { ipFilterHint, isValidIpFilter } from "@/lib/ip-filter-values"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { usePhoneLayout } from "@/hooks/use-phone-map"
@@ -600,8 +601,11 @@ export function DebugLogsTable() {
     )
   }
 
+  // The browser names a country until the facets arrive.
+  const countryNameFor = (code: string) =>
+    facets?.countries.find((c) => c.code === code)?.name ?? countryDisplayName(code)
   const countryLabelFor = (code: string) => {
-    const name = facets?.countries.find((c) => c.code === code)?.name
+    const name = countryNameFor(code)
     return name ? `${name} (${code})` : code
   }
   const loadFacets = () => setFacetsEnabled(true)
@@ -641,7 +645,7 @@ export function DebugLogsTable() {
       chipValue: (code) => (
         <>
           <CountryFlag code={code} />
-          {facets?.countries.find((c) => c.code === code)?.name ?? code}
+          {countryNameFor(code) ?? code}
         </>
       ),
       iconFor: (code) => <CountryFlag code={code} />,
