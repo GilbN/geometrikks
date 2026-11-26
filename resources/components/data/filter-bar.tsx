@@ -85,10 +85,13 @@ export function FilterBar({
   order.current = orderChips(order.current, active)
 
   const open = openId === null ? null : parseChipId(openId)
+  // The open chip keeps the key it opened with until it closes, so a tick that fills or empties
+  // the field's other chip, or the is / is not switch, never remounts its picker.
+  const openKey = useRef<{ id: string; key: string } | null>(null)
+  if (openKey.current && openKey.current.id !== openId) openKey.current = null
   // The is / is not switch moves the picker to its new mode at once, but the filters it writes
-  // land a render later. Until they do, the chip it came from stays the open one, and the open
-  // chip keeps the key it had, so the picker is never remounted under the pointer.
-  const switching = useRef<{ fieldId: string; from: FilterMode; key: string } | null>(null)
+  // land a render later. Until they do, the chip it came from stays the open one.
+  const switching = useRef<{ fieldId: string; from: FilterMode } | null>(null)
   const pending = switching.current
   if (pending && (open?.fieldId !== pending.fieldId || !openId)) switching.current = null
   const inFlight =
@@ -130,13 +133,14 @@ export function FilterBar({
     if (to === from) return
     // An empty picker only changes mode; writing the same filters would still reset the page.
     if (chipValues(field, from).length > 0) {
-      switching.current = { fieldId: field.id, from, key: keyFor(field, from) }
+      switching.current = { fieldId: field.id, from }
       const values = switchMode<string | number>(field.include, field.exclude ?? [], to)
       ;(field.onChange as (include: unknown[], exclude: unknown[]) => void)(
         values.include,
         values.exclude,
       )
     }
+    if (openKey.current) openKey.current = { ...openKey.current, id: chipId(field.id, to) }
     setOpenId(chipId(field.id, to))
   }
   const removeChip = (field: FilterBarField, mode: FilterMode) => {
@@ -160,9 +164,18 @@ export function FilterBar({
     const id = chipId(field.id, mode)
     const switched = switching.current?.fieldId === field.id ? switching.current : null
     const isOpen = inFlight && switched ? mode === switched.from : openId === id
+    let key = keyFor(field, mode)
+    if (isOpen) {
+      if (openKey.current) key = openKey.current.key
+      else openKey.current = { id: openId!, key }
+    } else if (key === openKey.current?.key) {
+      // A chip the open one has switched into the place of, as when a value arrives from the
+      // palette for the mode it came from.
+      key = `${key}:closed`
+    }
     return (
       <FieldChip
-        key={isOpen && switched ? switched.key : keyFor(field, mode)}
+        key={key}
         field={field}
         mode={mode}
         slot={slot}
@@ -547,6 +560,7 @@ function TypedChip(props: Omit<ChipProps, "field"> & { field: TypedFilterBarFiel
   const { field, mode, open, onOpenChange, onModeChange } = props
   const anchorRef = useRef<HTMLSpanElement>(null)
   const hintId = useId()
+  const inputRef = useRef<HTMLInputElement>(null)
   const [draft, setDraft] = useState("")
   const values = chipValues(field, mode) as string[]
   const value = draft.trim()
@@ -580,6 +594,7 @@ function TypedChip(props: Omit<ChipProps, "field"> & { field: TypedFilterBarFiel
         <PickerHeader field={field} mode={mode} onModeChange={onModeChange} />
         <div className="px-1 pt-1 pb-1">
           <Input
+            ref={inputRef}
             autoFocus
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
@@ -613,7 +628,11 @@ function TypedChip(props: Omit<ChipProps, "field"> & { field: TypedFilterBarFiel
                 <button
                   type="button"
                   aria-label={`Remove ${entry}`}
-                  onClick={() => setValues(values.filter((v) => v !== entry))}
+                  onClick={() => {
+                    setValues(values.filter((v) => v !== entry))
+                    // The row and its button go, so the field takes the focus.
+                    inputRef.current?.focus()
+                  }}
                   className="grid size-5 place-items-center rounded-sm text-muted-foreground hover:text-foreground"
                 >
                   <X aria-hidden className="size-3.5" />

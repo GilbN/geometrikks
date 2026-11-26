@@ -17,7 +17,7 @@ GeoMetrikks has three ways to keep your own traffic out of view, each for a diff
 | Exclude IP | Page URL | IPs or CIDR ranges | Rows stay stored, and the filter clears when you leave the page unless bookmarked |
 | `LOGPARSER_IGNORE_IPS` | Environment variable or `.env` | IPs or CIDR ranges | The parser drops matching lines at ingest, so no access log, geo event or debug row is ever stored |
 
-Muted IPs stays separate from Exclude IP and out of page URLs. Exclude your IP on Access Logs and Geo Logs looks up your current address each time you tap it and saves nothing.
+Muted IPs stays separate from Exclude IP and out of page URLs. Exclude your IP on Access Logs and Geo Logs, called Hide my IP in the Access Logs Filter menu on desktop, looks up your current address each time you use it and saves nothing.
 
 ## Adding and removing entries
 

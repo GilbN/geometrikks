@@ -94,10 +94,14 @@ test("a field with an is chip gets an is not chip beside it", async ({ page }) =
   await expect.poll(() => param(page, "ipx")).toBe('["203.0.113.7"]')
   expect(param(page, "ip")).toBe('["203.0.113.0/24"]')
 
-  // The switch on a chip with values moves them, merged with what is there.
+  // The switch on a chip with values moves them, merged with what is there, and the picker
+  // stays the same one, with an address still being typed.
+  await field.fill("198.51.100.9")
+  await field.evaluate((input) => input.setAttribute("data-before-merge", ""))
   await page.getByRole("radio", { name: "is", exact: true }).click()
   await expect.poll(() => param(page, "ip")).toBe('["203.0.113.0/24","203.0.113.7"]')
   expect(param(page, "ipx")).toBeNull()
+  await expect(page.locator("input[data-before-merge]")).toHaveValue("198.51.100.9")
 })
 
 test("Enter in the Filter menu never picks a match for older text", async ({ page }) => {
