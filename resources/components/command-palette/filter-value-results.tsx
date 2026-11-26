@@ -357,6 +357,8 @@ export function FilterValueGroups({
     // Only a new answer moves the highlight. A new onArrived each render must not.
   }, [arrived])
   useEffect(() => onPending(pending), [pending])
+  // Leaving the list, for a pick or an IP search, leaves nothing pending behind.
+  useEffect(() => () => onPending(false), [])
   if (!asking) return null
   if (groups.length === 0) {
     // Without this row, "Nothing matches" would show and be read out before the answer comes.

@@ -257,6 +257,8 @@ export function CommandPalette() {
   const namesPending = useRef(false)
   // An Enter pressed on a loose match while names were on their way, to run on the top row.
   const enterWaiting = useRef(false)
+  // Counts edits to the text and the pick, so a held Enter can tell the list changed under it.
+  const edits = useRef(0)
   const [ipStatus, setIpStatus] = useState("")
   // A touch screen hides the highlight on the picked row until the arrow keys move it.
   const [arrowKeysUsed, setArrowKeysUsed] = useState(false)
@@ -309,17 +311,23 @@ export function CommandPalette() {
   const onAddress = selected.startsWith(ADDRESS_ROW)
 
   const pick = (value: PickedValue) => {
+    edits.current += 1
+    // The name rows go away with the pick, and their pending answer with them.
+    namesPending.current = false
+    enterWaiting.current = false
     setPicked(value)
     setSearch("")
     inputRef.current?.focus()
   }
   const unpick = () => {
+    edits.current += 1
     setPicked(null)
     // Text typed to narrow the page list would start a name search of its own.
     setSearch("")
     inputRef.current?.focus()
   }
   const type = (text: string) => {
+    edits.current += 1
     highlightMoved.current = false
     enterWaiting.current = false
     setSearch(text)
@@ -335,10 +343,13 @@ export function CommandPalette() {
     const enter = enterWaiting.current
     enterWaiting.current = false
     if (!weakHighlight()) return
+    const edit = edits.current
     requestAnimationFrame(() => {
+      if (edits.current !== edit) return
       pressOnInput("Home")
       // cmdk runs the row marked selected in the DOM, which the Home render has to reach first.
-      if (enter) requestAnimationFrame(() => pressOnInput("Enter"))
+      // A click or a key in between changes the list, and the held Enter no longer applies.
+      if (enter) requestAnimationFrame(() => edits.current === edit && pressOnInput("Enter"))
     })
   }
 
@@ -419,28 +430,24 @@ export function CommandPalette() {
     </CommandGroup>
   )
 
-  // cmdk ranks rows inside a group but never reorders the groups. Pages and actions go
-  // above the names when one of them matches the text at least as well as a name row.
-  const commandValues = [
-    ...shownPages.map((item) => item.title),
-    ...(routeHeader.timeRange ? ["change the time range"] : []),
-    ...(crowdsec?.writeEnabled ? ["ban an ip or range"] : []),
-    "start the live tail",
-  ]
-  const commandsFirst =
-    search.trim() !== "" &&
-    commandValues.some((value) => defaultFilter(value, search) >= NAME_ROW_SCORE)
-  const commands = phone ? (
-    <>
-      {actions}
-      {goTo}
-    </>
-  ) : (
-    <>
-      {goTo}
-      {actions}
-    </>
-  )
+  // cmdk ranks rows inside a group but never reorders the groups, and it highlights the
+  // first row on screen. So the blocks go in order of their best match. Names score
+  // NAME_ROW_SCORE, and a page or action that matches at least as well goes above them.
+  const best = (values: string[]) =>
+    search.trim() === "" ? 0 : Math.max(0, ...values.map((value) => defaultFilter(value, search)))
+  const blockScores = {
+    names: NAME_ROW_SCORE - 0.001,
+    goTo: best(shownPages.map((item) => item.title)),
+    actions: best([
+      ...(routeHeader.timeRange ? ["change the time range"] : []),
+      ...(crowdsec?.writeEnabled ? ["ban an ip or range"] : []),
+      "start the live tail",
+    ]),
+  }
+  type Block = keyof typeof blockScores
+  const blocks = (
+    ["names", ...(phone ? ["actions", "goTo"] : ["goTo", "actions"])] as Block[]
+  ).sort((a, b) => blockScores[b] - blockScores[a])
   const nameGroups = !ipQuery && (
     <FilterValueGroups
       search={search}
@@ -509,6 +516,7 @@ export function CommandPalette() {
               !event.ctrlKey &&
               !event.metaKey &&
               namesPending.current &&
+              !picked &&
               weakHighlight()
             ) {
               event.preventDefault()
@@ -635,8 +643,10 @@ export function CommandPalette() {
                   )
                 )}
                 {/* Keyed, so a change of order moves the groups instead of mounting them again. */}
-                {(commandsFirst ? ["commands", "names"] : ["names", "commands"]).map((part) => (
-                  <Fragment key={part}>{part === "commands" ? commands : nameGroups}</Fragment>
+                {blocks.map((block) => (
+                  <Fragment key={block}>
+                    {block === "names" ? nameGroups : block === "goTo" ? goTo : actions}
+                  </Fragment>
                 ))}
               </>
             )}

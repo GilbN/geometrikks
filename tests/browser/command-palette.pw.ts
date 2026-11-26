@@ -244,6 +244,7 @@ async function mockNameSearch(page: Page, { delay = 0 } = {}) {
     cities: [
       { city: "Northfield", countryCode: "US", countryName: "United States", hits: 33 },
       { city: "Accra", countryCode: "GH", countryName: "Ghana", hits: 12 },
+      { city: "Stuttgart", countryCode: "DE", countryName: "Germany", hits: 9 },
     ],
     hosts: [{ host: "git.example.com", hits: 300 }],
     servers: [{ server: "north-edge", hits: 900 }],
@@ -388,6 +389,21 @@ test("Enter pressed before the names come runs the top name row", async ({ page 
   await page.keyboard.press("Enter")
   await expect(palette(page).getByRole("button", { name: "Remove git.example.com" })).toBeVisible()
   await expect(page.getByRole("menu")).toHaveCount(0)
+})
+
+test("an action that starts with the text comes before pages and places", async ({ page }) => {
+  await mockNameSearch(page)
+  await page.goto("/access-logs")
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Access Logs")
+  await page.keyboard.press("Control+k")
+  await page.keyboard.type("st")
+  await expect(palette(page).getByRole("option", { name: /^Stuttgart / })).toBeVisible()
+  // Settings holds s and t too, but Go to used to sit above Actions whatever the scores.
+  await expect(palette(page).getByRole("option").first()).toHaveText(/^Start the live tail/)
+  await expect(palette(page).getByRole("option", { name: /^Start the live tail/ })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  )
 })
 
 test("an AS number finds its network", async ({ page }) => {
