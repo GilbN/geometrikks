@@ -16,21 +16,22 @@ export function statusTotal(row: StatusCounts): number {
   return STATUS_KEYS.reduce((sum, key) => sum + (row[key] ?? 0), 0)
 }
 
-/** 1xx has no class of its own, so the chart draws it only on ranges that have some. */
-export const informationalChartConfig = {
-  status1xx: { label: "1xx Informational", color: "var(--chart-5)" },
+/** Requests outside the four classes. The chart draws them only on ranges that have some. */
+export const otherChartConfig = {
+  statusOther: { label: "1xx and no response", color: "var(--chart-5)" },
 } satisfies ChartConfig
 
-export type CountRow = TimeSeriesDataPoint & { status1xx: number }
+export type CountRow = TimeSeriesDataPoint & { statusOther: number }
 
 /**
- * Adds the 1xx count, which totalRequests includes and no class does. On a
- * WebSocket host the 101 upgrades can be most of an hour's requests.
+ * Adds the requests totalRequests counts and no class holds: 1xx, and status
+ * 0 for a connection that closed before any response. On a WebSocket host the
+ * 101 upgrades can be most of an hour's requests.
  */
-export function withInformational(points: readonly TimeSeriesDataPoint[]): CountRow[] {
+export function withOther(points: readonly TimeSeriesDataPoint[]): CountRow[] {
   return points.map((point) => ({
     ...point,
-    status1xx: Math.max(0, point.totalRequests - statusTotal(point)),
+    statusOther: Math.max(0, point.totalRequests - statusTotal(point)),
   }))
 }
 

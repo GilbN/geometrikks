@@ -172,6 +172,12 @@ describe("hourlyTicks", () => {
     expect(ticks.ticks.map(ticks.format)[0]).toMatch(/^\d{1,2}:30 [AP]M$/)
   })
 
+  it("labels the only bucket of a short range", () => {
+    process.env.TZ = "UTC"
+    const ticks = hourlyTicks(hours("2026-11-23T13:00:00Z", 1), "hourly", 1060)!
+    expect(ticks.ticks.map(ticks.format)).toEqual(["1 PM"])
+  })
+
   it("marks every third hour on a day, and fewer on a phone", () => {
     process.env.TZ = "UTC"
     const day = hours("2026-11-23T00:00:00Z", 25)

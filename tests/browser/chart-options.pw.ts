@@ -189,7 +189,7 @@ test.describe("requests chart", () => {
     await expectReadout(card, `${points[12].totalRequests.toLocaleString("en-US")} requests`)
   })
 
-  test("requests no class holds draw as a 1xx segment", async ({ page }) => {
+  test("requests outside 2xx to 5xx draw as their own segment", async ({ page }) => {
     // Hour 30 adds 40 WebSocket upgrades (101) to its classified requests.
     const upgrades = points.map((point, index) =>
       index === 30 ? { ...point, totalRequests: point.totalRequests + 40 } : point,
@@ -198,11 +198,16 @@ test.describe("requests chart", () => {
     await page.goto("/analytics")
     const card = panel(page, "Requests")
     await expect(card.locator(".recharts-bar")).toHaveCount(5)
-    await expectReadout(card, "1xx Informational 40")
+    await expectReadout(card, "1xx and no response 40")
     await hoverBar(page, card, 30, BUCKETS)
-    await expectReadout(card, "1xx Informational 40")
+    await expectReadout(card, "1xx and no response 40")
     await hoverBar(page, card, 29, BUCKETS)
-    await expectReadout(card, "1xx Informational 0")
+    await expectReadout(card, "1xx and no response 0")
+
+    // Share of responses counts 2xx to 5xx only.
+    await choose(page, card, "Requests", "Share of responses")
+    await expect(card.locator(".recharts-bar")).toHaveCount(4)
+    await choose(page, card, "Requests", "Stacked bars")
 
     await mockTimeSeries(page, points)
     await page.reload()
@@ -363,7 +368,7 @@ test.describe("latency chart", () => {
     await card.scrollIntoViewIfNeeded()
     const grid = (await card.locator(".recharts-cartesian-grid").boundingBox())!
     const at = async (index: number) =>
-      page.mouse.move(grid.x + (index / (BUCKETS - 1)) * grid.width, grid.y + grid.height / 2)
+      page.mouse.move(grid.x + ((index + 0.5) / BUCKETS) * grid.width, grid.y + grid.height / 2)
     await at(30)
     await expectReadout(card, "p50 to p95")
     await expectReadout(card, "80ms to 400ms")
@@ -420,7 +425,11 @@ test.describe("phone", () => {
     await touch("touchStart", [{ x, y }])
     for (let step = 1; step <= 4; step++)
       await touch("touchMove", [{ x: x + step * 6, y: y + step }])
-    await expectReadout(card, "requests")
+    await expectReadout(
+      card,
+      `${points.reduce((total, point) => total + point.totalRequests, 0).toLocaleString("en-US")} requests`,
+      false,
+    )
     expect((await card.boundingBox())!.y).toBe(still)
     await expect(card.locator('rect[fill="var(--card)"]')).toHaveCount(2)
     await touch("touchEnd", [])

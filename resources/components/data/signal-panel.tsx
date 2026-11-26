@@ -64,8 +64,9 @@ export function SignalPanel({
         <div
           className={cn(
             "min-w-0 max-md:flex-1 max-md:[overflow-wrap:anywhere]",
-            // A readout header keeps its title on one line; the notes beside it truncate.
-            readout && "md:shrink-0 md:whitespace-nowrap",
+            // A wide readout header keeps its title on one line and truncates the notes
+            // beside it. Narrower, the title wraps, since the controls cannot shrink.
+            readout && "md:max-xl:flex-1 xl:shrink-0 xl:whitespace-nowrap",
           )}
         >
           <h2 id={titleId} className={FRAME_LABEL}>
@@ -79,7 +80,9 @@ export function SignalPanel({
           <div
             className={cn(
               "flex items-center gap-2 text-xs text-muted-foreground max-md:contents",
-              readout ? "min-w-0 flex-1 justify-end" : "shrink-0 flex-wrap",
+              readout
+                ? "max-xl:shrink-0 max-xl:flex-wrap xl:min-w-0 xl:flex-1 xl:justify-end"
+                : "shrink-0 flex-wrap",
             )}
           >
             {actions}
@@ -121,6 +124,6 @@ export function SignalPanel({
  *  own line under the title row. */
 export function SignalPanelNote({ children }: { children: React.ReactNode }) {
   return (
-    <span className="max-md:order-last max-md:basis-full md:min-w-0 md:truncate">{children}</span>
+    <span className="max-md:order-last max-md:basis-full xl:min-w-0 xl:truncate">{children}</span>
   )
 }

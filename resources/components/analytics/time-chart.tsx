@@ -229,6 +229,15 @@ export function TimeChart({
     return Date.parse(rows[nearestIndex(shape.centers, x)].timestamp)
   }
 
+  const startScrub = (frame: HTMLElement, held: Touch) => {
+    held.scrubbing = true
+    try {
+      frame.setPointerCapture(held.id)
+    } catch {
+      // The pointer is already gone; its pointerup or pointercancel ends the touch.
+    }
+  }
+
   const endTouch = () => {
     if (touch.current) window.clearTimeout(touch.current.timer)
     touch.current = null
@@ -241,6 +250,8 @@ export function TimeChart({
     const frame = frameRef.current
     if (!frame) return
     const onTouchMove = (event: TouchEvent) => {
+      // A second finger is a pinch, which belongs to the browser.
+      if (event.touches.length > 1) return endTouch()
       if (touch.current?.scrubbing && event.cancelable) event.preventDefault()
     }
     frame.addEventListener("touchmove", onTouchMove, { passive: false })
@@ -273,20 +284,24 @@ export function TimeChart({
           if (dy > SLOP_PX && dy >= dx) return endTouch()
           if (dx <= SLOP_PX) return
           window.clearTimeout(held.timer)
-          held.scrubbing = true
+          startScrub(event.currentTarget, held)
         }
         cursor.set(bucketAt(event.clientX))
       }}
       onPointerLeave={(event) => {
         if (event.pointerType === "mouse") cursor.set(null)
+        // A pen has no implicit capture, so its pointerup can land outside the chart.
+        else if (!event.currentTarget.hasPointerCapture(event.pointerId)) endTouch()
       }}
       onPointerDown={(event) => {
         if (event.pointerType === "mouse") return
         endTouch()
+        if (!event.isPrimary) return
         const { pointerId, clientX, clientY } = event
         const held: Touch = { id: pointerId, x: clientX, y: clientY, scrubbing: false, timer: 0 }
+        const frame = event.currentTarget
         held.timer = window.setTimeout(() => {
-          held.scrubbing = true
+          startScrub(frame, held)
           cursor.set(bucketAt(clientX))
         }, HOLD_MS)
         touch.current = held
@@ -308,6 +323,9 @@ export function TimeChart({
           <CartesianGrid vertical={false} />
           <XAxis
             dataKey="timestamp"
+            // Line-only charts would otherwise run edge to edge; a band puts every
+            // chart's hours in the middle of their slots, so the three line up.
+            scale="band"
             tickLine={false}
             axisLine={false}
             ticks={ticks?.ticks}

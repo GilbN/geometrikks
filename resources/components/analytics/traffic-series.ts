@@ -95,7 +95,7 @@ export function trafficTotals(rows: readonly TimeSeriesDataPoint[]): TrafficTota
 }
 
 /** Room each label needs on the axis, in pixels. */
-const DAY_LABEL_PX = 64
+const DAY_LABEL_PX = 56
 /** A label centred closer than this to the plot's edge would run past it. */
 const EDGE_PX = 14
 const HOUR_LABEL_PX = 56
@@ -148,9 +148,11 @@ export function hourlyTicks(
   const steps = timestamps.length <= 14 ? [2, 3, 6, 12] : [3, 6, 12]
   const step =
     steps.find((hours) => fits(Math.ceil(timestamps.length / hours), HOUR_LABEL_PX)) ?? 12
-  const ticks = timestamps.filter(
+  const marked = timestamps.filter(
     (_, index) => dates[index].getHours() % step === 0 && !repeat(index) && clear(index),
   )
+  // A range of a few minutes can sit inside one odd hour, which no step marks.
+  const ticks = marked.length > 0 ? marked : timestamps.slice(0, 1)
   return {
     ticks,
     format: (timestamp) => {

@@ -2,7 +2,8 @@
  * The legend with values in a traffic chart's header. It shows totals for the
  * range at rest and the cursor's bucket while one is marked. On a phone the
  * first entry shares a line with the bucket's time and the rest sit in two
- * columns under it.
+ * columns under it. Between phone and 1280px the time ends the first line and
+ * the readout keeps room for two lines, so hovering does not move the chart.
  */
 import { useMemo } from "react"
 import { formatTs } from "@/lib/datetime"
@@ -49,7 +50,7 @@ function Item({ item }: { item: ReadoutItem }) {
   )
 }
 
-/** The cursor bucket's time, for the header's first line on desktop. */
+/** The cursor bucket's time, for the header's first line on wide screens. */
 export function CursorStamp({
   cursor,
   rows,
@@ -62,7 +63,7 @@ export function CursorStamp({
   const row = useCursorRow(cursor, rows)
   if (!row) return null
   return (
-    <span className="text-xs font-medium whitespace-nowrap text-foreground tabular-nums max-md:hidden">
+    <span className="text-xs font-medium whitespace-nowrap text-foreground tabular-nums max-xl:hidden">
       {formatTs(row.timestamp, granularity)}
     </span>
   )
@@ -76,19 +77,19 @@ export function ChartReadout({
   /** Text before the legend, such as "39,144 requests". */
   lead?: React.ReactNode
   items: readonly ReadoutItem[]
-  /** The cursor bucket's time; a phone shows it at the end of the first line. */
+  /** The cursor bucket's time; below 1280px it ends the readout's first line. */
   stamp?: string | null
 }) {
   const [first, ...rest] = lead == null ? items : [null, ...items]
   return (
-    <div className="flex min-w-0 flex-wrap items-center gap-x-[18px] gap-y-1 text-[13px] text-muted-foreground tabular-nums max-md:gap-x-3.5">
+    <div className="flex min-w-0 flex-wrap items-center gap-x-[18px] gap-y-1 text-[13px] text-muted-foreground tabular-nums max-md:gap-x-3.5 content-start md:max-xl:min-h-[calc(2lh+0.25rem)]">
       {lead != null ? (
         <span className="whitespace-nowrap">{lead}</span>
       ) : (
         first && <Item item={first} />
       )}
       {stamp && (
-        <span className="ml-auto text-xs font-medium whitespace-nowrap text-foreground md:hidden">
+        <span className="ml-auto text-xs font-medium whitespace-nowrap text-foreground xl:hidden">
           {stamp}
         </span>
       )}
