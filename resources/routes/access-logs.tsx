@@ -11,7 +11,7 @@
  * per-device preference, not part of the shared view.
  */
 import { defaultPageSize, useTableView } from "@/lib/table-view"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
 import { createFileRoute } from "@tanstack/react-router"
 import { History, Radio } from "lucide-react"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -31,6 +31,8 @@ import {
 import { useUrlFilters } from "@/hooks/use-url-filters"
 import { dropDefault } from "@/lib/url-filters"
 import { useMutedPage } from "@/lib/use-muted-page"
+import { usePhoneLayout } from "@/hooks/use-phone-map"
+import { FilterBarToolsProvider } from "@/components/data/filter-bar-slot"
 import type { AccessLogSortField, SortOrder } from "@/lib/api"
 
 const DEFAULT_SORT: AccessLogSortField = "timestamp"
@@ -51,6 +53,7 @@ function AccessLogsPage() {
     structuralSharing: true,
   })
   const navigate = Route.useNavigate()
+  const phone = usePhoneLayout()
   const [mode, setMode] = useState<Mode>("history")
   useAccessLogsTabRequest(setMode)
 
@@ -97,6 +100,45 @@ function AccessLogsPage() {
     [patchSearch],
   )
 
+  // The tabs move between the filter bar and a row of their own, so a
+  // keyboard switch has to put the focus back on the tab it landed on.
+  const tabsRef = useRef<HTMLDivElement>(null)
+  const refocusTab = useRef(false)
+  useLayoutEffect(() => {
+    if (!refocusTab.current) return
+    refocusTab.current = false
+    tabsRef.current?.querySelector<HTMLElement>('[role="tab"][data-state="active"]')?.focus()
+  }, [mode])
+  const tabs = (
+    <Tabs
+      value={mode}
+      onValueChange={(value) => {
+        refocusTab.current = tabsRef.current?.contains(document.activeElement) ?? false
+        setMode(value as Mode)
+      }}
+    >
+      <TabsList ref={tabsRef}>
+        <TabsTrigger value="history">
+          <History className="h-4 w-4" /> History
+        </TabsTrigger>
+        <TabsTrigger value="live">
+          <Radio className="h-4 w-4" /> Live tail
+        </TabsTrigger>
+      </TabsList>
+    </Tabs>
+  )
+  const table = (
+    <AccessLogsTable
+      page={page}
+      pageSize={pageSize}
+      sortField={sortField}
+      sortOrder={sortOrder}
+      onPageChange={onPageChange}
+      onPageSizeChange={onPageSizeChange}
+      onSortChange={onSortChange}
+    />
+  )
+
   return (
     <AccessLogFiltersProvider
       filters={filters}
@@ -104,39 +146,26 @@ function AccessLogsPage() {
       muted={muted}
       toggleMuted={toggleMuted}
     >
-      <div className="p-4 space-y-4">
-        <PageHeader subtitle="Explore request history or follow new traffic as it arrives." />
-        {/* On a phone the filter bar is a single Filters button, so it shares
-            the row with the tabs. */}
-        <div className="space-y-4 phone:flex phone:flex-wrap phone:items-center phone:justify-between phone:gap-3 phone:space-y-0">
-          <Tabs value={mode} onValueChange={(value) => setMode(value as Mode)}>
-            <TabsList>
-              <TabsTrigger value="history">
-                <History className="h-4 w-4" /> History
-              </TabsTrigger>
-              <TabsTrigger value="live">
-                <Radio className="h-4 w-4" /> Live tail
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-          {mode === "history" && <AccessLogsFilterBar />}
+      {phone || mode === "live" ? (
+        <div className="p-4 space-y-4">
+          <PageHeader subtitle="Explore request history or follow new traffic as it arrives." />
+          {/* On a phone the filter bar is a single Filters button, so it shares
+              the row with the tabs. */}
+          <div className="space-y-4 phone:flex phone:flex-wrap phone:items-center phone:justify-between phone:gap-3 phone:space-y-0">
+            {tabs}
+            {mode === "history" && <AccessLogsFilterBar />}
+          </div>
+          {mode === "history" ? table : <LiveTail enabled={mode === "live"} />}
         </div>
-        {mode === "history" ? (
-          <>
-            <AccessLogsTable
-              page={page}
-              pageSize={pageSize}
-              sortField={sortField}
-              sortOrder={sortOrder}
-              onPageChange={onPageChange}
-              onPageSizeChange={onPageSizeChange}
-              onSortChange={onSortChange}
-            />
-          </>
-        ) : (
-          <LiveTail enabled={mode === "live"} />
-        )}
-      </div>
+      ) : (
+        <FilterBarToolsProvider>
+          <div className="flex h-full min-h-[30rem] flex-col gap-4 p-4">
+            <PageHeader subtitle="Explore request history or follow new traffic as it arrives." />
+            <AccessLogsFilterBar leading={tabs} />
+            {table}
+          </div>
+        </FilterBarToolsProvider>
+      )}
     </AccessLogFiltersProvider>
   )
 }

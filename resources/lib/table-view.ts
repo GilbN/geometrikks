@@ -4,7 +4,7 @@
  * so two pages never show the same moment two ways. All of it lives in this
  * browser's localStorage, and every mounted table follows a change at once.
  */
-import { useCallback, useSyncExternalStore } from "react"
+import { useCallback, useMemo, useSyncExternalStore } from "react"
 
 export type RowDensity = "comfortable" | "compact"
 export type ColumnLayout = "combined" | "separate"
@@ -17,6 +17,7 @@ export interface TableViewChoice {
 
 const TABLE_KEY_PREFIX = "geometrikks-table-view-"
 const TIME_FORMAT_KEY = "geometrikks-time-format"
+const FILTER_PINS_KEY_PREFIX = "geometrikks-filter-pins-"
 
 const listeners = new Set<() => void>()
 /** Choices that storage refused, kept for this session. */
@@ -50,7 +51,8 @@ function subscribe(listener: () => void): () => void {
     if (
       event.key === null ||
       event.key === TIME_FORMAT_KEY ||
-      event.key.startsWith(TABLE_KEY_PREFIX)
+      event.key.startsWith(TABLE_KEY_PREFIX) ||
+      event.key.startsWith(FILTER_PINS_KEY_PREFIX)
     ) {
       listener()
     }
@@ -120,6 +122,34 @@ export function useTimeFormat(): [TimeFormat, (format: TimeFormat) => void] {
     [],
   )
   return [format, setFormat]
+}
+
+/** Drops anything a hand-edited or older value holds that isn't a field id. */
+export function parseFilterPins(raw: string | null): string[] {
+  if (!raw) return []
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return [...new Set(parsed.filter((id): id is string => typeof id === "string"))]
+  } catch {
+    return []
+  }
+}
+
+/** The filter fields pinned to a page's filter bar, in the order they were pinned. */
+export function useFilterPins(pageId: string): [string[], (fieldId: string) => void] {
+  const key = FILTER_PINS_KEY_PREFIX + pageId
+  const raw = useSyncExternalStore(subscribe, () => read(key))
+  const togglePin = useCallback(
+    (fieldId: string) => {
+      const pins = parseFilterPins(read(key))
+      const next = pins.includes(fieldId) ? pins.filter((id) => id !== fieldId) : [...pins, fieldId]
+      write(key, next.length ? JSON.stringify(next) : null)
+    },
+    [key],
+  )
+  const pins = useMemo(() => parseFilterPins(raw), [raw])
+  return [pins, togglePin]
 }
 
 /** Compact rows fill a laptop screen at 50; comfortable rows keep 20. */

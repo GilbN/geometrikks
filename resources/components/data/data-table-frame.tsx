@@ -1,8 +1,10 @@
 import { useId, useLayoutEffect, useState } from "react"
+import { createPortal } from "react-dom"
 
 import { ErrorBanner } from "@/components/error-banner"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
+import { useFilterBarToolsSlot } from "./filter-bar-slot"
 import { FRAME_LABEL, FRAME_SURFACE } from "./frame"
 import type { DataState } from "./types"
 
@@ -30,6 +32,11 @@ function TableSkeleton() {
  * readers get its description. While mounted it publishes its height as
  * --table-header-height on <main>, so focus and scroll resets keep the rows
  * clear of both.
+ *
+ * Under a page's filter bar the card drops its header. Its tools go to the
+ * bar, and the title stays for screen readers. `fill` lets the card shrink to
+ * the height its parent gives it, with the rows scrolling inside, so the
+ * footer stays on screen.
  */
 export function DataTableFrame({
   title,
@@ -41,6 +48,7 @@ export function DataTableFrame({
   empty = "No data to display.",
   footer,
   stickyHeader = false,
+  fill = false,
   children,
   className,
   ...props
@@ -54,8 +62,10 @@ export function DataTableFrame({
   empty?: React.ReactNode
   footer?: React.ReactNode
   stickyHeader?: boolean
+  fill?: boolean
 }) {
   const titleId = useId()
+  const toolsSlot = useFilterBarToolsSlot()
   const [header, setHeader] = useState<HTMLElement | null>(null)
   useLayoutEffect(() => {
     const main = stickyHeader ? header?.closest("main") : null
@@ -78,6 +88,7 @@ export function DataTableFrame({
     FRAME_SURFACE,
     stickyHeader &&
       "overflow-clip [&_tbody_*]:scroll-mt-[calc(var(--sticky-top,0px)+var(--table-header-height,0px))]",
+    fill && "flex min-h-0 flex-col",
     className,
   )
   return (
@@ -89,44 +100,59 @@ export function DataTableFrame({
       className={surface}
       {...props}
     >
-      <header
-        ref={setHeader}
-        className={cn(
-          "flex min-w-0 border-b border-border/50 px-4",
-          stickyHeader
-            ? "sticky top-[var(--sticky-top,0px)] z-20 flex-row items-center justify-between gap-2 bg-card py-2.5"
-            : "flex-wrap items-center justify-between gap-3 py-3 sm:flex-nowrap",
-        )}
-      >
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-baseline gap-2">
-            <h2 id={titleId} className={FRAME_LABEL}>
-              {title}
-            </h2>
-            {count !== undefined && (
-              <span className="text-xs tabular-nums text-muted-foreground">
-                {count.toLocaleString()}
-              </span>
+      {toolsSlot ? (
+        <>
+          <h2 id={titleId} className="sr-only">
+            {title}
+          </h2>
+          {description && <p className="sr-only">{description}</p>}
+          {tools && createPortal(tools, toolsSlot)}
+        </>
+      ) : (
+        <header
+          ref={setHeader}
+          className={cn(
+            "flex min-w-0 border-b border-border/50 px-4",
+            stickyHeader
+              ? "sticky top-[var(--sticky-top,0px)] z-20 flex-row items-center justify-between gap-2 bg-card py-2.5"
+              : "flex-wrap items-center justify-between gap-3 py-3 sm:flex-nowrap",
+          )}
+        >
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-baseline gap-2">
+              <h2 id={titleId} className={FRAME_LABEL}>
+                {title}
+              </h2>
+              {count !== undefined && (
+                <span className="text-xs tabular-nums text-muted-foreground">
+                  {count.toLocaleString()}
+                </span>
+              )}
+            </div>
+            {description && (
+              <p
+                className={
+                  stickyHeader
+                    ? "sr-only"
+                    : "mt-0.5 text-[13px] text-muted-foreground max-md:sr-only"
+                }
+              >
+                {description}
+              </p>
             )}
           </div>
-          {description && (
-            <p
-              className={
-                stickyHeader ? "sr-only" : "mt-0.5 text-[13px] text-muted-foreground max-md:sr-only"
-              }
+          {tools && (
+            <div
+              className={cn(
+                "flex min-w-0 flex-wrap items-center gap-2",
+                stickyHeader && "shrink-0",
+              )}
             >
-              {description}
-            </p>
+              {tools}
+            </div>
           )}
-        </div>
-        {tools && (
-          <div
-            className={cn("flex min-w-0 flex-wrap items-center gap-2", stickyHeader && "shrink-0")}
-          >
-            {tools}
-          </div>
-        )}
-      </header>
+        </header>
+      )}
 
       {state === "loading" && <TableSkeleton />}
       {state === "error" && (
@@ -142,7 +168,11 @@ export function DataTableFrame({
           {empty}
         </div>
       )}
-      {state === "ready" && <div className="min-w-0 overflow-x-auto">{children}</div>}
+      {state === "ready" && (
+        <div className={cn("min-w-0 overflow-x-auto", fill && "flex min-h-0 flex-col")}>
+          {children}
+        </div>
+      )}
 
       {footer && <footer className="border-t border-border/50 px-4 py-3">{footer}</footer>}
     </section>

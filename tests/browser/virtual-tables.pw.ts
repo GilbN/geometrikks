@@ -286,7 +286,15 @@ for (const fixture of [
       .locator("th")
       .evaluateAll((cells) => cells.map((cell) => cell.getBoundingClientRect().width))
 
-    if (!("mobile" in fixture)) {
+    if (!("mobile" in fixture) && fixture.path === "access-logs") {
+      // Under the filter bar the rows scroll inside the card, and the page keeps the pager in view.
+      const main = table.locator("xpath=ancestor::main[1]")
+      expect(await main.evaluate((element) => element.scrollHeight - element.clientHeight)).toBe(0)
+      const pager = page.locator('[data-slot="data-table-frame"] footer')
+      expect(
+        (await pager.boundingBox())!.y + (await pager.boundingBox())!.height,
+      ).toBeLessThanOrEqual(page.viewportSize()!.height)
+    } else if (!("mobile" in fixture)) {
       const container = table.locator("..")
       const main = table.locator("xpath=ancestor::main[1]")
       await main.evaluate((element) => {

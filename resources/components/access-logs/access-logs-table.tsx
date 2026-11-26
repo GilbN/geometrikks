@@ -30,6 +30,7 @@ import {
 } from "@/components/access-logs/columns"
 import { CombinedSortHead } from "@/components/data/combined-sort-head"
 import { TableViewMenu } from "@/components/data/table-view-menu"
+import { useFilterBarToolsSlot } from "@/components/data/filter-bar-slot"
 import { PaginationFooter } from "@/components/ui/pagination-footer"
 import { pageToClamp } from "@/lib/use-muted-page"
 import { useAccessLogs, useCrowdsecLiveUpdates } from "@/lib/queries"
@@ -412,6 +413,8 @@ export function AccessLogsTable({
   const [selected, setSelected] = useState<AccessLog | null>(null)
   const [layoutRef, narrow] = useNarrowLayout<HTMLDivElement>()
   const isMobile = useIsMobile()
+  // Under the filter bar the rows take the height the page has left.
+  const fill = useFilterBarToolsSlot() !== null && !narrow
 
   const { visible, shownColumns, toggleColumn, resetColumns, hasOverrides } = useColumnVisibility(
     "geometrikks-columns-access-logs",
@@ -545,8 +548,9 @@ export function AccessLogsTable({
   return (
     <IpFilterTargetsProvider targetsFor={filterTargetsFor}>
       {/* Around the sheet too, so its IP actions menu gets the page's filters. */}
-      <div ref={layoutRef}>
+      <div ref={layoutRef} className={cn(fill && "flex min-h-0 flex-col")}>
         <DataTableFrame
+          fill={fill}
           title="Request history"
           description="Requests captured in the selected time range. Select a row for the complete record."
           count={data ? total : undefined}
@@ -581,6 +585,7 @@ export function AccessLogsTable({
         >
           <VirtualTable
             narrow={narrow}
+            fill={fill}
             density={density}
             columns={layout === "combined" ? combinedColumns : shownColumns}
             rowCount={rows.length}

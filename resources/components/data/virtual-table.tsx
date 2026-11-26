@@ -52,6 +52,7 @@ export function VirtualTable({
   resetKey,
   narrow = false,
   density = "comfortable",
+  fill = false,
   children,
   ...props
 }: ComponentProps<"table"> & {
@@ -60,6 +61,8 @@ export function VirtualTable({
   resetKey: string
   narrow?: boolean
   density?: RowDensity
+  /** Scroll in whatever height the card gives, instead of a fixed share of the screen. */
+  fill?: boolean
 }) {
   const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null)
   // A narrow table reserves its rows' height in the commit that mounts it, and
@@ -90,7 +93,9 @@ export function VirtualTable({
         {...props}
         containerRef={attachScrollElement}
         containerClassName={
-          narrow ? "overflow-visible" : "max-h-[65dvh] overflow-auto overscroll-x-contain"
+          narrow
+            ? "overflow-visible"
+            : cn("overflow-auto overscroll-x-contain", fill ? "min-h-0" : "max-h-[65dvh]")
         }
         className={cn(
           // The row the docked inspector shows.
