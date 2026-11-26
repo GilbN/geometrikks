@@ -51,7 +51,7 @@ test("the search field opens it, and an action runs after it closes", async ({ p
   await page
     .locator("header")
     .first()
-    .getByRole("button", { name: /^Search IPs, pages and actions/ })
+    .getByRole("button", { name: /^Search IPs, hosts, pages/ })
     .click()
   await expect(palette(page)).toBeVisible()
   await palette(page)
@@ -233,6 +233,122 @@ test("reopening after an IP search starts on the recently inspected list", async
   await expect(palette(page).getByText("IP addresses seen")).toHaveCount(0)
 })
 
+/** The name search, answered with a fixed set whatever is typed. */
+async function mockNameSearch(page: Page) {
+  const asked: string[] = []
+  await page.route(
+    (url) => url.pathname === "/api/v1/access-logs/facets/search",
+    async (route) => {
+      asked.push(new URL(route.request().url()).searchParams.get("q") ?? "")
+      await route.fulfill({
+        json: {
+          countries: [
+            { code: "NO", name: "Norway", hits: 38680 },
+            { code: "MK", name: "North Macedonia", hits: 6 },
+          ],
+          cities: [
+            { city: "Northfield", countryCode: "US", countryName: "United States", hits: 33 },
+          ],
+          hosts: [],
+          servers: [{ server: "north-edge", hits: 900 }],
+          asns: [{ asn: 2119, organization: "Telenor Norge AS", hits: 23986 }],
+        },
+      })
+    },
+  )
+  return asked
+}
+
+test("a country picked from the name search filters the page picked next", async ({ page }) => {
+  const asked = await mockNameSearch(page)
+  await page.goto("/access-logs")
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Access Logs")
+  await page.keyboard.press("Control+k")
+  await page.keyboard.type("nor")
+  const norway = palette(page).getByRole("option", { name: /^Norway / })
+  await expect(norway).toContainText("Country · NO · 38,680 requests")
+  await expect(norway).toHaveAttribute("aria-selected", "true")
+  await expect(palette(page).getByRole("option", { name: /Telenor Norge AS/ })).toContainText(
+    "Network · AS2119",
+  )
+  expect(asked.at(-1)).toBe("nor")
+
+  await page.keyboard.press("Enter")
+  await expect(palette(page).getByRole("button", { name: "Remove Norway" })).toBeVisible()
+  await expect(palette(page).getByRole("combobox")).toHaveValue("")
+  await expect(palette(page).getByRole("option")).toHaveText([
+    /^Analytics/,
+    /^Access Logs/,
+    /^Geo Logs/,
+    /^Map/,
+  ])
+  await page.keyboard.type("geo")
+  await page.keyboard.press("Enter")
+  await expect(page).toHaveURL(/\/geo-logs\?country=%5B%22NO%22%5D/)
+  await expect(palette(page)).toBeHidden()
+})
+
+test("a city keeps its country, so the filter leaves out the same name elsewhere", async ({
+  page,
+}) => {
+  await mockNameSearch(page)
+  await page.goto("/")
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Overview")
+  await page.keyboard.press("Control+k")
+  await page.keyboard.type("north")
+  await palette(page)
+    .getByRole("option", { name: /^Northfield City · United States/ })
+    .click()
+  await palette(page)
+    .getByRole("option", { name: /^Access Logs/ })
+    .click()
+  await expect(page).toHaveURL(/\/access-logs\?.*city=%5B%22Northfield%22%5D/)
+  await expect(page).toHaveURL(/country=%5B%22US%22%5D/)
+})
+
+test("Backspace and Escape step back from the page list to the search", async ({ page }) => {
+  await mockNameSearch(page)
+  await page.goto("/access-logs")
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Access Logs")
+  await page.keyboard.press("Control+k")
+  await page.keyboard.type("nor")
+  await palette(page)
+    .getByRole("option", { name: /^north-edge / })
+    .click()
+  await expect(palette(page).getByRole("button", { name: "Remove north-edge" })).toBeVisible()
+  // A server filters the pages that take one, which leaves out Analytics.
+  await expect(palette(page).getByRole("option", { name: /^Analytics/ })).toHaveCount(0)
+  await page.keyboard.press("Backspace")
+  await expect(palette(page).getByRole("button", { name: /^Remove/ })).toHaveCount(0)
+
+  await page.keyboard.type("nor")
+  await palette(page)
+    .getByRole("option", { name: /^Norway / })
+    .click()
+  await page.keyboard.press("Escape")
+  await expect(palette(page)).toBeVisible()
+  await expect(palette(page).getByRole("button", { name: /^Remove/ })).toHaveCount(0)
+  await page.keyboard.press("Escape")
+  await expect(palette(page)).toBeHidden()
+})
+
+test("an AS number finds its network", async ({ page }) => {
+  await mockNameSearch(page)
+  await page.goto("/access-logs")
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Access Logs")
+  await page.keyboard.press("Control+k")
+  await page.keyboard.type("AS211")
+  // Rows from the answer that no longer hold the text drop out.
+  await expect(palette(page).getByRole("option", { name: /^Norway / })).toHaveCount(0)
+  await palette(page)
+    .getByRole("option", { name: /^Telenor Norge AS/ })
+    .click()
+  await palette(page)
+    .getByRole("option", { name: /^Analytics/ })
+    .click()
+  await expect(page).toHaveURL(/\/analytics\?asn=%5B2119%5D/)
+})
+
 test.describe("on a phone", () => {
   test.use({ viewport: { width: 393, height: 852 }, hasTouch: true, isMobile: true })
 
@@ -309,5 +425,23 @@ test.describe("on a phone", () => {
     await expect(row).toContainText("Example Hosting · 71 requests")
     await row.click()
     await expect(page).toHaveURL(/inspect=198\.51\.100\.14/)
+  })
+
+  test("a country picked from the name search becomes a chip in the field", async ({ page }) => {
+    await mockNameSearch(page)
+    await page.goto("/access-logs")
+    await page.locator("header").getByRole("button", { name: "Search and commands" }).click()
+    await page.keyboard.type("nor")
+    await palette(page)
+      .getByRole("option", { name: /^Norway / })
+      .click()
+    const chip = palette(page).getByRole("button", { name: "Remove Norway" })
+    await expect(chip).toBeVisible()
+    await expect(palette(page).getByRole("option", { name: /^Map/ })).toContainText(
+      "Country is Norway",
+    )
+    await palette(page).getByRole("option", { name: /^Map/ }).click()
+    await expect(page).toHaveURL(/\/map\?countries=%5B%22NO%22%5D/)
+    await expect(palette(page)).toBeHidden()
   })
 })

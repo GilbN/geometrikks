@@ -55,6 +55,14 @@ import {
   RowText,
   type IpActions,
 } from "@/components/command-palette/ip-results"
+import {
+  FilterValueGroups,
+  NAME_ROW,
+  PickedChip,
+  PickedTargets,
+  pickedLabel,
+  type PickedValue,
+} from "@/components/command-palette/filter-value-results"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { useIpInspector } from "@/lib/ip-inspector"
 import { canonicalIp, parseIpQuery } from "@/lib/ip-prefix"
@@ -132,9 +140,11 @@ function keepKeyFromList(event: KeyboardEvent) {
   if (event.key === "Enter") event.stopPropagation()
 }
 
-/** IP rows come from the server, which already matched them, so the typed text never hides them. */
+/** IP and name rows come from the server, which already matched them, so the typed text never hides them. */
 function paletteFilter(value: string, search: string, keywords?: string[]): number {
-  return value.startsWith(IP_ROW) ? 1 : defaultFilter(value, search, keywords)
+  return value.startsWith(IP_ROW) || value.startsWith(NAME_ROW)
+    ? 1
+    : defaultFilter(value, search, keywords)
 }
 
 /** cmdk's empty message sits in the listbox, which screen readers don't announce. */
@@ -235,6 +245,8 @@ export function CommandPalette() {
   const [ipStatus, setIpStatus] = useState("")
   // A touch screen hides the highlight on the picked row until the arrow keys move it.
   const [arrowKeysUsed, setArrowKeysUsed] = useState(false)
+  // A country, city, host, server or network picked from the name search, waiting for a page.
+  const [picked, setPicked] = useState<PickedValue | null>(null)
   // Each opening starts empty. Clearing on open, not on close, keeps the list
   // as it was while the dialog fades out.
   const [wasOpen, setWasOpen] = useState(isOpen)
@@ -243,6 +255,7 @@ export function CommandPalette() {
     if (isOpen) {
       setSearch("")
       setArrowKeysUsed(false)
+      setPicked(null)
     }
   }
   const settledSearch = useDebouncedValue(search, 150)
@@ -279,6 +292,16 @@ export function CommandPalette() {
   }
 
   const onAddress = selected.startsWith(ADDRESS_ROW)
+
+  const pick = (value: PickedValue) => {
+    setPicked(value)
+    setSearch("")
+    inputRef.current?.focus()
+  }
+  const unpick = () => {
+    setPicked(null)
+    inputRef.current?.focus()
+  }
 
   const ipActions: IpActions = {
     inspect: (ip) => run(() => inspect(ip)),
@@ -368,6 +391,12 @@ export function CommandPalette() {
             "top-0 left-0 flex h-dvh w-full max-w-none translate-x-0 flex-col rounded-none! border-0 bg-background pt-[env(safe-area-inset-top,0px)] pr-[env(safe-area-inset-right,0px)] pl-[env(safe-area-inset-left,0px)] shadow-none data-[state=closed]:zoom-out-100 data-[state=open]:zoom-in-100 sm:max-w-none",
         )}
         style={sheetBox ? { top: sheetBox.top, height: sheetBox.height } : undefined}
+        onEscapeKeyDown={(event) => {
+          // Escape steps back from the page list to the search before it closes the palette.
+          if (!picked) return
+          event.preventDefault()
+          unpick()
+        }}
         onCloseAutoFocus={(event) => {
           const { opener, action } = takeCommandPaletteClose()
           // Opened from the keyboard there is no trigger to return to, so focus goes
@@ -388,11 +417,16 @@ export function CommandPalette() {
         <Command
           className={cn("bg-transparent", phone && "min-h-0 flex-1 rounded-none! p-0")}
           vimBindings={false}
-          label="Search IPs, pages and actions"
+          label="Search IPs, hosts, countries, pages and actions"
           filter={paletteFilter}
 
           onKeyDown={(event) => {
             if (event.key === "ArrowDown" || event.key === "ArrowUp") setArrowKeysUsed(true)
+            if (event.key === "Backspace" && picked && search === "") {
+              event.preventDefault()
+              unpick()
+              return
+            }
             // Ctrl+Enter opens an address in Access Logs instead of the inspector.
             const value =
               event.currentTarget
@@ -406,10 +440,19 @@ export function CommandPalette() {
         >
           {phone ? (
             <div className="flex items-center gap-3 border-b border-border/60 py-2.5 pr-4 pl-4 [&_[data-slot=command-input-wrapper]]:p-0 [&_[data-slot=input-group]]:h-11! [&_[data-slot=input-group]]:rounded-xl! [&_[data-slot=input-group]]:border-border [&_[data-slot=command-input]]:text-base">
-              <div className="relative min-w-0 flex-1">
+              <div
+                className={cn(
+                  "relative min-w-0 flex-1",
+                  picked &&
+                    "flex items-center rounded-xl border border-border bg-input/30 pl-1.5 [&_[data-slot=command-input-wrapper]]:min-w-0 [&_[data-slot=command-input-wrapper]]:flex-1 [&_[data-slot=input-group-addon]]:hidden [&_[data-slot=input-group]]:border-0! [&_[data-slot=input-group]]:bg-transparent!",
+                )}
+              >
+                {picked && (
+                  <PickedChip picked={picked} onRemove={unpick} onKeyDown={keepKeyFromList} />
+                )}
                 <CommandInput
                   ref={inputRef}
-                  placeholder="Search IPs, pages and actions"
+                  placeholder={picked ? "Pick a page" : "IP, host, country or action"}
                   className={cn(search !== "" && "pr-9")}
                   value={search}
                   onValueChange={setSearch}
@@ -439,10 +482,21 @@ export function CommandPalette() {
               </button>
             </div>
           ) : (
-            <div className="relative border-b border-border/60 [&_[data-slot=command-input-wrapper]]:p-2 [&_[data-slot=input-group]]:h-11! [&_[data-slot=input-group]]:border-0 [&_[data-slot=input-group]]:bg-transparent [&_[data-slot=command-input]]:text-base">
+            <div
+              className={cn(
+                "relative border-b border-border/60 [&_[data-slot=command-input-wrapper]]:p-2 [&_[data-slot=input-group]]:h-11! [&_[data-slot=input-group]]:border-0 [&_[data-slot=input-group]]:bg-transparent [&_[data-slot=command-input]]:text-base",
+                picked &&
+                  "flex items-center pl-4 [&_[data-slot=command-input-wrapper]]:min-w-0 [&_[data-slot=command-input-wrapper]]:flex-1 [&_[data-slot=input-group-addon]]:hidden",
+              )}
+            >
+              {picked && (
+                <PickedChip picked={picked} onRemove={unpick} onKeyDown={keepKeyFromList} />
+              )}
               <CommandInput
                 ref={inputRef}
-                placeholder="Search IPs, pages and actions"
+                placeholder={
+                  picked ? "Pick a page" : "Search IPs, hosts, countries, pages and actions"
+                }
                 className="pr-14"
                 value={search}
                 onValueChange={setSearch}
@@ -466,36 +520,50 @@ export function CommandPalette() {
             )}
           >
             <CommandEmpty>Nothing matches.</CommandEmpty>
-            {ipQuery ? (
-              <IpSearchGroups
-                query={ipQuery}
-                actions={ipActions}
-                crowdsecEnabled={crowdsec?.enabled === true}
-                canBan={crowdsec?.writeEnabled === true}
-                enabled={isOpen}
-                current={settledSearch === search}
-                onStatus={setIpStatus}
-              />
-            ) : (
-              search === "" && (
-                <RecentIpsGroup ips={recentIps} actions={ipActions} enabled={isOpen} />
-              )
-            )}
-            {phone ? (
-              <>
-                {actions}
-                {goTo}
-              </>
+            {picked ? (
+              <PickedTargets picked={picked} onGo={(go) => run(() => go(navigate))} />
             ) : (
               <>
-                {goTo}
-                {actions}
+                {ipQuery ? (
+                  <IpSearchGroups
+                    query={ipQuery}
+                    actions={ipActions}
+                    crowdsecEnabled={crowdsec?.enabled === true}
+                    canBan={crowdsec?.writeEnabled === true}
+                    enabled={isOpen}
+                    current={settledSearch === search}
+                    onStatus={setIpStatus}
+                  />
+                ) : (
+                  search === "" && (
+                    <RecentIpsGroup ips={recentIps} actions={ipActions} enabled={isOpen} />
+                  )
+                )}
+                {!ipQuery && (
+                  <FilterValueGroups
+                    search={search}
+                    settled={settledSearch}
+                    enabled={isOpen}
+                    onPick={pick}
+                  />
+                )}
+                {phone ? (
+                  <>
+                    {actions}
+                    {goTo}
+                  </>
+                ) : (
+                  <>
+                    {goTo}
+                    {actions}
+                  </>
+                )}
               </>
             )}
           </CommandList>
           <NoMatchStatus />
           <div role="status" className="sr-only">
-            {ipStatus}
+            {picked ? `${pickedLabel(picked)}. Pick a page.` : ipStatus}
           </div>
           <SelectionMirror onChange={setSelected} />
         </Command>
@@ -558,7 +626,7 @@ export function CommandPaletteField() {
         className="hidden h-9 w-80 items-center gap-2 rounded-md border border-input bg-input/30 px-3 text-left text-[13px] text-muted-foreground transition-colors hover:bg-input/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring @4xl:flex"
       >
         <Search aria-hidden className="size-4 shrink-0" />
-        <span className="min-w-0 flex-1 truncate">Search IPs, pages and actions…</span>
+        <span className="min-w-0 flex-1 truncate">Search IPs, hosts, pages…</span>
         <KbdGroup aria-hidden>
           <Kbd className={KEY}>{modifierLabel()}</Kbd>
           <Kbd className={KEY}>K</Kbd>
