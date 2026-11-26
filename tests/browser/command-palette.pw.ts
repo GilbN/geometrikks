@@ -233,25 +233,38 @@ test("reopening after an IP search starts on the recently inspected list", async
   await expect(palette(page).getByText("IP addresses seen")).toHaveCount(0)
 })
 
-/** The name search, answered with a fixed set whatever is typed. */
+/** The name search, answered from a fixed set the way the server matches it. */
 async function mockNameSearch(page: Page) {
   const asked: string[] = []
+  const all = {
+    countries: [
+      { code: "NO", name: "Norway", hits: 38680 },
+      { code: "MK", name: "North Macedonia", hits: 6 },
+    ],
+    cities: [
+      { city: "Northfield", countryCode: "US", countryName: "United States", hits: 33 },
+      { city: "Accra", countryCode: "GH", countryName: "Ghana", hits: 12 },
+    ],
+    hosts: [{ host: "git.example.com", hits: 300 }],
+    servers: [{ server: "north-edge", hits: 900 }],
+    asns: [{ asn: 2119, organization: "Telenor Norge AS", hits: 23986 }],
+  }
   await page.route(
     (url) => url.pathname === "/api/v1/access-logs/facets/search",
     async (route) => {
-      asked.push(new URL(route.request().url()).searchParams.get("q") ?? "")
+      const q = (new URL(route.request().url()).searchParams.get("q") ?? "").toLowerCase()
+      asked.push(q)
+      const holds = (name: string) => name.toLowerCase().includes(q)
+      const digits = /^(?:as)?(\d+)$/.exec(q)?.[1]
       await route.fulfill({
         json: {
-          countries: [
-            { code: "NO", name: "Norway", hits: 38680 },
-            { code: "MK", name: "North Macedonia", hits: 6 },
-          ],
-          cities: [
-            { city: "Northfield", countryCode: "US", countryName: "United States", hits: 33 },
-          ],
-          hosts: [],
-          servers: [{ server: "north-edge", hits: 900 }],
-          asns: [{ asn: 2119, organization: "Telenor Norge AS", hits: 23986 }],
+          countries: all.countries.filter((c) => holds(c.name) || c.code.toLowerCase() === q),
+          cities: all.cities.filter((c) => holds(c.city)),
+          hosts: all.hosts.filter((c) => holds(c.host)),
+          servers: all.servers.filter((c) => holds(c.server)),
+          asns: all.asns.filter(
+            (c) => holds(c.organization) || (digits && String(c.asn).startsWith(digits)),
+          ),
         },
       })
     },
@@ -332,13 +345,43 @@ test("Backspace and Escape step back from the page list to the search", async ({
   await expect(palette(page)).toBeHidden()
 })
 
+test("a page whose name starts with the text stays first above the places", async ({ page }) => {
+  await mockNameSearch(page)
+  await page.goto("/")
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Overview")
+  await page.keyboard.press("Control+k")
+  await page.keyboard.type("acc")
+  await expect(palette(page).getByRole("option", { name: /^Accra / })).toBeVisible()
+  await expect(palette(page).getByRole("option", { name: /^Access Logs/ })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  )
+  await page.keyboard.press("Enter")
+  await expect(page).toHaveURL(/\/access-logs/)
+})
+
+test("name rows take the highlight from a loose match that came first", async ({ page }) => {
+  await mockNameSearch(page)
+  await page.goto("/access-logs")
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Access Logs")
+  await page.keyboard.press("Control+k")
+  await page.keyboard.type("git")
+  // "Change the time range" holds g, i and t, so cmdk highlights it before the hosts come.
+  await expect(palette(page).getByRole("option", { name: /^git\.example\.com/ })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  )
+  await page.keyboard.press("Enter")
+  await expect(palette(page).getByRole("button", { name: "Remove git.example.com" })).toBeVisible()
+})
+
 test("an AS number finds its network", async ({ page }) => {
   await mockNameSearch(page)
   await page.goto("/access-logs")
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Access Logs")
   await page.keyboard.press("Control+k")
   await page.keyboard.type("AS211")
-  // Rows from the answer that no longer hold the text drop out.
+  // Rows from an earlier answer that no longer hold the text drop out before the next one comes.
   await expect(palette(page).getByRole("option", { name: /^Norway / })).toHaveCount(0)
   await palette(page)
     .getByRole("option", { name: /^Telenor Norge AS/ })

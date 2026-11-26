@@ -63,18 +63,31 @@ class TestMatch:
     def test_ignores_case_and_accents(self) -> None:
         assert [city.city for city in match_filter_values(_totals(), "MALMO", 4).cities] == ["Malmö"]
 
+    def test_folds_letters_without_a_decomposition(self) -> None:
+        assert fold("Tromsø") == "tromso"
+        assert fold("København") == "kobenhavn"
+        assert fold("Gießen") == "giessen"
+        assert fold("Łódź") == "lodz"
+
     def test_the_same_city_in_two_countries_is_two_matches(self) -> None:
         cities = match_filter_values(_totals(), "paris", 4).cities
         assert [(city.city, city.country_code) for city in cities] == [("Paris", "FR"), ("Paris", "US")]
 
     def test_country_matches_its_exact_code(self) -> None:
         assert [country.code for country in match_filter_values(_totals(), "se", 4).countries] == ["SE"]
-        assert match_filter_values(_totals(), "s", 4).countries[0].code == "SE"
+        assert match_filter_values(_totals(), "sw", 4).countries[0].code == "SE"
 
     def test_as_number_matches_from_the_first_digits(self) -> None:
         assert [asn.asn for asn in match_filter_values(_totals(), "2494", 4).asns] == [24940]
         assert [asn.asn for asn in match_filter_values(_totals(), "AS249", 4).asns] == [24940, 24961]
         assert match_filter_values(_totals(), "940", 4).asns == []
+
+    def test_digits_also_match_network_names(self) -> None:
+        totals = FilterValueTotals(
+            countries=[], cities=[], hosts=[], servers=[],
+            asns=[_Entry(fold("24Shells"), 10, AsnMatch(asn=55081, organization="24Shells", hits=10))],
+        )
+        assert [asn.asn for asn in match_filter_values(totals, "24", 4).asns] == [55081]
 
     def test_hosts_and_servers(self) -> None:
         found = match_filter_values(_totals(), "example", 4)
@@ -82,8 +95,13 @@ class TestMatch:
         assert [server.server for server in match_filter_values(_totals(), "edg", 4).servers] == ["edge"]
 
     def test_limit_applies_per_kind(self) -> None:
-        found = match_filter_values(_totals(), "a", 1)
-        assert len(found.cities) == 1 and len(found.asns) == 1 and len(found.servers) == 1
+        assert len(match_filter_values(_totals(), "pa", 1).cities) == 1
+        assert len(match_filter_values(_totals(), "no", 1).asns) == 1
+
+    def test_blank_or_one_letter_after_folding_finds_nothing(self) -> None:
+        for query in ("   ", " a ", "\u0301\u0301"):
+            found = match_filter_values(_totals(), query, 4)
+            assert found.countries == found.cities == found.hosts == found.asns == []
 
     def test_query_is_trimmed(self) -> None:
         assert match_filter_values(_totals(), "  norway ", 4).countries[0].code == "NO"
@@ -127,6 +145,28 @@ class TestCache:
             assert await cache.get(broken) is first
             await cache.wait_for_reload()
             assert await cache.get(broken) is first
+
+        asyncio.run(run())
+
+    def test_a_reload_from_before_clear_does_not_come_back(self) -> None:
+        now = [0.0]
+        cache = FilterValueTotalsCache(ttl_seconds=300, clock=lambda: now[0])
+        gate = asyncio.Event()
+        old, new = _totals(), _totals()
+
+        async def slow_old() -> FilterValueTotals:
+            await gate.wait()
+            return old
+
+        async def run() -> None:
+            await cache.get(lambda: asyncio.sleep(0, _totals()))
+            now[0] = 400
+            await cache.get(slow_old)
+            cache.clear()
+            assert await cache.get(lambda: asyncio.sleep(0, new)) is new
+            gate.set()
+            await cache.wait_for_reload()
+            assert await cache.get(slow_old) is new
 
         asyncio.run(run())
 

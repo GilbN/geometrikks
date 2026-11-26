@@ -36,13 +36,20 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 TOTALS_TTL_SECONDS = 5 * 60
-_AS_NUMBER = re.compile(r"(?:as)?(\d+)")
+_AS_NUMBER = re.compile(r"(?:as)?(\d+)", re.ASCII)
+# The palette asks from this length. Folding can shorten a query below it.
+MIN_QUERY_LENGTH = 2
+
+
+# Letters that no decomposition breaks down. The palette folds names the same way.
+_PLAIN_LETTERS = str.maketrans({"ø": "o", "æ": "ae", "œ": "oe", "ł": "l", "đ": "d", "ð": "d", "þ": "th"})
 
 
 def fold(value: str) -> str:
-    """Lower case without accents, so "malmo" finds Malmö."""
+    """Lower case without accents, so "malmo" finds Malmö and "tromso" finds Tromsø."""
     decomposed = unicodedata.normalize("NFKD", value)
-    return "".join(char for char in decomposed if not unicodedata.combining(char)).casefold()
+    bare = "".join(char for char in decomposed if not unicodedata.combining(char))
+    return bare.casefold().translate(_PLAIN_LETTERS)
 
 
 @dataclass(frozen=True, slots=True)
@@ -122,18 +129,26 @@ def _build_totals(
 
     country_hits: dict[str, int] = {}
     country_names: dict[str, str] = {}
-    cities: list[_Entry[CityMatch]] = []
     for row in place_rows:
-        hits = int(row.hits)
-        country_hits[row.country_code] = country_hits.get(row.country_code, 0) + hits
-        if row.country_name:
+        country_hits[row.country_code] = country_hits.get(row.country_code, 0) + int(row.hits)
+        # A GeoLite2 update can rename a country, so locations can hold two spellings.
+        # The alphabetically greater one always wins, for the country and each of its cities.
+        if row.country_name and row.country_name > country_names.get(row.country_code, ""):
             country_names[row.country_code] = row.country_name
-        if row.city:
-            cities.append(_Entry(
-                key(row.city),
-                hits,
-                CityMatch(city=row.city, country_code=row.country_code, country_name=row.country_name, hits=hits),
-            ))
+    cities = [
+        _Entry(
+            key(row.city),
+            int(row.hits),
+            CityMatch(
+                city=row.city,
+                country_code=row.country_code,
+                country_name=country_names.get(row.country_code),
+                hits=int(row.hits),
+            ),
+        )
+        for row in place_rows
+        if row.city
+    ]
     countries = [
         _Entry(key(name), hits, CountryMatch(code=code, name=name, hits=hits))
         for code, hits in country_hits.items()
@@ -166,9 +181,11 @@ def match_filter_values(totals: FilterValueTotals, query: str, limit: int) -> Fi
 
     A country also matches its exact two-letter code, and a network its
     number: "2494" and "AS2494" find AS24940 and every other number that
-    starts with those digits.
+    starts with those digits, as well as names that hold them.
     """
     needle = fold(query.strip())
+    if len(needle) < MIN_QUERY_LENGTH:
+        return FilterValueMatches(countries=[], cities=[], hosts=[], servers=[], asns=[])
 
     def first[T](entries: list[_Entry[T]], hit: Callable[[_Entry[T]], bool]) -> list[T]:
         found: list[T] = []
@@ -188,9 +205,7 @@ def match_filter_values(totals: FilterValueTotals, query: str, limit: int) -> Fi
         servers=first(totals.servers, lambda entry: needle in entry.key),
         asns=first(
             totals.asns,
-            (lambda entry: str(entry.match.asn).startswith(digits))
-            if digits is not None
-            else (lambda entry: needle in entry.key),
+            lambda entry: needle in entry.key or (digits is not None and str(entry.match.asn).startswith(digits)),
         ),
     )
 
@@ -209,6 +224,8 @@ class FilterValueTotalsCache:
         self._totals: FilterValueTotals | None = None
         self._loaded_at = 0.0
         self._reload: asyncio.Task[None] | None = None
+        # A reload that started before clear() must not put its older totals back.
+        self._generation = 0
 
     async def get(self, load: Callable[[], Awaitable[FilterValueTotals]]) -> FilterValueTotals:
         if self._totals is None:
@@ -218,15 +235,17 @@ class FilterValueTotalsCache:
                     self._loaded_at = self._clock()
             return self._totals
         if self._clock() - self._loaded_at >= self._ttl and (self._reload is None or self._reload.done()):
-            self._reload = asyncio.create_task(self._reload_in_background(load))
+            self._reload = asyncio.create_task(self._reload_in_background(load, self._generation))
         return self._totals
 
-    async def _reload_in_background(self, load: Callable[[], Awaitable[FilterValueTotals]]) -> None:
+    async def _reload_in_background(self, load: Callable[[], Awaitable[FilterValueTotals]], generation: int) -> None:
         try:
             totals = await load()
         except Exception:
             # The old totals keep serving, and the next search past the limit tries again.
             logger.exception("filter_value_totals_reload_failed")
+            return
+        if generation != self._generation:
             return
         self._totals = totals
         self._loaded_at = self._clock()
@@ -236,6 +255,7 @@ class FilterValueTotalsCache:
             await self._reload
 
     def clear(self) -> None:
+        self._generation += 1
         self._totals = None
 
 

@@ -7,7 +7,7 @@ from advanced_alchemy.filters import FilterTypes, LimitOffset
 from advanced_alchemy.repository import SQLAlchemyAsyncRepository
 from advanced_alchemy.service import SQLAlchemyAsyncRepositoryService
 from sqlalchemy import func, select, text
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession
 
 from geometrikks.domain.exceptions import DomainValidationError
 from geometrikks.domain.logs.filter_value_search import (
@@ -117,10 +117,12 @@ class AccessLogService(SQLAlchemyAsyncRepositoryService[AccessLog]):
     async def search_filter_values(self, query: str, limit: int) -> FilterValueMatches:
         """The busiest countries, cities, hosts, servers and ASNs whose name holds ``query``."""
         bind = self.repository.session.bind
+        # A reload outlives the request, so it needs the engine, not the request's own connection.
+        engine = bind.engine if isinstance(bind, AsyncConnection) else bind
 
         async def load() -> FilterValueTotals:
             # Its own session: a reload can outlive the request that started it.
-            async with AsyncSession(bind) as session:
+            async with AsyncSession(engine) as session:
                 return await load_filter_value_totals(session)
 
         totals = await filter_value_totals.get(load)

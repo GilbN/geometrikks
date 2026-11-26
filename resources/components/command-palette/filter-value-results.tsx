@@ -4,7 +4,7 @@
  * chip in the field, and the list then offers the pages that take it as a
  * filter.
  */
-import type { ReactNode } from "react"
+import { useEffect, type ReactNode } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { useNavigate } from "@tanstack/react-router"
 import {
@@ -33,10 +33,15 @@ import { flagUrl } from "@/lib/country-flags"
 import { requestAccessLogsTab } from "@/lib/live-tail-request"
 import { usePhoneLayout } from "@/hooks/use-phone-map"
 
+/** The chip's text. The search field points at it with aria-describedby. */
+export const PICKED_LABEL_ID = "command-palette-picked"
+
 /** Values of name rows start with this, so the palette's filter lets them through. */
 export const NAME_ROW = "name:"
 /** Shorter text matches too much to be worth a request. */
 export const NAME_SEARCH_MIN = 2
+/** The server turns longer text away. */
+const NAME_SEARCH_MAX = 100
 const SHOWN = 4
 
 export type PickedValue =
@@ -50,9 +55,25 @@ type Navigate = ReturnType<typeof useNavigate>
 
 type Target = { page: string; icon: LucideIcon; go: (navigate: Navigate) => void }
 
+// Letters that no decomposition breaks down, folded as the server folds them.
+const PLAIN_LETTERS: Record<string, string> = {
+  ß: "ss",
+  ø: "o",
+  æ: "ae",
+  œ: "oe",
+  ł: "l",
+  đ: "d",
+  ð: "d",
+  þ: "th",
+}
+
 /** Lower case without accents, as the server matches. */
 function fold(value: string): string {
-  return value.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase()
+  return value
+    .normalize("NFKD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .replace(/[ßøæœłđðþ]/g, (letter) => PLAIN_LETTERS[letter])
 }
 
 const AS_NUMBER = /^(?:as)?(\d+)$/
@@ -153,8 +174,10 @@ function requests(hits: number): string {
 /** The typed text in bold color wherever the name holds it, accents or not. */
 function Marked({ text, typed }: { text: string; typed: string }) {
   const at = fold(text).indexOf(fold(typed))
-  // Folding can change the length of a name, and then the mark would land off target.
-  if (at < 0 || fold(text).length !== text.length) return <>{text}</>
+  // Folding can change the length of either text, and then the mark would land off target.
+  if (at < 0 || fold(text).length !== text.length || fold(typed).length !== typed.length) {
+    return <>{text}</>
+  }
   return (
     <>
       {text.slice(0, at)}
@@ -192,8 +215,9 @@ export function useFilterValueSearch(text: string, enabled: boolean) {
   return useQuery({
     queryKey: ["command-palette", "filter-values", query],
     queryFn: ({ signal }) => fetchFilterValueMatches(query, SHOWN, signal),
-    enabled: enabled && query.length >= NAME_SEARCH_MIN,
-    staleTime: 60_000,
+    enabled: enabled && query.length >= NAME_SEARCH_MIN && query.length <= NAME_SEARCH_MAX,
+    // The server can answer from old totals while it reloads them, so a repeat search asks again.
+    staleTime: 0,
     placeholderData: (previous) => previous,
   })
 }
@@ -201,13 +225,15 @@ export function useFilterValueSearch(text: string, enabled: boolean) {
 type Row = { key: string; picked: PickedValue; icon: ReactNode; name: ReactNode; detail: ReactNode }
 
 /**
- * Builds the rows for `typed`. Results for shorter text stay up while the
- * next request runs, so only the rows that still hold the typed text show.
+ * Builds the rows for `typed`. Results for other text stay up while the next
+ * request runs, and `stale` then keeps only the rows that still hold the
+ * typed text. A current answer shows as the server sent it.
  */
-function rows(data: FilterValueMatches, typed: string): [string, Row[]][] {
+function rows(data: FilterValueMatches, typed: string, stale: boolean): [string, Row[]][] {
   const needle = fold(typed.trim())
   const digits = AS_NUMBER.exec(needle)?.[1]
-  const holds = (name: string | null) => name !== null && fold(name).includes(needle)
+  const numberHit = (asn: number) => digits !== undefined && String(asn).startsWith(digits)
+  const holds = (name: string | null) => !stale || (name !== null && fold(name).includes(needle))
   const countries: Row[] = data.countries
     .filter((country) => holds(country.name) || fold(country.code) === needle)
     .map((country) => ({
@@ -256,28 +282,29 @@ function rows(data: FilterValueMatches, typed: string): [string, Row[]][] {
       detail: `Server · ${requests(server.hits)}`,
     }))
   const asns: Row[] = data.asns
-    .filter((asn) => (digits ? String(asn.asn).startsWith(digits) : holds(asn.organization)))
+    .filter((asn) => numberHit(asn.asn) || holds(asn.organization))
     .map((asn) => ({
       key: `asn:${asn.asn}`,
       picked: { kind: "asn", asn: asn.asn, organization: asn.organization },
       icon: <ItemIcon icon={Network} />,
-      name: digits ? (
+      name: numberHit(asn.asn) ? (
         (asn.organization ?? `AS${asn.asn}`)
       ) : (
         <Marked text={asn.organization ?? `AS${asn.asn}`} typed={typed.trim()} />
       ),
-      detail: digits ? (
-        <>
-          Network ·{" "}
-          <span className="font-mono">
-            <span className="font-semibold text-primary">AS{digits}</span>
-            {String(asn.asn).slice(digits.length)}
-          </span>{" "}
-          · {requests(asn.hits)}
-        </>
-      ) : (
-        `Network · AS${asn.asn} · ${requests(asn.hits)}`
-      ),
+      detail:
+        digits !== undefined && numberHit(asn.asn) ? (
+          <>
+            Network ·{" "}
+            <span className="font-mono">
+              <span className="font-semibold text-primary">AS{digits}</span>
+              {String(asn.asn).slice(digits.length)}
+            </span>{" "}
+            · {requests(asn.hits)}
+          </>
+        ) : (
+          `Network · AS${asn.asn} · ${requests(asn.hits)}`
+        ),
     }))
   return [
     ["Countries", countries],
@@ -297,17 +324,36 @@ export function FilterValueGroups({
   settled,
   enabled,
   onPick,
+  onArrived,
 }: {
   search: string
   settled: string
   enabled: boolean
   onPick: (picked: PickedValue) => void
+  /** Runs once the answer for the text shows, so the palette can move its highlight to it. */
+  onArrived: () => void
 }) {
-  const { data, isFetching } = useFilterValueSearch(settled, enabled)
-  if (search.trim().length < NAME_SEARCH_MIN) return null
-  // The first search after a restart waits for the server to add up its totals.
-  if (!data) {
-    if (!isFetching && settled.trim() === search.trim()) return null
+  // The field can still hold the last opening's text for the debounce after it was cleared.
+  const asking = enabled && search.trim().length >= NAME_SEARCH_MIN
+  const { data, dataUpdatedAt, isFetching, isPlaceholderData } = useFilterValueSearch(
+    settled,
+    asking,
+  )
+  const current = !isPlaceholderData && settled.trim() === search.trim()
+  const groups =
+    data && asking
+      ? rows(data, search, !current).filter(([, groupRows]) => groupRows.length > 0)
+      : []
+  const arrived = current && groups.length > 0 ? `${settled.trim()}@${dataUpdatedAt}` : null
+  useEffect(() => {
+    if (arrived) onArrived()
+    // Only a new answer moves the highlight. A new onArrived each render must not.
+  }, [arrived])
+  if (!asking) return null
+  if (groups.length === 0) {
+    // Without this row, "Nothing matches" would show and be read out before the answer comes.
+    // The first search after a restart also waits here while the server adds up its totals.
+    if (current && !isFetching) return null
     return (
       <CommandGroup className={GROUP}>
         <CommandItem disabled value={`${NAME_ROW}searching`} className={ITEM}>
@@ -321,26 +367,27 @@ export function FilterValueGroups({
   }
   return (
     <>
-      {rows(data, search)
-        .filter(([, groupRows]) => groupRows.length > 0)
-        .map(([heading, groupRows]) => (
-          <CommandGroup key={heading} heading={heading} className={GROUP}>
-            {groupRows.map((row) => (
-              <CommandItem
-                key={row.key}
-                value={`${NAME_ROW}${row.key}`}
-                onSelect={() => onPick(row.picked)}
-                className={ITEM}
+      {groups.map(([heading, groupRows]) => (
+        <CommandGroup key={heading} heading={heading} className={GROUP}>
+          {groupRows.map((row) => (
+            <CommandItem
+              key={row.key}
+              value={`${NAME_ROW}${row.key}`}
+              onSelect={() => onPick(row.picked)}
+              className={ITEM}
+            >
+              {row.icon}
+              <RowText
+                // A narrow phone wraps a long country name and count instead of cutting them off.
+                detail={<span className="phone:whitespace-normal">{row.detail}</span>}
               >
-                {row.icon}
-                <RowText detail={row.detail}>
-                  <span className="min-w-0 truncate">{row.name}</span>
-                </RowText>
-                <NextStep />
-              </CommandItem>
-            ))}
-          </CommandGroup>
-        ))}
+                <span className="min-w-0 truncate">{row.name}</span>
+              </RowText>
+              <NextStep />
+            </CommandItem>
+          ))}
+        </CommandGroup>
+      ))}
     </>
   )
 }
@@ -398,7 +445,7 @@ export function PickedChip({
   const Icon = picked.kind === "country" ? null : CHIP_ICON[picked.kind]
   const flag = picked.kind === "country" ? flagUrl(picked.code) : undefined
   return (
-    <span className="flex max-w-[60%] min-w-0 shrink-0 items-center gap-1.5 rounded-md bg-primary/12 py-1 pr-1 pl-2 text-sm font-medium text-foreground ring-1 ring-primary/40">
+    <span className="flex max-w-[72%] min-w-0 shrink-0 items-center gap-1.5 rounded-md bg-primary/12 py-1 pr-1 pl-2 text-sm font-medium text-foreground ring-1 ring-primary/40">
       {flag ? (
         <img src={flag} alt="" className="h-3 w-[18px] shrink-0 rounded-[2px] object-cover" />
       ) : Icon ? (
@@ -406,13 +453,15 @@ export function PickedChip({
       ) : (
         <Globe aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
       )}
-      <span className="min-w-0 truncate">{label}</span>
+      <span id={PICKED_LABEL_ID} className="min-w-0 truncate">
+        {label}
+      </span>
       <button
         type="button"
         aria-label={`Remove ${label}`}
         onKeyDown={onKeyDown}
         onClick={onRemove}
-        className="grid size-6 shrink-0 place-items-center rounded-sm text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+        className="grid size-6 shrink-0 place-items-center rounded-sm text-muted-foreground pointer-coarse:size-8 hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
       >
         <X aria-hidden className="size-3.5" />
       </button>

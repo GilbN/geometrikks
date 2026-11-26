@@ -58,6 +58,7 @@ import {
 import {
   FilterValueGroups,
   NAME_ROW,
+  PICKED_LABEL_ID,
   PickedChip,
   PickedTargets,
   pickedLabel,
@@ -140,11 +141,19 @@ function keepKeyFromList(event: KeyboardEvent) {
   if (event.key === "Enter") event.stopPropagation()
 }
 
-/** IP and name rows come from the server, which already matched them, so the typed text never hides them. */
+/** Name rows score this. A page or action whose name starts with the text scores more. */
+const NAME_ROW_SCORE = 0.5
+
+/**
+ * IP and name rows come from the server, which already matched them, so the
+ * typed text never hides them. Name rows rank under a page or action whose
+ * name starts with the text, so "acc" and Enter still opens Access Logs and
+ * not Accra.
+ */
 function paletteFilter(value: string, search: string, keywords?: string[]): number {
-  return value.startsWith(IP_ROW) || value.startsWith(NAME_ROW)
-    ? 1
-    : defaultFilter(value, search, keywords)
+  if (value.startsWith(IP_ROW)) return 1
+  if (value.startsWith(NAME_ROW)) return NAME_ROW_SCORE
+  return defaultFilter(value, search, keywords)
 }
 
 /** cmdk's empty message sits in the listbox, which screen readers don't announce. */
@@ -242,6 +251,8 @@ export function CommandPalette() {
   const report = useAbuseReportDialog()
   const [search, setSearch] = useState("")
   const [selected, setSelected] = useState("")
+  // The arrow keys set it and typing clears it, so a highlight the user moved stays put.
+  const highlightMoved = useRef(false)
   const [ipStatus, setIpStatus] = useState("")
   // A touch screen hides the highlight on the picked row until the arrow keys move it.
   const [arrowKeysUsed, setArrowKeysUsed] = useState(false)
@@ -300,7 +311,22 @@ export function CommandPalette() {
   }
   const unpick = () => {
     setPicked(null)
+    // Text typed to narrow the page list would start a name search of its own.
+    setSearch("")
     inputRef.current?.focus()
+  }
+  const type = (text: string) => {
+    highlightMoved.current = false
+    setSearch(text)
+  }
+  // Name rows arrive after cmdk has highlighted the best page or action, and cmdk keeps
+  // that highlight when rows mount above it. A loose match such as "Change the time
+  // range" for "git" gives way to the top row, the way cmdk's own Home key moves it.
+  const raiseNameRows = () => {
+    if (highlightMoved.current || paletteFilter(selected, search) >= NAME_ROW_SCORE) return
+    requestAnimationFrame(() =>
+      inputRef.current?.dispatchEvent(new KeyboardEvent("keydown", { key: "Home", bubbles: true })),
+    )
   }
 
   const ipActions: IpActions = {
@@ -421,7 +447,10 @@ export function CommandPalette() {
           filter={paletteFilter}
 
           onKeyDown={(event) => {
-            if (event.key === "ArrowDown" || event.key === "ArrowUp") setArrowKeysUsed(true)
+            if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+              setArrowKeysUsed(true)
+              highlightMoved.current = true
+            }
             if (event.key === "Backspace" && picked && search === "") {
               event.preventDefault()
               unpick()
@@ -453,9 +482,10 @@ export function CommandPalette() {
                 <CommandInput
                   ref={inputRef}
                   placeholder={picked ? "Pick a page" : "IP, host, country or action"}
+                  aria-describedby={picked ? PICKED_LABEL_ID : undefined}
                   className={cn(search !== "" && "pr-9")}
                   value={search}
-                  onValueChange={setSearch}
+                  onValueChange={type}
                 />
                 {search !== "" && (
                   <button
@@ -497,9 +527,10 @@ export function CommandPalette() {
                 placeholder={
                   picked ? "Pick a page" : "Search IPs, hosts, countries, pages and actions"
                 }
+                aria-describedby={picked ? PICKED_LABEL_ID : undefined}
                 className="pr-14"
                 value={search}
-                onValueChange={setSearch}
+                onValueChange={type}
               />
               <Kbd
                 aria-hidden
@@ -545,6 +576,7 @@ export function CommandPalette() {
                     settled={settledSearch}
                     enabled={isOpen}
                     onPick={pick}
+                    onArrived={raiseNameRows}
                   />
                 )}
                 {phone ? (
