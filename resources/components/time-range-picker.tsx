@@ -114,14 +114,19 @@ export function TimeRangePicker({
   refreshControls,
   open,
   onOpenChange,
+  drawerOpen,
+  onDrawerOpenChange,
   onCloseAutoFocus,
 }: {
   trigger: React.ReactNode
   align?: "start" | "end"
   refreshControls?: { chartBuckets: boolean; cardCharts?: CardChartsPage }
-  /** Controls the menu or the phone drawer, for the T shortcut and the palette. */
+  /** Controls the desktop menu, for the T shortcut. */
   open?: boolean
   onOpenChange?: (open: boolean) => void
+  /** Controls the phone drawer, for the palette's range action. */
+  drawerOpen?: boolean
+  onDrawerOpenChange?: (open: boolean) => void
   onCloseAutoFocus?: (event: Event) => void
 }) {
   const {
@@ -135,14 +140,19 @@ export function TimeRangePicker({
   } = useTimeRange()
   const asDrawer = usePhoneLayout()
   const [ownDrawerOpen, setOwnDrawerOpen] = useState(false)
-  // The phone drawer follows `open` too when given, for the palette's range action.
-  const rangeDrawerOpen = open ?? ownDrawerOpen
-  const setRangeDrawerOpen = onOpenChange ?? setOwnDrawerOpen
+  const rangeDrawerOpen = drawerOpen ?? ownDrawerOpen
+  const setRangeDrawerOpen = onDrawerOpenChange ?? setOwnDrawerOpen
   const overlayId = useId()
   useOverlayEntry(`time-range-${overlayId}`, asDrawer && rangeDrawerOpen, () =>
     setRangeDrawerOpen(false),
   )
   const [tab, setTab] = useState<RangeTab>(() => rangeTab(range))
+  // Each opening starts on the current range's tab, however the drawer was opened.
+  const [drawerWasOpen, setDrawerWasOpen] = useState(rangeDrawerOpen)
+  if (rangeDrawerOpen !== drawerWasOpen) {
+    setDrawerWasOpen(rangeDrawerOpen)
+    if (rangeDrawerOpen) setTab(rangeTab(range))
+  }
   // See ResponsiveRadioMenu: don't reopen after a rotation to wide and back.
   useEffect(() => {
     if (!asDrawer) setRangeDrawerOpen(false)
@@ -168,13 +178,7 @@ export function TimeRangePicker({
         </Button>
       ))
     return (
-      <Drawer
-        open={rangeDrawerOpen}
-        onOpenChange={(open) => {
-          if (open) setTab(rangeTab(range))
-          setRangeDrawerOpen(open)
-        }}
-      >
+      <Drawer open={rangeDrawerOpen} onOpenChange={setRangeDrawerOpen}>
         <DrawerTrigger asChild>{trigger}</DrawerTrigger>
         <DrawerContent>
           <DrawerHeader>

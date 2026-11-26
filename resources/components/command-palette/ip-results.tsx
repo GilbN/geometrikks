@@ -23,6 +23,7 @@ import {
   useDropNetwork,
   useIpDecisions,
 } from "@/lib/queries"
+import { usePhoneLayout } from "@/hooks/use-phone-map"
 import { cn } from "@/lib/utils"
 
 /** Earlier than any install's data, so the daily rollups reach back to the first day kept. */
@@ -33,9 +34,9 @@ const SHOWN = 8
 
 export const GROUP =
   "**:[[cmdk-group-heading]]:text-[11px] **:[[cmdk-group-heading]]:font-semibold **:[[cmdk-group-heading]]:tracking-[0.08em] **:[[cmdk-group-heading]]:uppercase"
-/** On a phone the rows are taller, for a thumb, and a tap shows no keyboard highlight. */
+/** On a phone the rows are taller, for a thumb, and a touch screen shows no keyboard highlight. */
 export const ITEM =
-  "min-h-10 gap-3 rounded-lg! px-2.5 text-sm ring-1 ring-transparent data-selected:bg-primary/12 data-selected:ring-primary/50 phone:min-h-14 phone:gap-3.5 phone:px-2 phone:text-[15px] phone:data-selected:bg-transparent phone:data-selected:ring-transparent phone:active:bg-muted/60 phone:[&>svg:last-child]:hidden"
+  "min-h-10 gap-3 rounded-lg! px-2.5 text-sm ring-1 ring-transparent data-selected:bg-primary/12 data-selected:ring-primary/50 phone:min-h-14 phone:gap-3.5 phone:px-2 phone:text-[15px] phone:pointer-coarse:data-selected:bg-transparent phone:pointer-coarse:data-selected:ring-transparent phone:active:bg-muted/60 phone:[&>svg:last-child]:hidden"
 
 export function ItemIcon({ icon: Icon }: { icon: LucideIcon }) {
   return (
@@ -51,9 +52,7 @@ export function RowText({ children, detail }: { children: ReactNode; detail?: Re
     <span className="flex min-w-0 flex-1 items-center gap-3 phone:flex-col phone:items-start phone:gap-0.5 phone:*:max-w-full">
       {children}
       {detail ? (
-        <span className="min-w-0 truncate text-muted-foreground phone:text-[13px] phone:first-letter:uppercase">
-          {detail}
-        </span>
+        <span className="min-w-0 truncate text-muted-foreground phone:text-[13px]">{detail}</span>
       ) : null}
     </span>
   )
@@ -264,7 +263,7 @@ export function IpSearchGroups({
                 `${number.format(requests)} ${requests === 1 ? "request" : "requests"}`
               }
             >
-              <span className="min-w-0 truncate">
+              <span className="min-w-0 truncate phone:whitespace-normal">
                 Access Logs<span className="phone:hidden"> where</span>
                 <span className="hidden phone:inline">,</span> IP starts with{" "}
                 <span className="font-mono font-semibold text-primary">{label}</span>
@@ -279,7 +278,7 @@ export function IpSearchGroups({
               className={ITEM}
             >
               <ItemIcon icon={Shield} />
-              <span className="min-w-0 flex-1 truncate">
+              <span className="min-w-0 flex-1 truncate phone:whitespace-normal">
                 Security decisions matching{" "}
                 <span className="font-mono font-semibold text-primary">{label}</span>
               </span>
@@ -339,6 +338,8 @@ export function RecentIpsGroup({
 }) {
   const { data } = useIpStats(ips.length ? ips : null, enabled)
   const { data: bannedIps } = useBannedIps()
+  // A phone starts the second line with it, so it keeps its capital.
+  const phone = usePhoneLayout()
   if (ips.length === 0) return null
   const stats = new Map(data?.items.map((item) => [item.ipAddress, item]))
   return (
@@ -347,7 +348,9 @@ export function RecentIpsGroup({
         const row = stats.get(ip)
         const detail = [
           bannedIps?.has(ip)
-            ? decisionLabel(bannedIps.get(ip) ?? "ban").toLowerCase()
+            ? phone
+              ? decisionLabel(bannedIps.get(ip) ?? "ban")
+              : decisionLabel(bannedIps.get(ip) ?? "ban").toLowerCase()
             : row?.countryCode
               ? countryDisplayName(row.countryCode)
               : null,

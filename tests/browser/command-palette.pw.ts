@@ -258,6 +258,27 @@ test.describe("on a phone", () => {
     await expect(button).toBeFocused()
   })
 
+  test("Back closes the sheet and stays on the page", async ({ page }) => {
+    await page.goto("/")
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Overview")
+    await page.goto("/access-logs")
+    await page.locator("header").getByRole("button", { name: "Search and commands" }).click()
+    await expect(palette(page)).toBeVisible()
+    await page.goBack()
+    await expect(palette(page)).toBeHidden()
+    await expect(page).toHaveURL(/\/access-logs/)
+  })
+
+  test("Enter on the clear button clears instead of running a row", async ({ page }) => {
+    await page.goto("/access-logs")
+    await page.locator("header").getByRole("button", { name: "Search and commands" }).click()
+    await page.keyboard.type("map")
+    await palette(page).getByRole("button", { name: "Clear the search" }).focus()
+    await page.keyboard.press("Enter")
+    await expect(palette(page).getByRole("combobox")).toHaveValue("")
+    await expect(page).toHaveURL(/\/access-logs/)
+  })
+
   test("Change the time range opens the range drawer", async ({ page }) => {
     await page.goto("/access-logs")
     await page.locator("header").getByRole("button", { name: "Search and commands" }).click()

@@ -4,7 +4,7 @@
  * keys are learned along the way. On a phone it is a full-screen sheet
  * opened from the search button in the header.
  */
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, type KeyboardEvent } from "react"
 import { useNavigate } from "@tanstack/react-router"
 import { useQuery } from "@tanstack/react-query"
 import { defaultFilter, useCommandState } from "cmdk"
@@ -63,6 +63,7 @@ import { requestAccessLogsTab } from "@/lib/live-tail-request"
 import { requestDecisionsSearch } from "@/lib/decisions-search-request"
 import { rememberInspectedIp, useRecentIps } from "@/lib/recent-ips"
 import { useRouteHeader } from "@/lib/route-header"
+import { useOverlayEntry } from "@/lib/overlay-history"
 import { fetchCrowdsecStatus } from "@/lib/api"
 import { NAV_ITEMS, SETTINGS_ITEM, moreItems, slotFour, type NavId } from "@/lib/phone-nav"
 import {
@@ -126,6 +127,11 @@ function Keys({ id }: { id: ShortcutId }) {
   )
 }
 
+/** cmdk's Enter handler would run the highlighted row instead of the focused button. */
+function keepKeyFromList(event: KeyboardEvent) {
+  if (event.key === "Enter") event.stopPropagation()
+}
+
 /** IP rows come from the server, which already matched them, so the typed text never hides them. */
 function paletteFilter(value: string, search: string, keywords?: string[]): number {
   return value.startsWith(IP_ROW) ? 1 : defaultFilter(value, search, keywords)
@@ -155,6 +161,8 @@ function SelectionMirror({ onChange }: { onChange: (value: string) => void }) {
 /**
  * Where the phone keyboard leaves the page visible. A fixed sheet keeps its
  * full height under the keyboard, which would hide the last rows for good.
+ * It is tracked while closed too, so the sheet keeps its size as it fades out
+ * and opens at the current one.
  */
 function useVisibleViewport(active: boolean): { top: number; height: number } | null {
   const [box, setBox] = useState<{ top: number; height: number } | null>(null)
@@ -182,7 +190,13 @@ export function CommandPalette() {
   const routeHeader = useRouteHeader()
   const phone = usePhoneLayout()
   const inputRef = useRef<HTMLInputElement>(null)
-  const sheetBox = useVisibleViewport(phone && isOpen)
+  const sheetBox = useVisibleViewport(phone)
+  // Back closes the sheet before it leaves the page, as with the other phone overlays.
+  useOverlayEntry("command-palette", phone && isOpen, closeCommandPalette)
+  // Crossing the phone breakpoint swaps the field, and the new one needs focus to keep typing.
+  useEffect(() => {
+    if (commandPaletteOpen()) inputRef.current?.focus()
+  }, [phone])
   // A sign-out unmounts the shell. Closing here keeps the palette shut after the next sign-in.
   useEffect(() => () => resetCommandPalette(), [])
   const { ip: inspected, open: inspect } = useIpInspector()
@@ -279,7 +293,7 @@ export function CommandPalette() {
       className={ITEM}
     >
       <ItemIcon icon={CalendarDays} />
-      <RowText detail={`now: ${currentRange}`}>
+      <RowText detail={`${phone ? "Now" : "now"}: ${currentRange}`}>
         <span className="min-w-0 truncate">Change the time range…</span>
       </RowText>
       {!phone && <Keys id="time-range" />}
@@ -374,6 +388,7 @@ export function CommandPalette() {
                   <button
                     type="button"
                     aria-label="Clear the search"
+                    onKeyDown={keepKeyFromList}
                     onClick={() => {
                       setSearch("")
                       inputRef.current?.focus()
@@ -386,6 +401,7 @@ export function CommandPalette() {
               </div>
               <button
                 type="button"
+                onKeyDown={keepKeyFromList}
                 onClick={closeCommandPalette}
                 className="-mr-2 shrink-0 rounded-md px-2 py-2 text-[15px] font-medium text-primary focus-visible:outline-2 focus-visible:outline-ring"
               >
@@ -395,6 +411,7 @@ export function CommandPalette() {
           ) : (
             <div className="relative border-b border-border/60 [&_[data-slot=command-input-wrapper]]:p-2 [&_[data-slot=input-group]]:h-11! [&_[data-slot=input-group]]:border-0 [&_[data-slot=input-group]]:bg-transparent [&_[data-slot=command-input]]:text-base">
               <CommandInput
+                ref={inputRef}
                 placeholder="Search IPs, pages and actions"
                 className="pr-14"
                 value={search}

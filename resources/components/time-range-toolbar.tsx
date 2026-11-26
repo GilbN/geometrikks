@@ -189,8 +189,8 @@ export function PhoneTimeRangeControls({ chip = false }: { chip?: boolean }) {
     <>
       <RefreshButton className={chip ? CHIP_REFRESH : undefined} />
       <TimeRangePicker
-        open={drawerOpen}
-        onOpenChange={setDrawerOpen}
+        drawerOpen={drawerOpen}
+        onDrawerOpenChange={setDrawerOpen}
         refreshControls={{
           chartBuckets: routeHeader.chartBuckets,
           cardCharts: routeHeader.cardCharts,
