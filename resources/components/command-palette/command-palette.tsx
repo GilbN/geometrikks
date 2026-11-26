@@ -253,6 +253,10 @@ export function CommandPalette() {
   const [selected, setSelected] = useState("")
   // The arrow keys set it and typing clears it, so a highlight the user moved stays put.
   const highlightMoved = useRef(false)
+  // Whether the name search for the live text is still waiting for its answer.
+  const namesPending = useRef(false)
+  // An Enter pressed on a loose match while names were on their way, to run on the top row.
+  const enterWaiting = useRef(false)
   const [ipStatus, setIpStatus] = useState("")
   // A touch screen hides the highlight on the picked row until the arrow keys move it.
   const [arrowKeysUsed, setArrowKeysUsed] = useState(false)
@@ -317,16 +321,25 @@ export function CommandPalette() {
   }
   const type = (text: string) => {
     highlightMoved.current = false
+    enterWaiting.current = false
     setSearch(text)
   }
+  const weakHighlight = () =>
+    !highlightMoved.current && paletteFilter(selected, search) < NAME_ROW_SCORE
+  const pressOnInput = (key: string) =>
+    inputRef.current?.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }))
   // Name rows arrive after cmdk has highlighted the best page or action, and cmdk keeps
   // that highlight when rows mount above it. A loose match such as "Change the time
   // range" for "git" gives way to the top row, the way cmdk's own Home key moves it.
   const raiseNameRows = () => {
-    if (highlightMoved.current || paletteFilter(selected, search) >= NAME_ROW_SCORE) return
-    requestAnimationFrame(() =>
-      inputRef.current?.dispatchEvent(new KeyboardEvent("keydown", { key: "Home", bubbles: true })),
-    )
+    const enter = enterWaiting.current
+    enterWaiting.current = false
+    if (!weakHighlight()) return
+    requestAnimationFrame(() => {
+      pressOnInput("Home")
+      // cmdk runs the row marked selected in the DOM, which the Home render has to reach first.
+      if (enter) requestAnimationFrame(() => pressOnInput("Enter"))
+    })
   }
 
   const ipActions: IpActions = {
@@ -450,6 +463,20 @@ export function CommandPalette() {
             if (event.key === "ArrowDown" || event.key === "ArrowUp") {
               setArrowKeysUsed(true)
               highlightMoved.current = true
+            }
+            // Enter before the names come would run whatever loose match cmdk highlighted.
+            // It waits for the answer instead and then runs the top row.
+            if (
+              event.key === "Enter" &&
+              event.isTrusted &&
+              !event.ctrlKey &&
+              !event.metaKey &&
+              namesPending.current &&
+              weakHighlight()
+            ) {
+              event.preventDefault()
+              enterWaiting.current = true
+              return
             }
             if (event.key === "Backspace" && picked && search === "") {
               event.preventDefault()
@@ -577,6 +604,11 @@ export function CommandPalette() {
                     enabled={isOpen}
                     onPick={pick}
                     onArrived={raiseNameRows}
+                    onPending={(pending) => {
+                      namesPending.current = pending
+                      // An answer with no names drops the waiting Enter.
+                      if (!pending) enterWaiting.current = false
+                    }}
                   />
                 )}
                 {phone ? (

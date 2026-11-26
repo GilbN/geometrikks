@@ -234,7 +234,7 @@ test("reopening after an IP search starts on the recently inspected list", async
 })
 
 /** The name search, answered from a fixed set the way the server matches it. */
-async function mockNameSearch(page: Page) {
+async function mockNameSearch(page: Page, { delay = 0 } = {}) {
   const asked: string[] = []
   const all = {
     countries: [
@@ -252,6 +252,7 @@ async function mockNameSearch(page: Page) {
   await page.route(
     (url) => url.pathname === "/api/v1/access-logs/facets/search",
     async (route) => {
+      if (delay) await new Promise((resolve) => setTimeout(resolve, delay))
       const q = (new URL(route.request().url()).searchParams.get("q") ?? "").toLowerCase()
       asked.push(q)
       const holds = (name: string) => name.toLowerCase().includes(q)
@@ -373,6 +374,17 @@ test("name rows take the highlight from a loose match that came first", async ({
   )
   await page.keyboard.press("Enter")
   await expect(palette(page).getByRole("button", { name: "Remove git.example.com" })).toBeVisible()
+})
+
+test("Enter pressed before the names come runs the top name row", async ({ page }) => {
+  await mockNameSearch(page, { delay: 600 })
+  await page.goto("/access-logs")
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Access Logs")
+  await page.keyboard.press("Control+k")
+  await page.keyboard.type("git")
+  await page.keyboard.press("Enter")
+  await expect(palette(page).getByRole("button", { name: "Remove git.example.com" })).toBeVisible()
+  await expect(page.getByRole("menu")).toHaveCount(0)
 })
 
 test("an AS number finds its network", async ({ page }) => {

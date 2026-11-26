@@ -325,6 +325,7 @@ export function FilterValueGroups({
   enabled,
   onPick,
   onArrived,
+  onPending,
 }: {
   search: string
   settled: string
@@ -332,6 +333,8 @@ export function FilterValueGroups({
   onPick: (picked: PickedValue) => void
   /** Runs once the answer for the text shows, so the palette can move its highlight to it. */
   onArrived: () => void
+  /** Tells the palette whether the answer for the live text is still on its way. */
+  onPending: (pending: boolean) => void
 }) {
   // The field can still hold the last opening's text for the debounce after it was cleared.
   const asking = enabled && search.trim().length >= NAME_SEARCH_MIN
@@ -339,7 +342,10 @@ export function FilterValueGroups({
     settled,
     asking,
   )
-  const current = !isPlaceholderData && settled.trim() === search.trim()
+  const settledOnText = settled.trim() === search.trim()
+  const current = data !== undefined && !isPlaceholderData && settledOnText
+  // A failed request isn't pending, so the list stays as it is.
+  const pending = asking && !current && (isFetching || !settledOnText)
   const groups =
     data && asking
       ? rows(data, search, !current).filter(([, groupRows]) => groupRows.length > 0)
@@ -349,11 +355,12 @@ export function FilterValueGroups({
     if (arrived) onArrived()
     // Only a new answer moves the highlight. A new onArrived each render must not.
   }, [arrived])
+  useEffect(() => onPending(pending), [pending])
   if (!asking) return null
   if (groups.length === 0) {
     // Without this row, "Nothing matches" would show and be read out before the answer comes.
     // The first search after a restart also waits here while the server adds up its totals.
-    if (current && !isFetching) return null
+    if (!pending) return null
     return (
       <CommandGroup className={GROUP}>
         <CommandItem disabled value={`${NAME_ROW}searching`} className={ITEM}>
@@ -381,7 +388,10 @@ export function FilterValueGroups({
                 // A narrow phone wraps a long country name and count instead of cutting them off.
                 detail={<span className="phone:whitespace-normal">{row.detail}</span>}
               >
-                <span className="min-w-0 truncate">{row.name}</span>
+                {/* A phone wraps long names, whose ends often tell two rows apart. */}
+                <span className="min-w-0 truncate phone:whitespace-normal phone:[overflow-wrap:anywhere]">
+                  {row.name}
+                </span>
               </RowText>
               <NextStep />
             </CommandItem>
@@ -414,7 +424,13 @@ export function PickedTargets({
           className={ITEM}
         >
           <ItemIcon icon={target.icon} />
-          <RowText detail={`${lead} is ${pickedLabel(picked)}`}>
+          <RowText
+            detail={
+              <span className="phone:whitespace-normal phone:[overflow-wrap:anywhere]">
+                {lead} is {pickedLabel(picked)}
+              </span>
+            }
+          >
             <span className="min-w-0 truncate">{target.page}</span>
           </RowText>
           <PhoneChevron />
