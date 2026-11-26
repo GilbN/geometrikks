@@ -7,7 +7,7 @@
  */
 import { useMemo } from "react"
 import { formatTs } from "@/lib/datetime"
-import { useCursorBucket, type ChartCursor } from "./chart-cursor"
+import { useCursorBucket, useCursorDrag, type ChartCursor } from "./chart-cursor"
 
 export type ReadoutItem = {
   key: string
@@ -35,6 +35,21 @@ export function spokenReadout(time: string, items: readonly ReadoutItem[], lead?
     item.value == null ? item.label : `${item.label} ${item.value}`,
   )
   return `${time}: ${[lead, ...parts].filter(Boolean).join(", ")}`
+}
+
+/** The rows a drag across a chart covers, or null when no drag runs. */
+export function useDraggedRows<T extends { timestamp: string }>(
+  cursor: ChartCursor,
+  rows: readonly T[],
+): T[] | null {
+  const drag = useCursorDrag(cursor)
+  return useMemo(() => {
+    if (!drag) return null
+    return rows.filter((row) => {
+      const ms = Date.parse(row.timestamp)
+      return ms >= drag.from && ms <= drag.to
+    })
+  }, [drag, rows])
 }
 
 function Item({ item }: { item: ReadoutItem }) {

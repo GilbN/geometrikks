@@ -18,7 +18,7 @@ import {
 import { ChartContainer, type ChartConfig } from "@/components/ui/chart"
 import { formatTs } from "@/lib/datetime"
 import { cn } from "@/lib/utils"
-import { useCursorBucket, type ChartCursor } from "./chart-cursor"
+import { useChartZoom, useCursorBucket, useCursorDrag, type ChartCursor } from "./chart-cursor"
 import { isIsolated } from "./status-series"
 import { hourlyTicks } from "./traffic-series"
 
@@ -54,6 +54,10 @@ export function isolatedDot(values: ReadonlyArray<number | null | undefined>, co
 }
 
 type Geometry = { plotX: number; plotWidth: number; centers: number[] }
+
+const HOUR_MS = 3_600_000
+/** A shorter drag is a click or a slip, not a zoom. */
+const MIN_ZOOM_HOURS = 3
 
 /** Held this long without moving, a finger shows the cursor. */
 const HOLD_MS = 250
@@ -105,17 +109,54 @@ function CursorLayer({
     [rows],
   )
   const bucket = useCursorBucket(cursor)
+  const drag = useCursorDrag(cursor)
   const index = bucket == null ? -1 : (indexByTime.get(bucket) ?? -1)
-  if (!plot || !yScale || index < 0 || !Number.isFinite(centers[index])) return null
-
-  const x = centers[index]
+  if (!plot || !yScale) return null
   const top = plot.y
   const bottom = plot.y + plot.height
+  const step = plot.width / rows.length
+
+  if (drag) {
+    const times = rows.map((row) => Date.parse(row.timestamp))
+    const first = times.findIndex((ms) => ms >= drag.from)
+    const last = times.length - 1 - [...times].reverse().findIndex((ms) => ms <= drag.to)
+    if (first < 0 || last >= times.length || last < first) return null
+    const left = Math.max(plot.x, centers[first] - step / 2)
+    const right = Math.min(plot.x + plot.width, centers[last] + step / 2)
+    const veil = { y: top, height: plot.height, fill: "var(--card)", fillOpacity: 0.6 }
+    return (
+      <>
+        <ZIndexLayer zIndex={50}>
+          <rect
+            x={left}
+            y={top}
+            width={right - left}
+            height={plot.height}
+            fill="var(--primary)"
+            fillOpacity={0.13}
+          />
+          <path
+            d={`M${left},${top}V${bottom}M${right},${top}V${bottom}`}
+            stroke="var(--primary)"
+            strokeWidth={1.5}
+          />
+        </ZIndexLayer>
+        {marks.kind === "bar" && (
+          <ZIndexLayer zIndex={450}>
+            <rect {...veil} x={plot.x} width={left - plot.x} />
+            <rect {...veil} x={right} width={plot.x + plot.width - right} />
+          </ZIndexLayer>
+        )}
+      </>
+    )
+  }
+
+  if (index < 0 || !Number.isFinite(centers[index])) return null
+  const x = centers[index]
   const clampY = (y: number) => Math.min(Math.max(y, top), bottom)
   const row = rows[index] as Row & Record<string, unknown>
 
   if (marks.kind === "bar") {
-    const step = plot.width / rows.length
     const value = marks.top(row)
     const barTop = value == null ? bottom : clampY(yScale(value) ?? bottom)
     // Card-colored veils over the other bars read as the other bars dimming.
@@ -193,7 +234,54 @@ const STEP_KEYS: Record<string, (index: number, last: number) => number> = {
   End: (_, last) => last,
 }
 
+/** Where a bucket ends: the next bucket's start, or one bucket length on. */
+function bucketEnd(rows: readonly Row[], bucketMs: number, granularity?: string): number {
+  const index = rows.findIndex((row) => Date.parse(row.timestamp) === bucketMs)
+  const next = rows[index + 1]
+  if (index >= 0 && next) return Date.parse(next.timestamp)
+  return bucketMs + (granularity === "hourly" ? HOUR_MS : 24 * HOUR_MS)
+}
+
+/** "Nov 23, 12:00 AM to Nov 23, 10:00 AM · 10 hours" over the chart being dragged. */
+function DragLabel({
+  id,
+  rows,
+  granularity,
+  cursor,
+  geometry,
+}: {
+  id: string
+  rows: readonly Row[]
+  granularity?: string
+  cursor: ChartCursor
+  geometry: React.RefObject<Geometry | null>
+}) {
+  const drag = useCursorDrag(cursor)
+  const shape = geometry.current
+  if (!drag || drag.source !== id || !shape) return null
+  const times = rows.map((row) => Date.parse(row.timestamp))
+  const first = times.indexOf(drag.from)
+  const last = times.indexOf(drag.to)
+  if (first < 0 || last < 0) return null
+  const end = bucketEnd(rows, drag.to, granularity)
+  const hourly = granularity === "hourly"
+  const count = last - first + 1
+  const size = hourly ? (count === 1 ? "hour" : "hours") : count === 1 ? "day" : "days"
+  return (
+    <span
+      className="pointer-events-none absolute top-1.5 z-10 -translate-x-1/2 rounded-[7px] bg-popover px-[9px] py-[3px] text-xs font-medium whitespace-nowrap text-popover-foreground tabular-nums shadow-lg ring-1 ring-border"
+      style={{ left: (shape.centers[first] + shape.centers[last]) / 2 }}
+    >
+      {formatTs(drag.from, granularity)} to {formatTs(end, granularity)}{" "}
+      <span className="font-normal text-muted-foreground">
+        · {count} {size}
+      </span>
+    </span>
+  )
+}
+
 export function TimeChart({
+  id,
   label,
   summary,
   describe,
@@ -207,6 +295,8 @@ export function TimeChart({
   className,
   children,
 }: {
+  /** Names the chart a drag starts on, which shows the drag's label. */
+  id: string
   /** The chart's accessible name, such as "Requests". */
   label: string
   /** What the chart draws and over which time, for a screen reader. */
@@ -237,6 +327,8 @@ export function TimeChart({
   useLayoutEffect(() => {
     latestRows.current = rows
   })
+  const zoom = useChartZoom()
+  const dragStart = useRef<number | null>(null)
 
   const ticks = useMemo(
     () =>
@@ -248,13 +340,14 @@ export function TimeChart({
     [rows, granularity, width, yAxis.width],
   )
 
-  const bucketAt = (clientX: number): number | null => {
+  /** The bucket under `clientX`; off the plot that is null, or the nearest edge with `clamp`. */
+  const bucketAt = (clientX: number, clamp = false): number | null => {
     const rows = latestRows.current
     const frame = frameRef.current
     const shape = geometry.current
     if (!frame || !shape || shape.centers.length !== rows.length || rows.length === 0) return null
     const x = clientX - frame.getBoundingClientRect().left
-    if (x < shape.plotX || x > shape.plotX + shape.plotWidth) return null
+    if (!clamp && (x < shape.plotX || x > shape.plotX + shape.plotWidth)) return null
     return Date.parse(rows[nearestIndex(shape.centers, x)].timestamp)
   }
 
@@ -266,6 +359,36 @@ export function TimeChart({
       // The pointer is already gone; its pointerup or pointercancel ends the touch.
     }
   }
+
+  const cancelDrag = () => {
+    dragStart.current = null
+    cursor.setDrag(null)
+  }
+
+  const finishDrag = (clientX: number) => {
+    const drag = cursor.get().drag
+    cancelDrag()
+    const end = drag ? bucketEnd(rows, drag.to, granularity) : 0
+    const buckets = rows.filter((row) => {
+      const ms = Date.parse(row.timestamp)
+      return drag != null && ms >= drag.from && ms <= drag.to
+    }).length
+    if (drag && zoom && buckets >= 2 && end - drag.from >= MIN_ZOOM_HOURS * HOUR_MS) {
+      // The same hour can sit in the zoomed range, where the pointer no longer is.
+      cursor.set(null)
+      zoom(drag.from, end)
+    } else {
+      cursor.set(bucketAt(clientX))
+    }
+  }
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && dragStart.current != null) cancelDrag()
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  })
 
   const endTouch = () => {
     if (touch.current) window.clearTimeout(touch.current.timer)
@@ -303,7 +426,7 @@ export function TimeChart({
     const move = STEP_KEYS[event.key]
     if (!move || rows.length === 0) return
     event.preventDefault()
-    const current = cursor.get()
+    const current = cursor.get().bucket
     const index = rows.findIndex((row) => Date.parse(row.timestamp) === current)
     const bucket = Date.parse(rows[move(index, rows.length - 1)].timestamp)
     cursor.set(bucket)
@@ -327,7 +450,7 @@ export function TimeChart({
       aria-roledescription="chart"
       aria-describedby={summaryId}
       aria-label={`${label}. Arrow keys read one bucket at a time.`}
-      className="touch-pan-y touch-pinch-zoom rounded-md outline-none select-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+      className="relative touch-pan-y touch-pinch-zoom rounded-md outline-none select-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
       onKeyDown={step}
       // A click would focus the chart and take Home, End and the arrows from the page.
       // Whatever had focus still loses it, as on any click outside a control.
@@ -343,7 +466,14 @@ export function TimeChart({
       }}
       onPointerMove={(event) => {
         if (event.pointerType === "mouse") {
-          cursor.set(bucketAt(event.clientX))
+          const start = dragStart.current
+          if (start == null) {
+            cursor.set(bucketAt(event.clientX))
+            return
+          }
+          const at = bucketAt(event.clientX, true)
+          if (at == null || (at === start && !cursor.get().drag)) return
+          cursor.setDrag({ source: id, from: Math.min(start, at), to: Math.max(start, at) })
           return
         }
         const held = touch.current
@@ -360,7 +490,9 @@ export function TimeChart({
         cursor.set(bucketAt(event.clientX))
       }}
       onPointerLeave={(event) => {
-        if (event.pointerType === "mouse") cursor.set(null)
+        if (event.pointerType === "mouse") {
+          if (dragStart.current == null) cursor.set(null)
+        }
         // A pen has no implicit capture, so its pointerup can land outside the chart.
         else if (
           touch.current?.id === event.pointerId &&
@@ -370,7 +502,14 @@ export function TimeChart({
         }
       }}
       onPointerDown={(event) => {
-        if (event.pointerType === "mouse") return
+        if (event.pointerType === "mouse") {
+          if (!zoom || event.button !== 0) return
+          const start = bucketAt(event.clientX)
+          if (start == null) return
+          dragStart.current = start
+          event.currentTarget.setPointerCapture(event.pointerId)
+          return
+        }
         endTouch()
         if (!event.isPrimary) return
         const { pointerId, clientX, clientY } = event
@@ -390,10 +529,21 @@ export function TimeChart({
         touch.current = held
       }}
       onPointerUp={(event) => {
-        if (touch.current?.id === event.pointerId) endTouch()
+        if (event.pointerType !== "mouse") {
+          if (touch.current?.id === event.pointerId) endTouch()
+          return
+        }
+        if (dragStart.current != null) finishDrag(event.clientX)
       }}
       onPointerCancel={(event) => {
-        if (touch.current?.id === event.pointerId) endTouch()
+        if (event.pointerType !== "mouse") {
+          if (touch.current?.id === event.pointerId) endTouch()
+          return
+        }
+        cancelDrag()
+      }}
+      onLostPointerCapture={() => {
+        if (dragStart.current != null) cancelDrag()
       }}
       // A long press opens the context menu on some phones.
       onContextMenu={(event) => {
@@ -426,6 +576,13 @@ export function TimeChart({
           <CursorLayer rows={rows} cursor={cursor} marks={marks} geometry={geometry} />
         </ComposedChart>
       </ChartContainer>
+      <DragLabel
+        id={id}
+        rows={rows}
+        granularity={granularity}
+        cursor={cursor}
+        geometry={geometry}
+      />
       <p id={summaryId} className="sr-only">
         {summary}
       </p>

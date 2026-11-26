@@ -379,6 +379,81 @@ test.describe("requests chart", () => {
   })
 })
 
+test.describe("shared cursor and zoom", () => {
+  const points = Array.from({ length: BUCKETS }, (_, i) => timeSeriesPoint(i))
+  const storedRange = (page: Page) =>
+    page.evaluate(() => JSON.parse(localStorage.getItem("geometrikks-time-range") ?? "{}"))
+
+  async function dragBars(page: Page, card: Locator, from: number, to: number) {
+    await card.scrollIntoViewIfNeeded()
+    const grid = (await card.locator(".recharts-cartesian-grid").boundingBox())!
+    const x = (index: number) => grid.x + (index + 0.5) * (grid.width / BUCKETS)
+    const y = grid.y + grid.height / 2
+    await page.mouse.move(x(from), y)
+    await page.mouse.down()
+    await page.mouse.move(x(to), y, { steps: 5 })
+  }
+
+  test("hovering one chart reads the same hour in all three headers", async ({ page }) => {
+    await mockTimeSeries(page, points)
+    await page.goto("/analytics")
+    const requests = panel(page, "Requests")
+    await expect(requests.locator(".recharts-bar")).toHaveCount(4)
+    await hoverBar(page, requests, 30, BUCKETS)
+    await expectReadout(
+      panel(page, "Bandwidth"),
+      `Bytes sent${(points[30].totalBytesSent / 1024 ** 2).toFixed(1)} MB`,
+    )
+    await expectReadout(panel(page, "Request latency"), "p991.10s")
+    await expect(panel(page, "Bandwidth").locator(".recharts-surface circle")).toHaveCount(1)
+  })
+
+  test("dragging across hours zooms the page and Zoom out goes back", async ({ page }) => {
+    await mockTimeSeries(page, points)
+    await page.goto("/analytics")
+    const card = panel(page, "Requests")
+    await expect(card.locator(".recharts-bar")).toHaveCount(4)
+    const before = await storedRange(page)
+
+    await dragBars(page, card, 20, 29)
+    await expect(card.getByText(/ to .* · 10 hours$/)).toBeVisible()
+    const dragged = points.slice(20, 30).reduce((total, point) => total + point.totalRequests, 0)
+    await expectReadout(card, `${dragged.toLocaleString("en-US")} requests`)
+    await page.mouse.up()
+
+    await expect
+      .poll(async () => (await storedRange(page)).customRange)
+      .toEqual({
+        from: new Date(START + 20 * HOUR).toISOString(),
+        to: new Date(START + 30 * HOUR).toISOString(),
+      })
+    const zoomOut = page.getByRole("button", { name: /^Zoom out to / })
+    await expect(zoomOut).toBeVisible()
+    await zoomOut.click()
+    await expect.poll(async () => (await storedRange(page)).customRange).toEqual(before.customRange)
+    await expect(zoomOut).toHaveCount(0)
+  })
+
+  test("a drag under three hours or cancelled with Escape does nothing", async ({ page }) => {
+    await mockTimeSeries(page, points)
+    await page.goto("/analytics")
+    const card = panel(page, "Requests")
+    await expect(card.locator(".recharts-bar")).toHaveCount(4)
+    const before = await storedRange(page)
+
+    await dragBars(page, card, 20, 21)
+    await expect(card.getByText(/· 2 hours$/)).toBeVisible()
+    await page.mouse.up()
+    await dragBars(page, card, 20, 40)
+    await page.keyboard.press("Escape")
+    await expect(card.getByText(/· 21 hours$/)).toHaveCount(0)
+    await page.mouse.up()
+
+    expect(await storedRange(page)).toEqual(before)
+    await expect(page.getByRole("button", { name: /^Zoom out/ })).toHaveCount(0)
+  })
+})
+
 test.describe("geo events chart", () => {
   test("bars overlay a narrower, centred Unique IPs bar", async ({ page }) => {
     const points: GeoLogTimeSeriesPoint[] = Array.from({ length: 24 }, (_, i) => ({

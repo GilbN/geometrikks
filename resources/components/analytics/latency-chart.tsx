@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useMemo } from "react"
 import { Area, Line } from "recharts"
 import { SignalPanel } from "@/components/data/signal-panel"
 import { dataState } from "@/components/data/types"
@@ -17,7 +17,7 @@ import {
   useCursorRow,
   type ReadoutItem,
 } from "./chart-readout"
-import { createChartCursor, type ChartCursor } from "./chart-cursor"
+import { useChartCursor, type ChartCursor } from "./chart-cursor"
 import { LATENCY_OPTIONS, latencyBandChartConfig, latencyChartConfig } from "./chart-utils"
 import { bandRows, LATENCY_KEYS } from "./latency-series"
 import { useTrafficBuckets } from "./use-traffic-buckets"
@@ -84,7 +84,7 @@ function LatencyReadout({
 export function LatencyChart() {
   const { data, error, isLoading, isError, refetch } = useTimeSeries()
   const options = useChartOptions("latency", LATENCY_OPTIONS)
-  const [cursor] = useState(createChartCursor)
+  const cursor = useChartCursor()
   const buckets = useTrafficBuckets(data)
   const bucketsByTime = useMemo(
     () => new Map(buckets.map((row) => [Date.parse(row.timestamp), row])),
@@ -131,6 +131,7 @@ export function LatencyChart() {
     >
       {data && (
         <TimeChart
+          id="latency"
           label={TITLE}
           summary={`${band ? "Average, p99, and a p50 to p95 band" : "Average, p50, p95 and p99"} of response time, ${chartRangeText(buckets, data.granularity)}.`}
           describe={(bucket) => {
