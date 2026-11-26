@@ -23,6 +23,7 @@ import type { FilterBarField } from "@/components/data/filter-bar-fields"
 import {
   NAME_SEARCH_MAX,
   NAME_SEARCH_MIN,
+  NAME_SEARCH_SHOWN,
   useFilterValueSearch,
   type PickedValue,
 } from "@/components/command-palette/filter-value-results"
@@ -34,6 +35,8 @@ import { cn } from "@/lib/utils"
 /** A page whose values the Filter menu can search, and what a picked value sets. */
 export interface FilterValueSearch {
   onPick: (picked: PickedValue) => void
+  /** The kinds of value the page filters on; every kind when left out. */
+  kinds?: PickedValue["kind"][]
 }
 
 const ITEM = "h-8 gap-2 rounded-sm px-2 text-sm data-selected:bg-accent [&>svg:last-child]:hidden"
@@ -43,6 +46,7 @@ const number = new Intl.NumberFormat()
 
 export function AddFilterMenu({
   ref,
+  pageFilter,
   compact,
   fields,
   pins,
@@ -54,6 +58,8 @@ export function AddFilterMenu({
   valueSearch,
 }: {
   ref: React.Ref<HTMLButtonElement>
+  /** The page has no search field, so `/` lands here. */
+  pageFilter: boolean
   /** A plus only, once the bar holds a chip. */
   compact: boolean
   fields: FilterBarField[]
@@ -76,7 +82,12 @@ export function AddFilterMenu({
   // Rows for older text would let Enter pick a match for something no longer typed.
   const current = !isPlaceholderData && settled.trim() === text.trim()
   const shownFields = fields.filter((field) => field.label.toLowerCase().includes(typed))
-  const groups = asking && current && data ? valueGroups(data) : []
+  const groups =
+    asking && current && data
+      ? valueGroups(data).filter(([, rows]) =>
+          rows.some((row) => !valueSearch.kinds || valueSearch.kinds.includes(row.picked.kind)),
+        )
+      : []
   const showMyIp = myIp !== undefined && (myIp.ip !== null || myIp.behindUntrustedProxy)
   const showMuted = muted !== undefined && onToggleMuted !== undefined && muted.chip !== "none"
   const searching = asking && (isFetching || !current)
@@ -106,6 +117,7 @@ export function AddFilterMenu({
           type="button"
           aria-label="Add a filter"
           title="Add a filter"
+          data-page-filter={pageFilter ? "" : undefined}
           className={cn(
             "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-dashed border-muted-foreground/55 text-[13px] font-medium text-muted-foreground outline-none hover:border-solid hover:text-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
             "data-[state=open]:border-solid data-[state=open]:border-ring data-[state=open]:text-foreground data-[state=open]:ring-3 data-[state=open]:ring-ring/50",
@@ -323,6 +335,36 @@ type ValueRow = {
 
 type Matches = NonNullable<ReturnType<typeof useFilterValueSearch>["data"]>
 
+function cityRows(cities: Matches["cities"], complete: boolean): ValueRow[] {
+  const byName = new Map<string, Matches["cities"]>()
+  for (const city of cities) byName.set(city.city, [...(byName.get(city.city) ?? []), city])
+  return [...byName.entries()]
+    .map(([name, matches]) => {
+      const codes = new Set(matches.map((match) => match.countryCode))
+      const only = complete && codes.size === 1 ? matches[0] : null
+      const country = only ? only.countryName || only.countryCode : null
+      return {
+        key: `city:${name}`,
+        picked: {
+          kind: "city" as const,
+          city: name,
+          countryCode: only?.countryCode ?? null,
+          countryName: only?.countryName ?? null,
+        },
+        icon: <CountryFlag code={only?.countryCode} className="h-3 w-[18px]" />,
+        // The flag is hidden from screen readers, so the country goes along in words.
+        name: (
+          <>
+            {name}
+            {country && <span className="sr-only">, {country}</span>}
+          </>
+        ),
+        hits: matches.reduce((total, match) => total + match.hits, 0),
+      }
+    })
+    .sort((a, b) => b.hits - a.hits)
+}
+
 function valueGroups(data: Matches): [string, ValueRow[]][] {
   const groups: [string, ValueRow[]][] = [
     [
@@ -337,26 +379,10 @@ function valueGroups(data: Matches): [string, ValueRow[]][] {
     ],
     [
       "City",
-      data.cities.map((city) => ({
-        key: `city:${city.countryCode ?? ""}:${city.city}`,
-        picked: {
-          kind: "city",
-          city: city.city,
-          countryCode: city.countryCode,
-          countryName: city.countryName,
-        },
-        icon: <CountryFlag code={city.countryCode} className="h-3 w-[18px]" />,
-        // The flag is hidden from screen readers, so the country goes along in words.
-        name: (
-          <>
-            {city.city}
-            {(city.countryName || city.countryCode) && (
-              <span className="sr-only">, {city.countryName || city.countryCode}</span>
-            )}
-          </>
-        ),
-        hits: city.hits,
-      })),
+      // The filter takes a city by name, so a name found in several countries is one row,
+      // and only a name from one country shows that country. A full answer may have left
+      // the same name in another country out, so then no country shows.
+      cityRows(data.cities, data.cities.length < NAME_SEARCH_SHOWN),
     ],
     [
       "Host",

@@ -1,18 +1,20 @@
 /**
  * Filter bar for the geo-logs page: IP include/exclude, country, city and
  * server multiselects, and an ASN include/exclude combobox pair
- * (lazy-loaded facets). Renders in a FilterRail on desktop and inside a
+ * (lazy-loaded facets). Renders as a FilterBar on desktop and inside a
  * FiltersDrawer on phones. Everything on the page (map, stats, chart, top
  * lists, table) reshapes through GeoLogFiltersContext, whose state lives in
  * the URL search params.
  */
 import { CountryFlag } from "@/components/country-flag"
 import { useState } from "react"
-import { ExcludeMyIpButton, ExcludeMyIpField } from "@/components/data/exclude-my-ip"
-import { MutedIpsChip } from "@/components/data/muted-ips-chip"
-import { FilterField, FilterPair, FilterRail, FilterRow } from "@/components/data/filter-rail"
+import { Flag, Hash, MapPin, Network, Server } from "lucide-react"
+import { ExcludeMyIpButton } from "@/components/data/exclude-my-ip"
+import { FilterBar } from "@/components/data/filter-bar"
+import { listField, typedField, type FilterBarField } from "@/components/data/filter-bar-fields"
+import { FilterRow } from "@/components/data/filter-rail"
+import type { PickedValue } from "@/components/command-palette/filter-value-results"
 import { FilterChip, TagInput } from "@/components/data/tag-input"
-import { FilterCombobox } from "@/components/ui/filter-combobox"
 import {
   FilterExcludedIpRows,
   FilterListRow,
@@ -27,6 +29,7 @@ import { usePhoneLayout } from "@/hooks/use-phone-map"
 import { useGeoEventFacets } from "@/lib/queries"
 import { mutedDrawerCounts } from "@/lib/muted-ips"
 import { ipFilterHint, isValidIpFilter } from "@/lib/ip-filter-values"
+import { countryDisplayName } from "@/lib/country-flags"
 import {
   countActiveGeoLogFilters,
   EMPTY_GEO_LOG_FILTERS,
@@ -35,7 +38,8 @@ import {
 
 type IpKey = "ips" | "ipsExclude"
 
-export function GeoLogsFilterBar() {
+/** `trailing` goes at the right end of the desktop bar, such as the Charts switch. */
+export function GeoLogsFilterBar({ trailing }: { trailing?: React.ReactNode }) {
   const phone = usePhoneLayout()
   const { filters, setFilters, muted, toggleMuted } = useGeoLogFilters()
   const [facetsEnabled, setFacetsEnabled] = useState(false)
@@ -57,7 +61,9 @@ export function GeoLogsFilterBar() {
   )
 
   const asnLabel = useAsnLabel(facets?.asns)
-  const countryName = (code: string) => facets?.countries.find((c) => c.code === code)?.name
+  // The browser names a country until the facets arrive, as on a shared link.
+  const countryName = (code: string) =>
+    facets?.countries.find((c) => c.code === code)?.name ?? countryDisplayName(code)
   const countryLabel = (code: string) => {
     const name = countryName(code)
     return name ? `${name} (${code})` : code
@@ -111,105 +117,6 @@ export function GeoLogsFilterBar() {
       )
     )
   }
-
-  const ipPair = () => (
-    <FilterPair
-      label="IP address"
-      excludeLabel="Exclude IP"
-      include={
-        <TagInput
-          onAdd={addIp("ips")}
-          validate={isValidIpFilter}
-          hint={ipFilterHint}
-          placeholder="203.0.113.7"
-          className="w-36"
-          data-page-filter=""
-        />
-      }
-      exclude={
-        <TagInput
-          exclude
-          onAdd={addIp("ipsExclude")}
-          validate={isValidIpFilter}
-          hint={ipFilterHint}
-          placeholder="Exclude"
-          className="w-32"
-        />
-      }
-    />
-  )
-  const country = () => (
-    <FilterField label="Country" hideLabel>
-      <FilterCombobox
-        label="Country"
-        iconFor={(code) => <CountryFlag code={code} />}
-        options={facets?.countries.map((c) => c.code) ?? []}
-        selected={filters.countryCodes}
-        onChange={(values) => setFilters((prev) => ({ ...prev, countryCodes: values }))}
-        labelFor={countryLabel}
-        loading={!facets}
-        emptyText="No geo data"
-        onOpenChange={(open) => open && setFacetsEnabled(true)}
-      />
-    </FilterField>
-  )
-  const city = () => (
-    <FilterField label="City" hideLabel>
-      <FilterCombobox
-        label="City"
-        options={facets?.cities ?? []}
-        selected={filters.cities}
-        onChange={(values) => setFilters((prev) => ({ ...prev, cities: values }))}
-        loading={!facets}
-        emptyText="No geo data"
-        onOpenChange={(open) => open && setFacetsEnabled(true)}
-      />
-    </FilterField>
-  )
-  const server = () => (
-    <FilterField label="Server" hideLabel>
-      <FilterCombobox
-        label="Server"
-        options={facets?.servers ?? []}
-        selected={filters.servers}
-        onChange={(values) => setFilters((prev) => ({ ...prev, servers: values }))}
-        loading={!facets}
-        emptyText="No servers"
-        onOpenChange={(open) => open && setFacetsEnabled(true)}
-      />
-    </FilterField>
-  )
-
-  const asnPair = () => (
-    <FilterPair
-      label="ASN"
-      excludeLabel="Exclude ASN"
-      include={
-        <FilterCombobox<number>
-          label="ASN"
-          options={facets?.asns.map((a) => a.asn) ?? []}
-          selected={filters.asns}
-          onChange={setAsns("asns")}
-          labelFor={asnLabel}
-          loading={!facets}
-          emptyText="No ASN data"
-          onOpenChange={(open) => open && setFacetsEnabled(true)}
-        />
-      }
-      exclude={
-        <FilterCombobox<number>
-          label="Exclude ASN"
-          options={facets?.asns.map((a) => a.asn) ?? []}
-          selected={filters.asnsExclude}
-          onChange={setAsns("asnsExclude")}
-          labelFor={asnLabel}
-          loading={!facets}
-          emptyText="No ASN data"
-          onOpenChange={(open) => open && setFacetsEnabled(true)}
-        />
-      }
-    />
-  )
 
   const urlCount = countActiveGeoLogFilters(filters)
   const { activeCount, clearCount } = mutedDrawerCounts(urlCount, muted.flag)
@@ -300,18 +207,117 @@ export function GeoLogsFilterBar() {
     )
   }
 
+  const loadFacets = () => setFacetsEnabled(true)
+  const fields: FilterBarField[] = [
+    typedField({
+      id: "ip",
+      label: "IP address",
+      chipLabel: "IP",
+      icon: Hash,
+      include: filters.ips,
+      exclude: filters.ipsExclude,
+      onChange: (ips, ipsExclude) => setFilters((prev) => ({ ...prev, ips, ipsExclude })),
+      labelFor: String,
+      mono: true,
+      validate: isValidIpFilter,
+      hint: ipFilterHint,
+      placeholder: "203.0.113.7",
+      help: "Takes an address or a CIDR range.",
+    }),
+    listField({
+      id: "country",
+      label: "Country",
+      icon: Flag,
+      include: filters.countryCodes,
+      onChange: (countryCodes) => setFilters((prev) => ({ ...prev, countryCodes })),
+      labelFor: countryLabel,
+      chipValue: (code) => (
+        <>
+          <CountryFlag code={code} />
+          {countryName(code) ?? code}
+        </>
+      ),
+      iconFor: (code) => <CountryFlag code={code} />,
+      options: facets?.countries.map((c) => c.code) ?? [],
+      loading: !facets,
+      emptyText: "No geo data",
+      onOpen: loadFacets,
+    }),
+    listField({
+      id: "city",
+      label: "City",
+      icon: MapPin,
+      include: filters.cities,
+      onChange: (cities) => setFilters((prev) => ({ ...prev, cities })),
+      labelFor: String,
+      options: facets?.cities ?? [],
+      loading: !facets,
+      emptyText: "No geo data",
+      onOpen: loadFacets,
+    }),
+    listField({
+      id: "server",
+      label: "Server",
+      icon: Server,
+      include: filters.servers,
+      onChange: (servers) => setFilters((prev) => ({ ...prev, servers })),
+      labelFor: String,
+      options: facets?.servers ?? [],
+      loading: !facets,
+      emptyText: "No servers",
+      onOpen: loadFacets,
+    }),
+    listField({
+      id: "asn",
+      label: "ASN",
+      icon: Network,
+      include: filters.asns,
+      exclude: filters.asnsExclude,
+      onChange: (asns, asnsExclude) => setFilters((prev) => ({ ...prev, asns, asnsExclude })),
+      labelFor: asnLabel,
+      chipValue: (asn) => `AS${asn}`,
+      options: facets?.asns.map((a) => a.asn) ?? [],
+      loading: !facets,
+      emptyText: "No ASN data",
+      onOpen: loadFacets,
+    }),
+  ]
+
+  // Geo events carry the same countries, cities, servers and networks as access logs, so the
+  // name search ranks them by access-log requests.
+  const onPick = (picked: PickedValue) =>
+    setFilters((prev) => {
+      const add = <T,>(list: T[], value: T) => (list.includes(value) ? list : [...list, value])
+      switch (picked.kind) {
+        case "country":
+          return { ...prev, countryCodes: add(prev.countryCodes, picked.code) }
+        case "city":
+          return { ...prev, cities: add(prev.cities, picked.city) }
+        case "server":
+          return { ...prev, servers: add(prev.servers, picked.server) }
+        case "asn":
+          return {
+            ...prev,
+            asns: add(prev.asns, picked.asn),
+            asnsExclude: prev.asnsExclude.filter((asn) => asn !== picked.asn),
+          }
+        case "host":
+          return prev
+      }
+    })
+
   return (
-    <FilterRail label="Location filters" activeCount={urlCount} onClear={clear}>
-      <FilterRow>
-        {ipPair()}
-        <ExcludeMyIpField exclusion={myIp} />
-        <MutedIpsChip scope={muted} onToggle={toggleMuted} />
-        {country()}
-        {city()}
-        {server()}
-        {asnPair()}
-      </FilterRow>
-      {chipRow(["ips", "ipsExclude", "asns", "asnsExclude"])}
-    </FilterRail>
+    <FilterBar
+      label="Location filters"
+      pageId="geo-logs"
+      trailing={trailing}
+      valueSearch={{ onPick, kinds: ["country", "city", "server", "asn"] }}
+      fields={fields}
+      activeCount={urlCount}
+      onClear={clear}
+      myIp={myIp}
+      muted={muted}
+      onToggleMuted={toggleMuted}
+    />
   )
 }

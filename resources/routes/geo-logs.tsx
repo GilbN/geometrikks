@@ -33,7 +33,6 @@ import {
   type GeoLogsSearch,
 } from "@/lib/geo-logs-search"
 import { useCrowdsecLiveUpdates } from "@/lib/queries"
-import { usePhoneLayout } from "@/hooks/use-phone-map"
 import type { GeoLogSortField, GeoLogSortOrder } from "@/lib/api"
 
 const GeoLogsMap = lazy(() => import("@/components/geo-logs/geo-logs-map"))
@@ -62,7 +61,6 @@ function GeoLogsPage() {
   // Keep banned badges (Top IPs card + geo-logs table) in sync with external
   // cscli/console decisions; one subscription for the whole page.
   useCrowdsecLiveUpdates()
-  const phoneLayout = usePhoneLayout()
 
   const { filters, setFilters, patchSearch } = useUrlFilters({
     search,
@@ -91,14 +89,10 @@ function GeoLogsPage() {
       toggleMuted={toggleMuted}
     >
       <div className="p-4 space-y-4">
-        <PageHeader
-          subtitle="Trace where traffic originates, how locations change over time, and which clients recur."
-          // Phones set this in the range drawer. Leaving it out there lets the
-          // header, which has nothing else to show on a phone, take no space.
-          actions={phoneLayout ? undefined : <CardChartsSwitch page="geo-logs" />}
-        />
+        <PageHeader subtitle="Trace where traffic originates, how locations change over time, and which clients recur." />
         <JumpBar sections={SECTIONS} />
-        <GeoLogsFilterBar />
+        {/* Phones set the charts in the range drawer; a wide screen has the switch in the bar. */}
+        <GeoLogsFilterBar trailing={<CardChartsSwitch page="geo-logs" />} />
         <GeoLogsMutedNote scope={muted} />
         <GeoLogsStats />
         <div className="grid gap-4 lg:grid-cols-2">
