@@ -4,7 +4,7 @@
  * keys are learned along the way. On a phone it is a full-screen sheet
  * opened from the search button in the header.
  */
-import { useEffect, useRef, useState, type KeyboardEvent } from "react"
+import { Fragment, useEffect, useRef, useState, type KeyboardEvent } from "react"
 import { useNavigate, useRouter, type RouterHistory } from "@tanstack/react-router"
 import { useQuery } from "@tanstack/react-query"
 import { defaultFilter, useCommandState } from "cmdk"
@@ -55,6 +55,15 @@ import {
   RowText,
   type IpActions,
 } from "@/components/command-palette/ip-results"
+import {
+  FilterValueGroups,
+  NAME_ROW,
+  PICKED_LABEL_ID,
+  PickedChip,
+  PickedTargets,
+  pickedLabel,
+  type PickedValue,
+} from "@/components/command-palette/filter-value-results"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { useIpInspector } from "@/lib/ip-inspector"
 import { canonicalIp, parseIpQuery } from "@/lib/ip-prefix"
@@ -132,9 +141,19 @@ function keepKeyFromList(event: KeyboardEvent) {
   if (event.key === "Enter") event.stopPropagation()
 }
 
-/** IP rows come from the server, which already matched them, so the typed text never hides them. */
+/** Name rows score this. A page or action whose name starts with the text scores more. */
+const NAME_ROW_SCORE = 0.5
+
+/**
+ * IP and name rows come from the server, which already matched them, so the
+ * typed text never hides them. Name rows rank under a page or action whose
+ * name starts with the text, so "acc" and Enter still opens Access Logs and
+ * not Accra.
+ */
 function paletteFilter(value: string, search: string, keywords?: string[]): number {
-  return value.startsWith(IP_ROW) ? 1 : defaultFilter(value, search, keywords)
+  if (value.startsWith(IP_ROW)) return 1
+  if (value.startsWith(NAME_ROW)) return NAME_ROW_SCORE
+  return defaultFilter(value, search, keywords)
 }
 
 /** cmdk's empty message sits in the listbox, which screen readers don't announce. */
@@ -232,9 +251,19 @@ export function CommandPalette() {
   const report = useAbuseReportDialog()
   const [search, setSearch] = useState("")
   const [selected, setSelected] = useState("")
+  // The arrow keys set it and typing clears it, so a highlight the user moved stays put.
+  const highlightMoved = useRef(false)
+  // Whether the name search for the live text is still waiting for its answer.
+  const namesPending = useRef(false)
+  // An Enter pressed on a loose match while names were on their way, to run on the top row.
+  const enterWaiting = useRef(false)
+  // Counts edits to the text and the pick, so a held Enter can tell the list changed under it.
+  const edits = useRef(0)
   const [ipStatus, setIpStatus] = useState("")
   // A touch screen hides the highlight on the picked row until the arrow keys move it.
   const [arrowKeysUsed, setArrowKeysUsed] = useState(false)
+  // A country, city, host, server or network picked from the name search, waiting for a page.
+  const [picked, setPicked] = useState<PickedValue | null>(null)
   // Each opening starts empty. Clearing on open, not on close, keeps the list
   // as it was while the dialog fades out.
   const [wasOpen, setWasOpen] = useState(isOpen)
@@ -243,6 +272,7 @@ export function CommandPalette() {
     if (isOpen) {
       setSearch("")
       setArrowKeysUsed(false)
+      setPicked(null)
     }
   }
   const settledSearch = useDebouncedValue(search, 150)
@@ -279,6 +309,49 @@ export function CommandPalette() {
   }
 
   const onAddress = selected.startsWith(ADDRESS_ROW)
+
+  const pick = (value: PickedValue) => {
+    edits.current += 1
+    // The name rows go away with the pick, and their pending answer with them.
+    namesPending.current = false
+    enterWaiting.current = false
+    setPicked(value)
+    setSearch("")
+    inputRef.current?.focus()
+  }
+  const unpick = () => {
+    edits.current += 1
+    setPicked(null)
+    // Text typed to narrow the page list would start a name search of its own.
+    setSearch("")
+    inputRef.current?.focus()
+  }
+  const type = (text: string) => {
+    edits.current += 1
+    highlightMoved.current = false
+    enterWaiting.current = false
+    setSearch(text)
+  }
+  const weakHighlight = () =>
+    !highlightMoved.current && paletteFilter(selected, search) < NAME_ROW_SCORE
+  const pressOnInput = (key: string) =>
+    inputRef.current?.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }))
+  // Name rows arrive after cmdk has highlighted the best page or action, and cmdk keeps
+  // that highlight when rows mount above it. A loose match such as "Change the time
+  // range" for "git" gives way to the top row, the way cmdk's own Home key moves it.
+  const raiseNameRows = () => {
+    const enter = enterWaiting.current
+    enterWaiting.current = false
+    if (!weakHighlight()) return
+    const edit = edits.current
+    requestAnimationFrame(() => {
+      if (edits.current !== edit) return
+      pressOnInput("Home")
+      // cmdk runs the row marked selected in the DOM, which the Home render has to reach first.
+      // A click or a key in between changes the list, and the held Enter no longer applies.
+      if (enter) requestAnimationFrame(() => edits.current === edit && pressOnInput("Enter"))
+    })
+  }
 
   const ipActions: IpActions = {
     inspect: (ip) => run(() => inspect(ip)),
@@ -357,6 +430,39 @@ export function CommandPalette() {
     </CommandGroup>
   )
 
+  // cmdk ranks rows inside a group but never reorders the groups, and it highlights the
+  // first row on screen. So the blocks go in order of their best match. Names score
+  // NAME_ROW_SCORE, and a page or action that matches at least as well goes above them.
+  const best = (values: string[]) =>
+    search.trim() === "" ? 0 : Math.max(0, ...values.map((value) => defaultFilter(value, search)))
+  const blockScores = {
+    names: NAME_ROW_SCORE - 0.001,
+    goTo: best(shownPages.map((item) => item.title)),
+    actions: best([
+      ...(routeHeader.timeRange ? ["change the time range"] : []),
+      ...(crowdsec?.writeEnabled ? ["ban an ip or range"] : []),
+      "start the live tail",
+    ]),
+  }
+  type Block = keyof typeof blockScores
+  const blocks = (
+    ["names", ...(phone ? ["actions", "goTo"] : ["goTo", "actions"])] as Block[]
+  ).sort((a, b) => blockScores[b] - blockScores[a])
+  const nameGroups = !ipQuery && (
+    <FilterValueGroups
+      search={search}
+      settled={settledSearch}
+      enabled={isOpen}
+      onPick={pick}
+      onArrived={raiseNameRows}
+      onPending={(pending) => {
+        namesPending.current = pending
+        // An answer with no names drops the waiting Enter.
+        if (!pending) enterWaiting.current = false
+      }}
+    />
+  )
+
   return (
     <Dialog open={isOpen} onOpenChange={setCommandPaletteOpen}>
       <DialogContent
@@ -368,6 +474,12 @@ export function CommandPalette() {
             "top-0 left-0 flex h-dvh w-full max-w-none translate-x-0 flex-col rounded-none! border-0 bg-background pt-[env(safe-area-inset-top,0px)] pr-[env(safe-area-inset-right,0px)] pl-[env(safe-area-inset-left,0px)] shadow-none data-[state=closed]:zoom-out-100 data-[state=open]:zoom-in-100 sm:max-w-none",
         )}
         style={sheetBox ? { top: sheetBox.top, height: sheetBox.height } : undefined}
+        onEscapeKeyDown={(event) => {
+          // Escape steps back from the page list to the search before it closes the palette.
+          if (!picked) return
+          event.preventDefault()
+          unpick()
+        }}
         onCloseAutoFocus={(event) => {
           const { opener, action } = takeCommandPaletteClose()
           // Opened from the keyboard there is no trigger to return to, so focus goes
@@ -388,11 +500,37 @@ export function CommandPalette() {
         <Command
           className={cn("bg-transparent", phone && "min-h-0 flex-1 rounded-none! p-0")}
           vimBindings={false}
-          label="Search IPs, pages and actions"
+          label="Search IPs, hosts, countries, pages and actions"
           filter={paletteFilter}
 
           onKeyDown={(event) => {
-            if (event.key === "ArrowDown" || event.key === "ArrowUp") setArrowKeysUsed(true)
+            if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+              setArrowKeysUsed(true)
+              highlightMoved.current = true
+            }
+            // Enter before the names come would run whatever loose match cmdk highlighted.
+            // It waits for the answer instead and then runs the top row.
+            if (
+              event.key === "Enter" &&
+              event.isTrusted &&
+              // Enter that confirms an input method's text belongs to the input method.
+              !event.nativeEvent.isComposing &&
+              event.keyCode !== 229 &&
+              !event.ctrlKey &&
+              !event.metaKey &&
+              namesPending.current &&
+              !picked &&
+              weakHighlight()
+            ) {
+              event.preventDefault()
+              enterWaiting.current = true
+              return
+            }
+            if (event.key === "Backspace" && picked && search === "") {
+              event.preventDefault()
+              unpick()
+              return
+            }
             // Ctrl+Enter opens an address in Access Logs instead of the inspector.
             const value =
               event.currentTarget
@@ -406,13 +544,23 @@ export function CommandPalette() {
         >
           {phone ? (
             <div className="flex items-center gap-3 border-b border-border/60 py-2.5 pr-4 pl-4 [&_[data-slot=command-input-wrapper]]:p-0 [&_[data-slot=input-group]]:h-11! [&_[data-slot=input-group]]:rounded-xl! [&_[data-slot=input-group]]:border-border [&_[data-slot=command-input]]:text-base">
-              <div className="relative min-w-0 flex-1">
+              <div
+                className={cn(
+                  "relative min-w-0 flex-1",
+                  picked &&
+                    "flex items-center rounded-xl border border-border bg-input/30 pl-1.5 [&_[data-slot=command-input-wrapper]]:min-w-0 [&_[data-slot=command-input-wrapper]]:flex-1 [&_[data-slot=input-group-addon]]:hidden [&_[data-slot=input-group]]:border-0! [&_[data-slot=input-group]]:bg-transparent!",
+                )}
+              >
+                {picked && (
+                  <PickedChip picked={picked} onRemove={unpick} onKeyDown={keepKeyFromList} />
+                )}
                 <CommandInput
                   ref={inputRef}
-                  placeholder="Search IPs, pages and actions"
+                  placeholder={picked ? "Pick a page" : "IP, host, country or action"}
+                  aria-describedby={picked ? PICKED_LABEL_ID : undefined}
                   className={cn(search !== "" && "pr-9")}
                   value={search}
-                  onValueChange={setSearch}
+                  onValueChange={type}
                 />
                 {search !== "" && (
                   <button
@@ -420,7 +568,7 @@ export function CommandPalette() {
                     aria-label="Clear the search"
                     onKeyDown={keepKeyFromList}
                     onClick={() => {
-                      setSearch("")
+                      type("")
                       inputRef.current?.focus()
                     }}
                     className="absolute top-1/2 right-1 grid size-9 -translate-y-1/2 place-items-center rounded-full text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring"
@@ -439,13 +587,25 @@ export function CommandPalette() {
               </button>
             </div>
           ) : (
-            <div className="relative border-b border-border/60 [&_[data-slot=command-input-wrapper]]:p-2 [&_[data-slot=input-group]]:h-11! [&_[data-slot=input-group]]:border-0 [&_[data-slot=input-group]]:bg-transparent [&_[data-slot=command-input]]:text-base">
+            <div
+              className={cn(
+                "relative border-b border-border/60 [&_[data-slot=command-input-wrapper]]:p-2 [&_[data-slot=input-group]]:h-11! [&_[data-slot=input-group]]:border-0 [&_[data-slot=input-group]]:bg-transparent [&_[data-slot=command-input]]:text-base",
+                picked &&
+                  "flex items-center pl-4 [&_[data-slot=command-input-wrapper]]:min-w-0 [&_[data-slot=command-input-wrapper]]:flex-1 [&_[data-slot=input-group-addon]]:hidden",
+              )}
+            >
+              {picked && (
+                <PickedChip picked={picked} onRemove={unpick} onKeyDown={keepKeyFromList} />
+              )}
               <CommandInput
                 ref={inputRef}
-                placeholder="Search IPs, pages and actions"
+                placeholder={
+                  picked ? "Pick a page" : "Search IPs, hosts, countries, pages and actions"
+                }
+                aria-describedby={picked ? PICKED_LABEL_ID : undefined}
                 className="pr-14"
                 value={search}
-                onValueChange={setSearch}
+                onValueChange={type}
               />
               <Kbd
                 aria-hidden
@@ -466,36 +626,37 @@ export function CommandPalette() {
             )}
           >
             <CommandEmpty>Nothing matches.</CommandEmpty>
-            {ipQuery ? (
-              <IpSearchGroups
-                query={ipQuery}
-                actions={ipActions}
-                crowdsecEnabled={crowdsec?.enabled === true}
-                canBan={crowdsec?.writeEnabled === true}
-                enabled={isOpen}
-                current={settledSearch === search}
-                onStatus={setIpStatus}
-              />
-            ) : (
-              search === "" && (
-                <RecentIpsGroup ips={recentIps} actions={ipActions} enabled={isOpen} />
-              )
-            )}
-            {phone ? (
-              <>
-                {actions}
-                {goTo}
-              </>
+            {picked ? (
+              <PickedTargets picked={picked} onGo={(go) => run(() => go(navigate))} />
             ) : (
               <>
-                {goTo}
-                {actions}
+                {ipQuery ? (
+                  <IpSearchGroups
+                    query={ipQuery}
+                    actions={ipActions}
+                    crowdsecEnabled={crowdsec?.enabled === true}
+                    canBan={crowdsec?.writeEnabled === true}
+                    enabled={isOpen}
+                    current={settledSearch === search}
+                    onStatus={setIpStatus}
+                  />
+                ) : (
+                  search === "" && (
+                    <RecentIpsGroup ips={recentIps} actions={ipActions} enabled={isOpen} />
+                  )
+                )}
+                {/* Keyed, so a change of order moves the groups instead of mounting them again. */}
+                {blocks.map((block) => (
+                  <Fragment key={block}>
+                    {block === "names" ? nameGroups : block === "goTo" ? goTo : actions}
+                  </Fragment>
+                ))}
               </>
             )}
           </CommandList>
           <NoMatchStatus />
           <div role="status" className="sr-only">
-            {ipStatus}
+            {picked ? `${pickedLabel(picked)}. Pick a page.` : ipStatus}
           </div>
           <SelectionMirror onChange={setSelected} />
         </Command>
@@ -558,7 +719,7 @@ export function CommandPaletteField() {
         className="hidden h-9 w-80 items-center gap-2 rounded-md border border-input bg-input/30 px-3 text-left text-[13px] text-muted-foreground transition-colors hover:bg-input/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring @4xl:flex"
       >
         <Search aria-hidden className="size-4 shrink-0" />
-        <span className="min-w-0 flex-1 truncate">Search IPs, pages and actions…</span>
+        <span className="min-w-0 flex-1 truncate">Search IPs, hosts, pages…</span>
         <KbdGroup aria-hidden>
           <Kbd className={KEY}>{modifierLabel()}</Kbd>
           <Kbd className={KEY}>K</Kbd>

@@ -1658,6 +1658,36 @@ export const AsnFacetSchema = {
   type: "object",
 } as const;
 
+export const AsnMatchSchema = {
+  description:
+    "An autonomous system whose organization or number matches the search.",
+  properties: {
+    asn: {
+      description: "The autonomous system number, the value `asnIn` takes.",
+      type: "integer",
+    },
+    hits: {
+      description: "Requests kept for it, muted IPs included.",
+      type: "integer",
+    },
+    organization: {
+      description:
+        "The network's name from the GeoLite2 ASN database. Null when it has none.",
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+  },
+  required: ["asn", "hits", "organization"],
+  title: "AsnMatch",
+  type: "object",
+} as const;
+
 export const AuthDisabledSchema = {
   description:
     "The server runs with APP_AUTH_DISABLED=true, so there is no session and no user.",
@@ -2225,6 +2255,46 @@ export const CheckResponseSchema = {
   type: "object",
 } as const;
 
+export const CityMatchSchema = {
+  description:
+    "A city whose name matches the search. The same name in two countries is two matches.",
+  properties: {
+    city: {
+      description: "The city name, the value `city` takes.",
+      type: "string",
+    },
+    countryCode: {
+      description: "The city's country code. Null when GeoIP gave none.",
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    countryName: {
+      description: "The city's country name. Null when GeoIP gave none.",
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    hits: {
+      description: "Requests kept for it, muted IPs included.",
+      type: "integer",
+    },
+  },
+  required: ["city", "countryCode", "countryName", "hits"],
+  title: "CityMatch",
+  type: "object",
+} as const;
+
 export const ClientIpResponseSchema = {
   description: "The address this server sees for the caller.",
   properties: {
@@ -2265,6 +2335,28 @@ export const CountryFacetSchema = {
   },
   required: ["code", "name"],
   title: "CountryFacet",
+  type: "object",
+} as const;
+
+export const CountryMatchSchema = {
+  description: "A country whose name or code matches the search.",
+  properties: {
+    code: {
+      description:
+        "The two-letter ISO 3166-1 code, the value `countryCode` takes.",
+      type: "string",
+    },
+    hits: {
+      description: "Requests kept for it, muted IPs included.",
+      type: "integer",
+    },
+    name: {
+      description: "The country name, or the code when GeoIP gave no name.",
+      type: "string",
+    },
+  },
+  required: ["code", "hits", "name"],
+  title: "CountryMatch",
   type: "object",
 } as const;
 
@@ -3481,6 +3573,45 @@ export const ErrorEnvelopeSchema = {
   type: "object",
 } as const;
 
+export const FilterValueMatchesSchema = {
+  description: "Filter values that match a search, busiest first in each list.",
+  properties: {
+    asns: {
+      items: {
+        $ref: "#/components/schemas/AsnMatch",
+      },
+      type: "array",
+    },
+    cities: {
+      items: {
+        $ref: "#/components/schemas/CityMatch",
+      },
+      type: "array",
+    },
+    countries: {
+      items: {
+        $ref: "#/components/schemas/CountryMatch",
+      },
+      type: "array",
+    },
+    hosts: {
+      items: {
+        $ref: "#/components/schemas/HostMatch",
+      },
+      type: "array",
+    },
+    servers: {
+      items: {
+        $ref: "#/components/schemas/ServerMatch",
+      },
+      type: "array",
+    },
+  },
+  required: ["asns", "cities", "countries", "hosts", "servers"],
+  title: "FilterValueMatches",
+  type: "object",
+} as const;
+
 export const GeoAsnFacetSchema = {
   description: "One autonomous system in the stored data.",
   properties: {
@@ -4494,6 +4625,22 @@ export const HeartbeatPayloadSchema = {
   },
   required: [],
   title: "HeartbeatPayload",
+  type: "object",
+} as const;
+
+export const HostMatchSchema = {
+  description: "A Host header value that matches the search.",
+  properties: {
+    hits: {
+      description: "Requests kept for it, muted IPs included.",
+      type: "integer",
+    },
+    host: {
+      type: "string",
+    },
+  },
+  required: ["hits", "host"],
+  title: "HostMatch",
   type: "object",
 } as const;
 
@@ -7696,6 +7843,22 @@ export const ServerLocationsResponseSchema = {
   },
   required: ["default", "locations"],
   title: "ServerLocationsResponse",
+  type: "object",
+} as const;
+
+export const ServerMatchSchema = {
+  description: "A server name that matches the search.",
+  properties: {
+    hits: {
+      description: "Requests kept for it, muted IPs included.",
+      type: "integer",
+    },
+    server: {
+      type: "string",
+    },
+  },
+  required: ["hits", "server"],
+  title: "ServerMatch",
   type: "object",
 } as const;
 

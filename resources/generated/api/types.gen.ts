@@ -798,6 +798,26 @@ export type AsnFacet = {
 };
 
 /**
+ * AsnMatch
+ *
+ * An autonomous system whose organization or number matches the search.
+ */
+export type AsnMatch = {
+  /**
+   * The autonomous system number, the value `asnIn` takes.
+   */
+  asn: number;
+  /**
+   * Requests kept for it, muted IPs included.
+   */
+  hits: number;
+  /**
+   * The network's name from the GeoLite2 ASN database. Null when it has none.
+   */
+  organization: string | null;
+};
+
+/**
  * AuthDisabled
  *
  * The server runs with APP_AUTH_DISABLED=true, so there is no session and no user.
@@ -1127,6 +1147,30 @@ export type CheckResponse = {
 };
 
 /**
+ * CityMatch
+ *
+ * A city whose name matches the search. The same name in two countries is two matches.
+ */
+export type CityMatch = {
+  /**
+   * The city name, the value `city` takes.
+   */
+  city: string;
+  /**
+   * The city's country code. Null when GeoIP gave none.
+   */
+  countryCode: string | null;
+  /**
+   * The city's country name. Null when GeoIP gave none.
+   */
+  countryName: string | null;
+  /**
+   * Requests kept for it, muted IPs included.
+   */
+  hits: number;
+};
+
+/**
  * ClientIpResponse
  *
  * The address this server sees for the caller.
@@ -1152,6 +1196,26 @@ export type CountryFacet = {
    * The two-letter ISO 3166-1 code, such as `NO`.
    */
   code: string;
+  /**
+   * The country name, or the code when GeoIP gave no name.
+   */
+  name: string;
+};
+
+/**
+ * CountryMatch
+ *
+ * A country whose name or code matches the search.
+ */
+export type CountryMatch = {
+  /**
+   * The two-letter ISO 3166-1 code, the value `countryCode` takes.
+   */
+  code: string;
+  /**
+   * Requests kept for it, muted IPs included.
+   */
+  hits: number;
   /**
    * The country name, or the code when GeoIP gave no name.
    */
@@ -1796,6 +1860,19 @@ export type ErrorEnvelope = {
 };
 
 /**
+ * FilterValueMatches
+ *
+ * Filter values that match a search, busiest first in each list.
+ */
+export type FilterValueMatches = {
+  asns: Array<AsnMatch>;
+  cities: Array<CityMatch>;
+  countries: Array<CountryMatch>;
+  hosts: Array<HostMatch>;
+  servers: Array<ServerMatch>;
+};
+
+/**
  * GeoAsnFacet
  *
  * One autonomous system in the stored data.
@@ -2290,6 +2367,19 @@ export type HeartbeatPayload = {
    * Records written in the last 5 minutes.
    */
   written5M?: number | null;
+};
+
+/**
+ * HostMatch
+ *
+ * A Host header value that matches the search.
+ */
+export type HostMatch = {
+  /**
+   * Requests kept for it, muted IPs included.
+   */
+  hits: number;
+  host: string;
 };
 
 /**
@@ -3774,6 +3864,19 @@ export type ServerLocationsResponse = {
 };
 
 /**
+ * ServerMatch
+ *
+ * A server name that matches the search.
+ */
+export type ServerMatch = {
+  /**
+   * Requests kept for it, muted IPs included.
+   */
+  hits: number;
+  server: string;
+};
+
+/**
  * SessionConnection
  *
  * The request used an authenticated browser session.
@@ -5140,6 +5243,55 @@ export type ApiV1AccessLogsFacetsGetAccessLogFacetsResponses = {
 
 export type ApiV1AccessLogsFacetsGetAccessLogFacetsResponse =
   ApiV1AccessLogsFacetsGetAccessLogFacetsResponses[keyof ApiV1AccessLogsFacetsGetAccessLogFacetsResponses];
+
+export type ApiV1AccessLogsFacetsSearchSearchAccessLogFacetsData = {
+  body?: never;
+  path?: never;
+  query: {
+    /**
+     * The text to look for, 2 to 100 characters.
+     */
+    q: string;
+    /**
+     * How many values of each kind to return, from 1 to 20. Defaults to 4.
+     */
+    limit?: number;
+  };
+  url: "/api/v1/access-logs/facets/search";
+};
+
+export type ApiV1AccessLogsFacetsSearchSearchAccessLogFacetsErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1AccessLogsFacetsSearchSearchAccessLogFacetsError =
+  ApiV1AccessLogsFacetsSearchSearchAccessLogFacetsErrors[keyof ApiV1AccessLogsFacetsSearchSearchAccessLogFacetsErrors];
+
+export type ApiV1AccessLogsFacetsSearchSearchAccessLogFacetsResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: FilterValueMatches;
+};
+
+export type ApiV1AccessLogsFacetsSearchSearchAccessLogFacetsResponse =
+  ApiV1AccessLogsFacetsSearchSearchAccessLogFacetsResponses[keyof ApiV1AccessLogsFacetsSearchSearchAccessLogFacetsResponses];
 
 export type ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesData = {
   body?: never;

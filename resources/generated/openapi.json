@@ -1655,6 +1655,37 @@
         "title": "AsnFacet",
         "type": "object"
       },
+      "AsnMatch": {
+        "description": "An autonomous system whose organization or number matches the search.",
+        "properties": {
+          "asn": {
+            "description": "The autonomous system number, the value `asnIn` takes.",
+            "type": "integer"
+          },
+          "hits": {
+            "description": "Requests kept for it, muted IPs included.",
+            "type": "integer"
+          },
+          "organization": {
+            "description": "The network's name from the GeoLite2 ASN database. Null when it has none.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "asn",
+          "hits",
+          "organization"
+        ],
+        "title": "AsnMatch",
+        "type": "object"
+      },
       "AuthDisabled": {
         "description": "The server runs with APP_AUTH_DISABLED=true, so there is no session and no user.",
         "properties": {
@@ -2256,6 +2287,49 @@
         "title": "CheckResponse",
         "type": "object"
       },
+      "CityMatch": {
+        "description": "A city whose name matches the search. The same name in two countries is two matches.",
+        "properties": {
+          "city": {
+            "description": "The city name, the value `city` takes.",
+            "type": "string"
+          },
+          "countryCode": {
+            "description": "The city's country code. Null when GeoIP gave none.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "countryName": {
+            "description": "The city's country name. Null when GeoIP gave none.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "hits": {
+            "description": "Requests kept for it, muted IPs included.",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "city",
+          "countryCode",
+          "countryName",
+          "hits"
+        ],
+        "title": "CityMatch",
+        "type": "object"
+      },
       "ClientIpResponse": {
         "description": "The address this server sees for the caller.",
         "properties": {
@@ -2299,6 +2373,30 @@
           "name"
         ],
         "title": "CountryFacet",
+        "type": "object"
+      },
+      "CountryMatch": {
+        "description": "A country whose name or code matches the search.",
+        "properties": {
+          "code": {
+            "description": "The two-letter ISO 3166-1 code, the value `countryCode` takes.",
+            "type": "string"
+          },
+          "hits": {
+            "description": "Requests kept for it, muted IPs included.",
+            "type": "integer"
+          },
+          "name": {
+            "description": "The country name, or the code when GeoIP gave no name.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "hits",
+          "name"
+        ],
+        "title": "CountryMatch",
         "type": "object"
       },
       "CreateApiKeyPayload": {
@@ -3496,6 +3594,50 @@
         "title": "ErrorEnvelope",
         "type": "object"
       },
+      "FilterValueMatches": {
+        "description": "Filter values that match a search, busiest first in each list.",
+        "properties": {
+          "asns": {
+            "items": {
+              "$ref": "#/components/schemas/AsnMatch"
+            },
+            "type": "array"
+          },
+          "cities": {
+            "items": {
+              "$ref": "#/components/schemas/CityMatch"
+            },
+            "type": "array"
+          },
+          "countries": {
+            "items": {
+              "$ref": "#/components/schemas/CountryMatch"
+            },
+            "type": "array"
+          },
+          "hosts": {
+            "items": {
+              "$ref": "#/components/schemas/HostMatch"
+            },
+            "type": "array"
+          },
+          "servers": {
+            "items": {
+              "$ref": "#/components/schemas/ServerMatch"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "asns",
+          "cities",
+          "countries",
+          "hosts",
+          "servers"
+        ],
+        "title": "FilterValueMatches",
+        "type": "object"
+      },
       "GeoAsnFacet": {
         "description": "One autonomous system in the stored data.",
         "properties": {
@@ -4524,6 +4666,24 @@
         },
         "required": [],
         "title": "HeartbeatPayload",
+        "type": "object"
+      },
+      "HostMatch": {
+        "description": "A Host header value that matches the search.",
+        "properties": {
+          "hits": {
+            "description": "Requests kept for it, muted IPs included.",
+            "type": "integer"
+          },
+          "host": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "hits",
+          "host"
+        ],
+        "title": "HostMatch",
         "type": "object"
       },
       "HostingAsnEntryView": {
@@ -7780,6 +7940,24 @@
         "title": "ServerLocationsResponse",
         "type": "object"
       },
+      "ServerMatch": {
+        "description": "A server name that matches the search.",
+        "properties": {
+          "hits": {
+            "description": "Requests kept for it, muted IPs included.",
+            "type": "integer"
+          },
+          "server": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "hits",
+          "server"
+        ],
+        "title": "ServerMatch",
+        "type": "object"
+      },
       "SessionConnection": {
         "description": "The request used an authenticated browser session.",
         "properties": {
@@ -10904,6 +11082,107 @@
           }
         },
         "summary": "List the filter values in the access logs",
+        "tags": [
+          "Access Logs"
+        ]
+      }
+    },
+    "/api/v1/access-logs/facets/search": {
+      "get": {
+        "deprecated": false,
+        "description": "Returns the countries, cities, hosts, server names and ASNs whose name holds `q`, ignoring case and accents, busiest first, up to `limit` of each. A country also matches its two-letter code, and an ASN matches its number with or without `AS`, from the first digits. Totals cover everything the daily aggregates keep, muted IPs included, and can trail new requests by up to five minutes.",
+        "operationId": "ApiV1AccessLogsFacetsSearchSearchAccessLogFacets",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "The text to look for, 2 to 100 characters.",
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "description": "The text to look for, 2 to 100 characters.",
+              "maxLength": 100,
+              "minLength": 2,
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "How many values of each kind to return, from 1 to 20. Defaults to 4.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 4,
+              "description": "How many values of each kind to return, from 1 to 20. Defaults to 4.",
+              "maximum": 20.0,
+              "minimum": 1.0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FilterValueMatches"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "code": "validation_failed",
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code",
+                    "code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "Search the filter values by name",
         "tags": [
           "Access Logs"
         ]

@@ -33,6 +33,9 @@ import type {
   ApiV1AccessLogDebugStatsGetAccessLogDebugStatsResponses,
   ApiV1AccessLogsFacetsGetAccessLogFacetsData,
   ApiV1AccessLogsFacetsGetAccessLogFacetsResponses,
+  ApiV1AccessLogsFacetsSearchSearchAccessLogFacetsData,
+  ApiV1AccessLogsFacetsSearchSearchAccessLogFacetsErrors,
+  ApiV1AccessLogsFacetsSearchSearchAccessLogFacetsResponses,
   ApiV1AccessLogsListAccessLogsData,
   ApiV1AccessLogsListAccessLogsErrors,
   ApiV1AccessLogsListAccessLogsResponses,
@@ -351,6 +354,7 @@ export type OperationName =
   | 'revoke_api_key'
   | 'rotate'
   | 'run_scheduler_job'
+  | 'search_access_log_facets'
   | 'server_locations'
   | 'stats'
   | 'summary'
@@ -447,6 +451,7 @@ export interface OperationDataTypes {
   'revoke_api_key': ApiV1AuthApiKeysKeyIdRevokeApiKeyData
   'rotate': ApiV1LogsRotateRotateData
   'run_scheduler_job': ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobData
+  'search_access_log_facets': ApiV1AccessLogsFacetsSearchSearchAccessLogFacetsData
   'server_locations': ApiV1GeoLocationsServerLocationsServerLocationsData
   'stats': ApiV1StatsStatsData
   'summary': ApiV1IntegrationSummarySummaryData
@@ -544,6 +549,7 @@ export interface OperationResponseTypes {
   'revoke_api_key': ApiV1AuthApiKeysKeyIdRevokeApiKeyResponses
   'rotate': ApiV1LogsRotateRotateResponses
   'run_scheduler_job': ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobResponses
+  'search_access_log_facets': ApiV1AccessLogsFacetsSearchSearchAccessLogFacetsResponses
   'server_locations': ApiV1GeoLocationsServerLocationsServerLocationsResponses
   'stats': ApiV1StatsStatsResponses
   'summary': ApiV1IntegrationSummarySummaryResponses
@@ -641,6 +647,7 @@ export interface OperationErrorTypes {
   'revoke_api_key': ApiV1AuthApiKeysKeyIdRevokeApiKeyErrors
   'rotate': never
   'run_scheduler_job': ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobErrors
+  'search_access_log_facets': ApiV1AccessLogsFacetsSearchSearchAccessLogFacetsErrors
   'server_locations': never
   'stats': never
   'summary': ApiV1IntegrationSummarySummaryErrors

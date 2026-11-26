@@ -46,6 +46,7 @@ import { BROWSER_TZ } from "@/lib/datetime"
 import type { BanDecisionType } from "@/lib/crowdsec"
 import type {
   AsnFacet,
+  FilterValueMatches,
   CreateMutedIpPayload,
   MutedIpView,
   GeoJsonFeatureCollection as GeoJSONFeatureCollection,
@@ -90,6 +91,7 @@ import type {
 } from "@/generated/api/types.gen"
 
 export type {
+  FilterValueMatches,
   CrowdSecStatusResponse,
   CrowdSecStatsResponse,
   AlertView,
@@ -1431,6 +1433,19 @@ export interface AccessLogFacets {
 /** Distinct country/city/host/server/log-format/ASN values present in the data, for the filter dropdowns. */
 export async function fetchAccessLogFacets(): Promise<AccessLogFacets> {
   const { data } = await api.get<AccessLogFacets>("/access-logs/facets")
+  return data
+}
+
+/** Countries, cities, hosts, servers and networks whose name holds `query`, busiest first. */
+export async function fetchFilterValueMatches(
+  query: string,
+  limit: number,
+  signal?: AbortSignal,
+): Promise<FilterValueMatches> {
+  const { data } = await api.get<FilterValueMatches>("/access-logs/facets/search", {
+    params: { q: query, limit },
+    signal,
+  })
   return data
 }
 

@@ -109,6 +109,7 @@ export type RouteName =
   | 'revoke_api_key'
   | 'rotate'
   | 'run_scheduler_job'
+  | 'search_access_log_facets'
   | 'server_locations'
   | 'service_worker'
   | 'stats'
@@ -225,6 +226,7 @@ export interface RoutePathParams {
   'run_scheduler_job': {
     job_id: string;
   };
+  'search_access_log_facets': Record<string, never>;
   'server_locations': Record<string, never>;
   'service_worker': Record<string, never>;
   'stats': Record<string, never>;
@@ -669,6 +671,10 @@ export interface RouteQueryParams {
   'revoke_api_key': Record<string, never>;
   'rotate': Record<string, never>;
   'run_scheduler_job': Record<string, never>;
+  'search_access_log_facets': {
+    limit?: number;
+    q: string;
+  };
   'server_locations': Record<string, never>;
   'service_worker': Record<string, never>;
   'stats': Record<string, never>;
@@ -1306,6 +1312,13 @@ export const routeDefinitions = {
     method: 'post',
     pathParams: ['job_id'] as const,
     queryParams: [] as const,
+  },
+  'search_access_log_facets': {
+    path: '/api/v1/access-logs/facets/search',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: ['limit', 'q'] as const,
   },
   'server_locations': {
     path: '/api/v1/geo-locations/server-locations',
