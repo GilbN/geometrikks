@@ -253,6 +253,7 @@ function RowStepButtons({ onStep }: { onStep: (step: 1 | -1) => void }) {
         title={label}
         aria-label={label}
         aria-disabled={!can}
+        data-row-step=""
         onClick={() => can && onStep(step)}
       >
         <Icon />

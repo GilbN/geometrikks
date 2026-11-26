@@ -247,3 +247,26 @@ test("when the last pages hold only the IP shown, the mark waits on the last row
   await expect(next(page)).toHaveAttribute("aria-disabled", "true")
   await expect(next(page)).toBeFocused()
 })
+
+test("Inspect IP in the record of the row already shown keeps its mark", async ({ page }) => {
+  await openAccessLogs(page)
+  await page.keyboard.press("j")
+  await page.keyboard.press("i")
+  await expect(marked(page)).toHaveAttribute("data-index", "0")
+  await page.keyboard.press("Enter")
+  await page.getByRole("dialog").getByRole("button", { name: "Inspect IP" }).click()
+  await expect(page.getByRole("dialog")).toHaveCount(0)
+  await expect(marked(page)).toHaveAttribute("data-index", "0")
+  await expect(next(page)).toBeVisible()
+})
+
+test("fast steps keep the mark on the IP shown", async ({ page }) => {
+  await openAccessLogs(page)
+  await page.keyboard.press("j")
+  await page.keyboard.press("i")
+  await expect(marked(page)).toHaveAttribute("data-index", "0")
+  for (let i = 0; i < 8; i++) await page.keyboard.press("j")
+  // Row 1 repeats row 0's IP, so eight steps end on row 9.
+  await expect(dock(page)).toHaveAccessibleName(startsWith(ipFor(9)))
+  await expect(marked(page)).toHaveAttribute("data-index", "9")
+})

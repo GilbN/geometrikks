@@ -282,8 +282,13 @@ export function VirtualTableBody<T>({
   // The rows the docked inspector marks and steps through.
   const rowList = useRef<RowList | null>(null)
   const [body, setBody] = useState<HTMLTableSectionElement | null>(null)
+  // The state above lags a commit behind. With the ref, a remounted body
+  // takes over the mark in the commit it mounts, so the arrows stay put.
+  const bodyRef = useRef<HTMLTableSectionElement | null>(null)
   // One reveal at a time: a later step must not be undone by an earlier one.
   const revealFrame = useRef(0)
+  const latestRows = useRef(rows)
+  latestRows.current = rows
   useEffect(() => () => cancelAnimationFrame(revealFrame.current), [])
   useLayoutEffect(() => {
     if (!shortcutValues) return
@@ -292,12 +297,16 @@ export function VirtualTableBody<T>({
       ipAt: (index) => (rows[index] === undefined ? undefined : shortcutValues(rows[index])?.ip),
       keyAt: (index) => (rows[index] === undefined ? undefined : getRowKey(rows[index])),
       indexOfKey: (key) => rows.findIndex((row) => getRowKey(row) === key),
-      reveal: (index, focus) => {
+      reveal: (key, focus) => {
         cancelAnimationFrame(revealFrame.current)
-        virtualizer.scrollToIndex(index, { align: "auto" })
+        const indexOf = () => latestRows.current.findIndex((row) => getRowKey(row) === key)
+        if (indexOf() === -1) return
+        virtualizer.scrollToIndex(indexOf(), { align: "auto" })
         let frames = 0
         const settle = () => {
-          const row = body?.querySelector<HTMLElement>(`tr[data-index="${index}"]`)
+          const index = indexOf()
+          if (index === -1) return
+          const row = bodyRef.current?.querySelector<HTMLElement>(`tr[data-index="${index}"]`)
           if (!row) {
             if (++frames < 10) revealFrame.current = requestAnimationFrame(settle)
             return
@@ -309,13 +318,15 @@ export function VirtualTableBody<T>({
         revealFrame.current = requestAnimationFrame(settle)
       },
     }
-    notifyRowsChanged(body ?? undefined)
-  }, [shortcutValues, rows, getRowKey, virtualizer, body])
-  // A table that goes away, such as History when Live tail opens, takes its arrows with it.
-  useLayoutEffect(() => () => notifyRowsChanged(), [])
+    notifyRowsChanged(bodyRef.current ?? undefined)
+  }, [shortcutValues, rows, getRowKey, virtualizer])
+  // A table that goes away, such as History when Live tail opens, takes its
+  // arrows with it. After the commit, so the store can see it is gone.
+  useLayoutEffect(() => () => queueMicrotask(() => notifyRowsChanged()), [])
   const markedKey = useSyncExternalStore(subscribeInspectedRow, () => markedKeyFor(body))
 
   const registerBody = useCallback((element: HTMLTableSectionElement | null) => {
+    bodyRef.current = element
     setBody(element)
     if (!element) return
     registerShortcutBody(element, (index) => shortcutLookup.current(index))
@@ -324,7 +335,7 @@ export function VirtualTableBody<T>({
       ipAt: (index) => rowList.current?.ipAt(index),
       keyAt: (index) => rowList.current?.keyAt(index),
       indexOfKey: (key) => rowList.current?.indexOfKey(key) ?? -1,
-      reveal: (index, focus) => rowList.current?.reveal(index, focus),
+      reveal: (key, focus) => rowList.current?.reveal(key, focus),
     })
   }, [])
 

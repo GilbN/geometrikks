@@ -15,8 +15,9 @@ export interface RowList {
   ipAt: (index: number) => string | undefined
   keyAt: (index: number) => RowKey | undefined
   indexOfKey: (key: RowKey) => number
-  /** Scrolls the row into view, and focuses it when asked, once it renders. */
-  reveal: (index: number, focus: boolean) => void
+  /** Scrolls the row into view, and focuses it when asked, once it renders.
+   *  Takes the key, since a refresh can add rows above it before it renders. */
+  reveal: (key: RowKey, focus: boolean) => void
 }
 
 export interface InspectedRow {
@@ -28,6 +29,17 @@ export interface InspectedRow {
 }
 
 const FRAME = '[data-slot="data-table-frame"]'
+
+/** The first row from `start` on, going `step`, whose IP is `ip`, or -1. */
+function findIp(list: RowList, start: number, step: 1 | -1, ip: string): number {
+  for (let index = start; index >= 0 && index < list.count(); index += step) {
+    if (list.ipAt(index) === ip) return index
+  }
+  return -1
+}
+// A step gives up on finding another IP after this many pages, so one IP
+// filling the whole result does not turn every page.
+const MAX_PAGES_PER_STEP = 5
 
 const lists = new WeakMap<Element, RowList>()
 
@@ -75,7 +87,10 @@ export function setInspectedRowMarkShown(shown: boolean): void {
  * narrow, hands the mark to the new body.
  */
 export function notifyRowsChanged(body?: Element): void {
-  if (
+  // The table left the page, such as for Live tail or another page.
+  if (inspected?.frame && !inspected.frame.isConnected && !inspected.body.isConnected) {
+    inspected = null
+  } else if (
     body &&
     inspected &&
     !inspected.body.isConnected &&
@@ -110,8 +125,11 @@ export function markedKeyFor(body: Element | null): RowKey | null {
 let lastRow: HTMLTableRowElement | null = null
 // The IP a step is opening, so its own navigation does not claim a row.
 let steppedTo: string | null = null
-// Counts what the user does on the page, so a step that waits for a page
-// can tell they moved on meanwhile.
+// The IP the last step opened. Its URL can commit after a newer step's.
+let landedIp: string | null = null
+// Counts what the user does anywhere but the step arrows, so a step that
+// waits for a page can tell they moved on meanwhile, such as to the dock's
+// range picker.
 let pageInteractions = 0
 
 /**
@@ -122,32 +140,40 @@ let pageInteractions = 0
 export function trackRowInteraction(): () => void {
   const note = (event: Event) => {
     const target = event.target
-    if (!(target instanceof Element) || target.closest(OUTSIDE_PAGE)) return
-    pageInteractions++
+    if (!(target instanceof Element)) return
+    if (!target.closest("[data-row-step]")) pageInteractions++
+    if (target.closest(OUTSIDE_PAGE)) return
     lastRow = target.closest<HTMLTableRowElement>("[data-shortcut-table] tr[data-index]")
+  }
+  // Keys count too, such as F filtering Debug Logs, whose filters are not in
+  // the URL. J, K and keys on the arrows are the step itself.
+  const noteKey = (event: KeyboardEvent) => {
+    const onArrow = event.target instanceof Element && event.target.closest("[data-row-step]")
+    if (!onArrow && !/^[jk]$/i.test(event.key)) pageInteractions++
   }
   document.addEventListener("pointerdown", note, true)
   document.addEventListener("focusin", note, true)
+  document.addEventListener("keydown", noteKey, true)
   return () => {
     document.removeEventListener("pointerdown", note, true)
     document.removeEventListener("focusin", note, true)
+    document.removeEventListener("keydown", noteKey, true)
     lastRow = null
   }
 }
 
 /**
  * Called on every open. Takes the row the IP was opened from: the row the I
- * key acted on, else the last row used. Without one, the inspector has no
- * row. The last row is used up here, so a later step does not jump back to
- * it. A step's own open keeps the row the step chose.
+ * key acted on, else the last row used on the page. A record sheet keeps
+ * that row, since it sits outside the page. Without one, the inspector has
+ * no row. A step's own open keeps the row the step chose.
  */
 export function claimInspectedRow(ip: string): void {
-  const used = lastRow
-  lastRow = null
   const stepped = steppedTo === ip
   steppedTo = null
   if (stepped) return
-  for (const row of [targetRow(), used]) {
+  landedIp = null
+  for (const row of [targetRow(), lastRow]) {
     const body = row?.isConnected ? row.closest("tbody") : null
     const list = body ? lists.get(body) : undefined
     if (!row || !body || !list) continue
@@ -163,7 +189,8 @@ export function claimInspectedRow(ip: string): void {
 
 /** Back, Forward or a closed inspector: the row stays only while its IP shows. */
 export function keepInspectedRowFor(ip: string | undefined): void {
-  if (inspected && inspected.ip !== ip) setInspectedRow(null)
+  if (ip === undefined) landedIp = null
+  if (inspected && inspected.ip !== ip && inspected.ip !== landedIp) setInspectedRow(null)
 }
 
 function liveList(row: InspectedRow | null): RowList | undefined {
@@ -220,8 +247,9 @@ function land(
   if (ip === undefined || key === undefined) return
   // Set first, so the inspector sees its new IP came from this row.
   setInspectedRow({ body, frame: body.closest(FRAME), key, ip })
-  list.reveal(index, focus)
+  list.reveal(key, focus)
   steppedTo = ip
+  landedIp = ip
   inspect(ip)
 }
 
@@ -291,28 +319,45 @@ async function stepAcrossPages(
   const interactions = pageInteractions
   const query = searchWithoutPage()
   let reached: { body: Element; list: RowList } | null = null
-  for (;;) {
+  for (let turns = 0; ; turns++) {
     const footer = frame.querySelector<HTMLElement>("[data-pagination]")
     const button = footer?.querySelector<HTMLButtonElement>(
       `[data-page-step="${step === 1 ? "next" : "previous"}"]`,
     )
-    if (!footer || !button || button.disabled) {
-      // The last pages hold only the IP shown. Mark the last row reached, so
-      // the arrows stay and lead back.
-      if (reached && reached.list.count() > 0) {
-        const index = step === 1 ? reached.list.count() - 1 : 0
-        const key = reached.list.keyAt(index)
+    if (!footer || !button || button.disabled || turns === MAX_PAGES_PER_STEP) {
+      // The pages turned hold only the IP shown. Mark the last row reached, so
+      // the arrows stay and lead on or back.
+      if (reached) {
+        // The far end can be a line with no IP, as on Debug Logs.
+        const index = findIp(
+          reached.list,
+          step === 1 ? reached.list.count() - 1 : 0,
+          step === 1 ? -1 : 1,
+          from.ip,
+        )
+        const key = index === -1 ? undefined : reached.list.keyAt(index)
         if (key === undefined) return
         stepping = false
         setInspectedRow({ body: reached.body, frame, key, ip: from.ip })
-        reached.list.reveal(index, focus)
+        reached.list.reveal(key, focus)
       }
       return
     }
     const before = footer.dataset.page
     const page = String(Number(before) + step)
-    button.click()
+    // A clamp can turn the page and back between two polls, so watch it turn.
     let turned = false
+    const observer = new MutationObserver((records) => {
+      if (records.some((record) => record.oldValue === page)) turned = true
+    })
+    observer.observe(frame, {
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["data-page"],
+      attributeOldValue: true,
+    })
+    button.click()
+    // Only the user or the table ends the wait. A slow query does not.
     const loaded = await poll(() => {
       // Closed, undocked, moved to another IP, or the user went on with the page meanwhile.
       const current = frame.querySelector<HTMLElement>("[data-pagination]")
@@ -325,7 +370,8 @@ async function stepAcrossPages(
       if (current.dataset.page === page) turned = true
       else if (turned) return false
       return current.dataset.page === page && current.dataset.pending === undefined ? true : null
-    }, 10_000)
+    }, 60_000)
+    observer.disconnect()
     if (!loaded) return
     const body = frame.querySelector("[data-shortcut-table] tbody")
     const list = body ? lists.get(body) : undefined
