@@ -71,7 +71,9 @@ export function AccessLogsFilterBar({ leading }: { leading?: React.ReactNode }) 
     enabled: facetsEnabled || filters.asns.length > 0 || filters.asnsExclude.length > 0,
   })
   const asnLabel = useAsnLabel(facets?.asns)
-  const countryName = (code: string) => facets?.countries.find((c) => c.code === code)?.name
+  // The browser names a country until the facets arrive, as on a shared link.
+  const countryName = (code: string) =>
+    facets?.countries.find((c) => c.code === code)?.name ?? countryDisplayName(code)
   const countryLabel = (code: string) => {
     const name = countryName(code)
     return name ? `${name} (${code})` : code
@@ -426,7 +428,7 @@ export function AccessLogsFilterBar({ leading }: { leading?: React.ReactNode }) 
       chipValue: (code) => (
         <>
           <CountryFlag code={code} />
-          {countryName(code) ?? countryDisplayName(code) ?? code}
+          {countryName(code) ?? code}
         </>
       ),
       iconFor: (code) => <CountryFlag code={code} />,

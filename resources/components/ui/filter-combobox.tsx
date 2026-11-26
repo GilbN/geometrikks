@@ -184,12 +184,14 @@ export function FilterComboboxOptions<T extends string | number>({
   emptyText,
   maxSelected,
   textClassName = "text-xs",
+  listClassName,
 }: Pick<
   FilterComboboxProps<T>,
   "label" | "selected" | "iconFor" | "loading" | "emptyText" | "maxSelected"
 > & {
   labelFor: (value: T) => string
   textClassName?: string
+  listClassName?: string
 }) {
   const atMax = maxSelected !== undefined && selected.length >= maxSelected
   return (
@@ -199,7 +201,7 @@ export function FilterComboboxOptions<T extends string | number>({
         showTrigger={false}
         className={textClassName}
       />
-      <ComboboxList>
+      <ComboboxList className={listClassName}>
         {(item: T) => (
           <ComboboxItem
             key={item}

@@ -119,7 +119,11 @@ export function AddFilterMenu({
       <PopoverContent
         align="start"
         sideOffset={6}
-        className={cn("gap-0 overflow-hidden p-0", groups.length > 0 ? "w-[324px]" : "w-[248px]")}
+        // The list scrolls in what the search field and the pin note leave of the room below.
+        className={cn(
+          "max-h-(--radix-popover-content-available-height) gap-0 overflow-hidden p-0",
+          groups.length > 0 ? "w-[324px]" : "w-[248px]",
+        )}
         // A picked field opens its chip's picker, which takes the focus.
         onCloseAutoFocus={(event) => picked.current && event.preventDefault()}
       >
@@ -137,7 +141,7 @@ export function AddFilterMenu({
             placeholder="Filter by…"
             aria-label="Filter by"
           />
-          <CommandList className="max-h-[min(28rem,var(--radix-popover-content-available-height))]">
+          <CommandList className="max-h-[28rem] min-h-0 flex-1">
             <CommandEmpty className="py-3 text-xs text-muted-foreground">
               {searching ? "Searching…" : "No matches"}
             </CommandEmpty>

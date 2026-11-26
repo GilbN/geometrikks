@@ -74,6 +74,7 @@ export function FilterBar({
   const [pins, togglePin] = useFilterPins(pageId)
   const [openId, setOpenId] = useState<string | null>(null)
   const addRef = useRef<HTMLButtonElement>(null)
+  const barRef = useRef<HTMLDivElement>(null)
   const byId = new Map(fields.map((field) => [field.id, field]))
   const pinned = pins.filter((id) => byId.has(id))
 
@@ -84,19 +85,32 @@ export function FilterBar({
   order.current = orderChips(order.current, active)
 
   const open = openId === null ? null : parseChipId(openId)
+  // A field picked from the menu shows as a chip with its picker open until it gets a value.
+  const draft = open && !active.includes(openId!) ? byId.get(open.fieldId) : undefined
   const isPinnedEmpty = (field: FilterBarField) =>
     pinned.includes(field.id) && activeModes(field).length === 0
-  // A draft chip leaves with its picker, so its focus goes to the add button.
-  const focusAdd = useRef(false)
+  // Where focus goes once a chip it was on has left: the add button, or a pinned field's button.
+  const focusAfter = useRef<"add" | { fieldId: string } | null>(null)
   useEffect(() => {
-    if (!focusAdd.current) return
-    focusAdd.current = false
-    addRef.current?.focus()
+    const target = focusAfter.current
+    if (!target) return
+    focusAfter.current = null
+    // After the picker's own focus return, and only if nothing else took the focus,
+    // such as a click that dismissed the picker by landing in the search field.
+    const frame = requestAnimationFrame(() => {
+      if (target === "add") {
+        const lost = !document.activeElement || document.activeElement === document.body
+        if (lost) addRef.current?.focus()
+        return
+      }
+      barRef.current?.querySelector<HTMLElement>(`[data-field="${target.fieldId}"] button`)?.focus()
+    })
+    return () => cancelAnimationFrame(frame)
   })
   const closeIf = (id: string) => (next: boolean) => {
     if (next) return setOpenId(id)
     const field = byId.get(parseChipId(id).fieldId)
-    if (field && !active.includes(id) && !isPinnedEmpty(field)) focusAdd.current = true
+    if (field && !active.includes(id) && !isPinnedEmpty(field)) focusAfter.current = "add"
     setOpenId((current) => (current === id ? null : current))
   }
   const switchTo = (field: FilterBarField, from: FilterMode) => (to: FilterMode) => {
@@ -116,16 +130,20 @@ export function FilterBar({
     if (mode === "is") onChange([], field.exclude ?? [])
     else onChange(field.include, [])
     setOpenId(null)
-    addRef.current?.focus()
+    const leavesPinnedButton =
+      pinned.includes(field.id) && activeModes(field).every((other) => other === mode)
+    if (leavesPinnedButton) focusAfter.current = { fieldId: field.id }
+    else addRef.current?.focus()
   }
 
+  // A field's only chip is keyed by the field, so its open picker stays mounted through the
+  // first tick, the last untick and the is / is not switch. A second chip adds its mode.
   const chip = (field: FilterBarField, mode: FilterMode, slot: "value" | "pinned" | "draft") => {
     const id = chipId(field.id, mode)
+    const only = activeModes(field).length + (draft?.id === field.id ? 1 : 0) <= 1
     return (
       <FieldChip
-        // One key per field and mode, so a chip that loses its last value keeps its open
-        // picker. An empty pinned field keeps one key, so its is / is not switch keeps it mounted.
-        key={slot === "pinned" ? `pin:${field.id}` : id}
+        key={only ? field.id : id}
         field={field}
         mode={mode}
         slot={slot}
@@ -149,16 +167,15 @@ export function FilterBar({
     // An empty pinned field opens its picker on the mode it was left on.
     if (modes.length === 0)
       items.push(chip(field, open?.fieldId === fieldId ? open.mode : "is", "pinned"))
+    // A pinned field's draft for its other mode sits beside its chip, where it will stay.
+    else if (draft?.id === fieldId && open) items.push(chip(field, open.mode, "draft"))
   }
   for (const id of order.current) {
     if (shown.has(id)) continue
     const { fieldId, mode } = parseChipId(id)
     items.push(chip(byId.get(fieldId)!, mode, "value"))
   }
-  // A field picked from the menu shows as a chip with its picker open until it gets a value.
-  const draft = open && !active.includes(openId!) ? byId.get(open.fieldId) : undefined
-  // An empty pinned field opens from its own button instead.
-  if (draft && open && !isPinnedEmpty(draft)) items.push(chip(draft, open.mode, "draft"))
+  if (draft && open && !pinned.includes(draft.id)) items.push(chip(draft, open.mode, "draft"))
 
   const pickField = (fieldId: string) => {
     const field = byId.get(fieldId)
@@ -172,6 +189,7 @@ export function FilterBar({
 
   return (
     <div
+      ref={barRef}
       data-slot="filter-bar"
       role="region"
       aria-label={label}
@@ -483,7 +501,11 @@ function ListChip(
           </ComboboxPrimitive.Trigger>
         )}
       />
-      <ComboboxContent anchor={anchorRef} className="w-64 min-w-64">
+      {/* A column, so the list scrolls in the height the header and search field leave. */}
+      <ComboboxContent
+        anchor={anchorRef}
+        className="flex max-h-[min(20rem,var(--available-height))] w-64 min-w-64 flex-col"
+      >
         <PickerHeader field={field} mode={mode} onModeChange={onModeChange} />
         <FilterComboboxOptions
           label={field.label}
@@ -493,6 +515,7 @@ function ListChip(
           loading={field.loading}
           emptyText={field.emptyText}
           textClassName="text-sm"
+          listClassName="max-h-none min-h-0 flex-1"
         />
       </ComboboxContent>
     </Combobox>

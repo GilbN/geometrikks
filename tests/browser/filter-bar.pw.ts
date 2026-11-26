@@ -128,13 +128,17 @@ test("a pinned field stays in the bar and its x keeps the button", async ({ page
   ).toBe('["status"]')
 
   await pinned.click()
+  const picker = page.getByPlaceholder("Search status…")
+  await picker.evaluate((input) => input.setAttribute("data-before-tick", ""))
   await page.keyboard.type("404")
   await page.keyboard.press("Enter")
   await expect.poll(() => param(page, "status")).toBe("[404]")
+  // The first tick keeps the same picker mounted and focused.
+  await expect(page.locator("input[data-before-tick]")).toBeFocused()
   await page.keyboard.press("Escape")
   await bar(page).getByRole("button", { name: "Remove Status is filter" }).click()
   await expect.poll(() => param(page, "status")).toBeNull()
-  await expect(bar(page).getByRole("combobox", { name: "Status filter" })).toBeVisible()
+  await expect(bar(page).getByRole("combobox", { name: "Status filter" })).toBeFocused()
 })
 
 test("filters set elsewhere show as chips, and Clear takes them all", async ({ page }) => {
@@ -152,7 +156,14 @@ test("filters set elsewhere show as chips, and Clear takes them all", async ({ p
 })
 
 test("an empty picker keeps the page and gives focus back to the add button", async ({ page }) => {
+  // Enough rows for a page 3, whatever the server holds.
+  await page.route(
+    (url) => url.pathname.replace(/\/$/, "") === "/api/v1/access-logs",
+    (route) => route.fulfill({ json: { items: [], total: 5_000, limit: 50, offset: 100 } }),
+  )
   await page.goto("/access-logs?page=3")
+  await page.waitForLoadState("networkidle")
+  expect(param(page, "page")).toBe("3")
   await addFilter(page).click()
   await page.getByRole("option", { name: /Host/ }).click()
   await page.getByRole("radio", { name: "is not" }).click()
