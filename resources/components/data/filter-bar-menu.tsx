@@ -117,6 +117,7 @@ export function AddFilterMenu({
         </button>
       </PopoverTrigger>
       <PopoverContent
+        aria-label="Add a filter"
         align="start"
         sideOffset={6}
         // The list scrolls in what the search field and the pin note leave of the room below.

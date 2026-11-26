@@ -173,3 +173,17 @@ test("an empty picker keeps the page and gives focus back to the add button", as
   await expect(addFilter(page)).toBeFocused()
   await expect(bar(page).locator('[data-slot="filter-chip"]')).toHaveCount(0)
 })
+
+test("is / is not on a chip with values keeps its picker", async ({ page }) => {
+  await page.goto(`/access-logs?host=${encodeURIComponent('["git.example.com"]')}`)
+  await bar(page).getByRole("combobox", { name: "Host is git.example.com" }).click()
+  const picker = page.getByPlaceholder("Search host…")
+  await picker.evaluate((input) => input.setAttribute("data-before-switch", ""))
+  await page.getByRole("radio", { name: "is not" }).click()
+  await expect.poll(() => param(page, "hostx")).toBe('["git.example.com"]')
+  expect(param(page, "host")).toBeNull()
+  await expect(page.locator("input[data-before-switch]")).toBeVisible()
+  await expect(
+    bar(page).getByRole("combobox", { name: "Host is not git.example.com" }),
+  ).toBeVisible()
+})

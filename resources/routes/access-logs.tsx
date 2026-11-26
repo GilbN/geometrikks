@@ -160,7 +160,7 @@ function AccessLogsPage() {
       ) : (
         <FilterBarToolsProvider>
           {/* Held to the window only while the rows fill it; narrow rows scroll the page. */}
-          <div className="flex min-h-full flex-col gap-4 p-4 has-[[data-table-fill]]:h-full has-[[data-table-fill]]:min-h-[30rem]">
+          <div className="flex min-h-full flex-col gap-4 p-4 has-[[data-table-fill]]:h-full has-[[data-table-fill]]:min-h-[22rem]">
             <PageHeader subtitle="Explore request history or follow new traffic as it arrives." />
             <AccessLogsFilterBar leading={tabs} />
             {table}

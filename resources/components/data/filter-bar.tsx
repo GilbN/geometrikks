@@ -85,8 +85,20 @@ export function FilterBar({
   order.current = orderChips(order.current, active)
 
   const open = openId === null ? null : parseChipId(openId)
+  // The is / is not switch moves the picker to its new mode at once, but the filters it writes
+  // land a render later. Until they do, the chip it came from stays the open one, and the open
+  // chip keeps the key it had, so the picker is never remounted under the pointer.
+  const switching = useRef<{ fieldId: string; from: FilterMode; key: string } | null>(null)
+  const pending = switching.current
+  if (pending && (open?.fieldId !== pending.fieldId || !openId)) switching.current = null
+  const inFlight =
+    switching.current !== null &&
+    active.includes(chipId(switching.current.fieldId, switching.current.from))
   // A field picked from the menu shows as a chip with its picker open until it gets a value.
-  const draft = open && !active.includes(openId!) ? byId.get(open.fieldId) : undefined
+  const draft =
+    open && !active.includes(openId!) && !(inFlight && switching.current?.fieldId === open.fieldId)
+      ? byId.get(open.fieldId)
+      : undefined
   const isPinnedEmpty = (field: FilterBarField) =>
     pinned.includes(field.id) && activeModes(field).length === 0
   // Where focus goes once a chip it was on has left: the add button, or a pinned field's button.
@@ -94,10 +106,11 @@ export function FilterBar({
   useEffect(() => {
     const target = focusAfter.current
     if (!target) return
-    focusAfter.current = null
     // After the picker's own focus return, and only if nothing else took the focus,
-    // such as a click that dismissed the picker by landing in the search field.
+    // such as a click that dismissed the picker by landing in the search field. A render
+    // before the frame cancels it, and the next effect schedules it again.
     const frame = requestAnimationFrame(() => {
+      focusAfter.current = null
       if (target === "add") {
         const lost = !document.activeElement || document.activeElement === document.body
         if (lost) addRef.current?.focus()
@@ -117,6 +130,7 @@ export function FilterBar({
     if (to === from) return
     // An empty picker only changes mode; writing the same filters would still reset the page.
     if (chipValues(field, from).length > 0) {
+      switching.current = { fieldId: field.id, from, key: keyFor(field, from) }
       const values = switchMode<string | number>(field.include, field.exclude ?? [], to)
       ;(field.onChange as (include: unknown[], exclude: unknown[]) => void)(
         values.include,
@@ -138,16 +152,21 @@ export function FilterBar({
 
   // A field's only chip is keyed by the field, so its open picker stays mounted through the
   // first tick, the last untick and the is / is not switch. A second chip adds its mode.
+  function keyFor(field: FilterBarField, mode: FilterMode): string {
+    const only = activeModes(field).length + (draft?.id === field.id ? 1 : 0) <= 1
+    return only ? field.id : chipId(field.id, mode)
+  }
   const chip = (field: FilterBarField, mode: FilterMode, slot: "value" | "pinned" | "draft") => {
     const id = chipId(field.id, mode)
-    const only = activeModes(field).length + (draft?.id === field.id ? 1 : 0) <= 1
+    const switched = switching.current?.fieldId === field.id ? switching.current : null
+    const isOpen = inFlight && switched ? mode === switched.from : openId === id
     return (
       <FieldChip
-        key={only ? field.id : id}
+        key={isOpen && switched ? switched.key : keyFor(field, mode)}
         field={field}
         mode={mode}
         slot={slot}
-        open={openId === id}
+        open={isOpen}
         onOpenChange={closeIf(id)}
         onModeChange={switchTo(field, mode)}
         onRemove={() => removeChip(field, mode)}
@@ -160,15 +179,17 @@ export function FilterBar({
   for (const fieldId of pinned) {
     const field = byId.get(fieldId)!
     const modes = activeModes(field)
+    // A pinned field's draft for its other mode sits where its chip will be: "is" first.
+    const pinnedDraft = modes.length > 0 && draft?.id === fieldId && open ? open.mode : null
+    if (pinnedDraft === "is") items.push(chip(field, "is", "draft"))
     for (const mode of modes) {
       items.push(chip(field, mode, "value"))
       shown.add(chipId(fieldId, mode))
     }
+    if (pinnedDraft === "not") items.push(chip(field, "not", "draft"))
     // An empty pinned field opens its picker on the mode it was left on.
     if (modes.length === 0)
       items.push(chip(field, open?.fieldId === fieldId ? open.mode : "is", "pinned"))
-    // A pinned field's draft for its other mode sits beside its chip, where it will stay.
-    else if (draft?.id === fieldId && open) items.push(chip(field, open.mode, "draft"))
   }
   for (const id of order.current) {
     if (shown.has(id)) continue
@@ -550,7 +571,12 @@ function TypedChip(props: Omit<ChipProps, "field"> & { field: TypedFilterBarFiel
           </PopoverTrigger>
         )}
       />
-      <PopoverContent align="start" sideOffset={6} className="w-[22rem] gap-0 p-0">
+      <PopoverContent
+        align="start"
+        sideOffset={6}
+        aria-label={`${field.label} filter`}
+        className="w-[22rem] gap-0 p-0"
+      >
         <PickerHeader field={field} mode={mode} onModeChange={onModeChange} />
         <div className="px-1 pt-1 pb-1">
           <Input
