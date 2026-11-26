@@ -568,7 +568,7 @@ export function CommandPalette() {
                     aria-label="Clear the search"
                     onKeyDown={keepKeyFromList}
                     onClick={() => {
-                      setSearch("")
+                      type("")
                       inputRef.current?.focus()
                     }}
                     className="absolute top-1/2 right-1 grid size-9 -translate-y-1/2 place-items-center rounded-full text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring"
