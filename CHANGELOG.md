@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The sidebar status row keeps showing requests per minute when it moves above the links (degraded, needs attention or offline).
 - On desktop, the app bar and page title merge into one top bar with the page name, a time range button showing its span, and a split refresh and auto-refresh button. Hovering the page name, or tapping it on a phone, shows the page description, and Security and Settings hide the range and refresh controls. Chart buckets move from the bar to a Buckets menu beside the Charts switch on Overview, and to each chart's Hourly or Daily label on Analytics and Geo Logs.
 - On desktop, Access Logs History replaces its filter panel and table header with one filter bar for the tabs, search field, filter chips, Filter menu and View menu. The Filter menu searches fields and values by name, pins fields to the bar, switches IP address, host, server and ASN between is and is not, and holds the Hide my IP and Hide muted IPs switches. See [App tour](https://geometrikks.dev/docs/features/app-tour#access-logs).
+- On desktop, Geo Logs gets the same filter bar as Access Logs, with the Charts switch at its right end. Pressing `/` opens its Filter menu.
 
 ## [0.26.0] - 2026-11-23
 

@@ -55,7 +55,9 @@ Live tail shows new requests as your proxy logs them. It keeps the most recent f
 
 ## Geo Logs
 
-Traffic grouped by location and IP: where requests come from, how that changes over time, and which clients come back. The page has a map preview, cards for total events, unique IPs, countries and cities, an event chart, Top IPs, and Top locations with Countries, Cities and ASNs tabs. On desktop, the event chart's Hourly or Daily label opens the bucket choice for all charts. The ASNs tab has an abuse report button on each row; see [Abuse reports](./abuse-reports.mdx). The table below lists one row per location and IP.
+Traffic grouped by location and IP: where requests come from, how that changes over time, and which clients come back. The page has a map preview, cards for total events, unique IPs, countries and cities, an event chart, Top IPs, and Top locations with Countries, Cities and ASNs tabs. On desktop, the event chart's Hourly or Daily label opens the bucket choice for all charts. The ASNs tab has an abuse report button on each row; see [Abuse reports](./abuse-reports.mdx). The table below sits under the map and charts, keeps its header and View menu, and lists one row per location and IP.
+
+On desktop, Geo Logs uses the same filter bar as [Access Logs](#access-logs), with no search field, so pressing `/` opens the Filter menu. The menu lists IP address (`is / is not`), Country, City, Server and ASN (`is / is not`), plus the Hide my IP and Hide muted IPs switches. Value search finds countries, cities, servers and networks by name, ranked by access-log request counts. The [Muted IPs](./muted-ips.mdx) button and the Charts switch sit at the right end of the bar.
 
 <Screenshot scene="geo-logs" />
 

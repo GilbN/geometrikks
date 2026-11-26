@@ -34,13 +34,13 @@ Security, Debug Logs and the IP inspector sheet don't show Mute IP in their IP a
 
 The list is shared across every browser and device that connects to the server. The switch that hides or shows the list is stored per browser and starts on by default.
 
-On desktop Access Logs History, the right end of the filter bar shows a Muted IPs button once the list has at least one entry, and the Filter menu has a Hide muted IPs switch with the entry count.
+On desktop Access Logs History and Geo Logs, the right end of the filter bar shows a Muted IPs button once the list has at least one entry, and the Filter menu has a Hide muted IPs switch with the entry count.
 
 - With the switch on, the bar button shows an eye-off icon and the entry count.
 - Click the button, or flip Hide muted IPs in the Filter menu, to turn hiding off. The bar button then shows an eye icon, and matching traffic appears again. Its tooltip says whether muted IPs are hidden or shown.
 - When the list is empty, no bar button appears.
 
-On desktop Geo Logs and Analytics, the filter bar shows a Muted IPs chip once the list has at least one entry.
+On desktop Analytics, the filter bar shows a Muted IPs chip once the list has at least one entry.
 
 - With the switch on, the chip reads `Muted IPs hidden · 3` with the current entry count, or `Muted IPs hidden` before the browser confirms the list from the server.
 - Click the chip to turn hiding off. It then reads `Muted IPs shown`, and matching traffic appears again.
@@ -52,7 +52,7 @@ Flipping the switch resets Access Logs and Geo Logs back to page 1. Flipping the
 
 ### Filtering by an explicit IP
 
-Whenever you filter by an IP address or CIDR range on Access Logs, Geo Logs or Analytics, muting turns off for that view so matching rows still appear. On desktop Access Logs, when the switch is on and an IP `is` filter is set, the Muted IPs button in the filter bar is disabled (its tooltip says so) and the Hide muted IPs switch in the Filter menu is off with `Off while filtering by IP`. On desktop Geo Logs and Analytics, when the switch is on, the chip disables and displays `Off while filtering by IP` under it. On a phone the drawer switch disables with the same message on every page. When the switch is already off, the chip on desktop Geo Logs and Analytics stays enabled and reads `Muted IPs shown`, and the phone drawer switch stays enabled and reads `Shown`.
+Whenever you filter by an IP address or CIDR range on Access Logs, Geo Logs or Analytics, muting turns off for that view so matching rows still appear. On desktop Access Logs and Geo Logs, when the switch is on and an IP `is` filter is set, the Muted IPs button in the filter bar is disabled (its tooltip says so) and the Hide muted IPs switch in the Filter menu is off with `Off while filtering by IP`. On desktop Analytics, when the switch is on, the chip disables and displays `Off while filtering by IP` under it. On a phone the drawer switch disables with the same message on every page. When the switch is already off, the chip on desktop Analytics stays enabled and reads `Muted IPs shown`, and the phone drawer switch stays enabled and reads `Shown`.
 
 ## Retention limits
 
