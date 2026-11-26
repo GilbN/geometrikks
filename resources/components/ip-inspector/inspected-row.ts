@@ -1,7 +1,7 @@
 /**
  * The log table row whose IP the inspector shows. The docked inspector marks
  * that row and steps from it to the next row with another IP, across pages.
- * Rows are held by key, so the mark stays on its row when live tail adds rows
+ * Rows are held by key, so the mark stays on its row when a refresh adds rows
  * above it.
  */
 import { targetRow } from "@/components/data/table-shortcuts"
@@ -21,9 +21,13 @@ export interface RowList {
 
 export interface InspectedRow {
   body: Element
+  /** The table's frame, to find the body again when the table remounts it. */
+  frame: Element | null
   key: RowKey
   ip: string
 }
+
+const FRAME = '[data-slot="data-table-frame"]'
 
 const lists = new WeakMap<Element, RowList>()
 
@@ -52,10 +56,6 @@ export function inspectedRowVersion(): number {
   return version
 }
 
-export function getInspectedRow(): InspectedRow | null {
-  return inspected
-}
-
 export function setInspectedRow(next: InspectedRow | null): void {
   if (next === inspected) return
   inspected = next
@@ -69,9 +69,32 @@ export function setInspectedRowMarkShown(shown: boolean): void {
   emit()
 }
 
-/** A table body calls this when its rows change, so the arrows re-check what is left. */
-export function notifyRowsChanged(): void {
+/**
+ * A table body calls this when its rows change or it goes away, so the arrows
+ * re-check what is left. A table that swaps its body, as it does when it turns
+ * narrow, hands the mark to the new body.
+ */
+export function notifyRowsChanged(body?: Element): void {
+  if (
+    body &&
+    inspected &&
+    !inspected.body.isConnected &&
+    inspected.frame !== null &&
+    body.closest(FRAME) === inspected.frame &&
+    (lists.get(body)?.indexOfKey(inspected.key) ?? -1) !== -1
+  ) {
+    inspected = { ...inspected, body }
+  }
   emit()
+}
+
+/** The marked row's element, while it is rendered. */
+export function inspectedRowElement(): HTMLElement | null {
+  const list = liveList(inspected)
+  const index = inspected && list ? list.indexOfKey(inspected.key) : -1
+  return index === -1
+    ? null
+    : (inspected?.body.querySelector<HTMLElement>(`tr[data-index="${index}"]`) ?? null)
 }
 
 /** The key of the row a body should mark, if any. */
@@ -80,6 +103,11 @@ export function markedKeyFor(body: Element | null): RowKey | null {
 }
 
 let lastRow: HTMLTableRowElement | null = null
+// The IP a step is opening, so its own navigation does not claim a row.
+let steppedTo: string | null = null
+// Counts what the user does on the page, so a step that waits for a page
+// can tell they moved on meanwhile.
+let pageInteractions = 0
 
 /**
  * Remembers the table row the user last clicked or focused on the page. Row
@@ -90,6 +118,7 @@ export function trackRowInteraction(): () => void {
   const note = (event: Event) => {
     const target = event.target
     if (!(target instanceof Element) || target.closest(OUTSIDE_PAGE)) return
+    pageInteractions++
     lastRow = target.closest<HTMLTableRowElement>("[data-shortcut-table] tr[data-index]")
   }
   document.addEventListener("pointerdown", note, true)
@@ -101,18 +130,30 @@ export function trackRowInteraction(): () => void {
   }
 }
 
-/** The row an IP was just opened from: the last row used, or the one I acted on. */
-export function claimInspectedRow(ip: string): InspectedRow | null {
-  for (const row of [lastRow, targetRow()]) {
+/**
+ * Called each time the inspector opens or changes IP. Takes the row the IP
+ * was opened from: the row the I key acted on, else the last row used.
+ * Without one, keeps the current row if it still shows this IP. The last row
+ * is used up here, so a later step does not jump back to it.
+ */
+export function claimInspectedRow(ip: string): void {
+  const used = lastRow
+  lastRow = null
+  const stepped = steppedTo === ip
+  steppedTo = null
+  if (stepped) return
+  for (const row of [targetRow(), used]) {
     const body = row?.isConnected ? row.closest("tbody") : null
     const list = body ? lists.get(body) : undefined
     if (!row || !body || !list) continue
     const index = Number(row.dataset.index)
     const key = list.keyAt(index)
     if (key === undefined || list.ipAt(index) !== ip) continue
-    return { body, key, ip }
+    if (inspected?.body !== body || inspected.key !== key)
+      setInspectedRow({ body, frame: body.closest(FRAME), key, ip })
+    return
   }
-  return null
+  if (inspected?.ip !== ip) setInspectedRow(null)
 }
 
 function liveList(row: InspectedRow | null): RowList | undefined {
@@ -127,8 +168,6 @@ function findOtherIp(list: RowList, start: number, step: 1 | -1, ip: string): nu
   }
   return -1
 }
-
-const FRAME = '[data-slot="data-table-frame"]'
 
 function pageButton(body: Element, step: 1 | -1): HTMLButtonElement | null {
   const button = body
@@ -170,20 +209,23 @@ function land(
   const key = list.keyAt(index)
   if (ip === undefined || key === undefined) return
   // Set first, so the inspector sees its new IP came from this row.
-  setInspectedRow({ body, key, ip })
+  setInspectedRow({ body, frame: body.closest(FRAME), key, ip })
   list.reveal(index, focus)
+  steppedTo = ip
   inspect(ip)
 }
 
-function waitFor(done: () => boolean, timeoutMs: number): Promise<boolean> {
+/** Polls until `check` returns true (done) or false (give up). */
+function poll(check: () => boolean | null, timeoutMs: number): Promise<boolean> {
   const startedAt = Date.now()
   return new Promise((resolve) => {
-    const check = () => {
-      if (done()) resolve(true)
+    const tick = () => {
+      const result = check()
+      if (result !== null) resolve(result)
       else if (Date.now() - startedAt > timeoutMs) resolve(false)
-      else window.setTimeout(check, 50)
+      else window.setTimeout(tick, 50)
     }
-    window.setTimeout(check, 50)
+    window.setTimeout(tick, 50)
   })
 }
 
@@ -207,27 +249,53 @@ export function stepInspectedRow(step: 1 | -1, inspect: (ip: string) => void): b
     return true
   }
 
-  const button = pageButton(from.body, step)
   const frame = from.body.closest(FRAME)
-  const footer = frame?.querySelector<HTMLElement>("[data-pagination]")
-  if (!button || !frame || !footer) return true
-  const page = String(Number(footer.dataset.page) + step)
+  if (!frame || !pageButton(from.body, step)) return true
   stepping = true
   emit()
-  button.click()
-  void waitFor(() => {
-    const current = frame.querySelector<HTMLElement>("[data-pagination]")
-    return current?.dataset.page === page && current.dataset.pending === undefined
-  }, 10_000).then((loaded) => {
+  void stepAcrossPages(from, frame, step, focus, inspect).finally(() => {
     stepping = false
-    // Closed, or moved to another IP, while the page loaded.
-    if (!loaded || inspected !== from || !frame.isConnected) return emit()
-    const body = frame.querySelector("[data-shortcut-table] tbody")
-    const next = body ? lists.get(body) : undefined
-    if (!body || !next) return emit()
-    const first = findOtherIp(next, step === 1 ? 0 : next.count() - 1, step, from.ip)
-    if (first === -1) return emit()
-    land(body, next, first, focus, inspect)
+    emit()
   })
   return true
+}
+
+/** Turns pages until one has another IP, as long as the user does nothing else. */
+async function stepAcrossPages(
+  from: InspectedRow,
+  frame: Element,
+  step: 1 | -1,
+  focus: boolean,
+  inspect: (ip: string) => void,
+): Promise<void> {
+  const interactions = pageInteractions
+  for (;;) {
+    const footer = frame.querySelector<HTMLElement>("[data-pagination]")
+    const button = footer?.querySelector<HTMLButtonElement>(
+      `[data-page-step="${step === 1 ? "next" : "previous"}"]`,
+    )
+    if (!footer || !button || button.disabled) return
+    const before = footer.dataset.page
+    const page = String(Number(before) + step)
+    button.click()
+    const loaded = await poll(() => {
+      // Closed, moved to another IP, or the user went on with the page meanwhile.
+      const current = frame.querySelector<HTMLElement>("[data-pagination]")
+      if (inspected?.key !== from.key || inspected.ip !== from.ip) return false
+      if (!frame.isConnected || pageInteractions !== interactions || !current) return false
+      if (current.dataset.page !== page && current.dataset.page !== before) return false
+      return current.dataset.page === page && current.dataset.pending === undefined ? true : null
+    }, 10_000)
+    if (!loaded) return
+    const body = frame.querySelector("[data-shortcut-table] tbody")
+    const list = body ? lists.get(body) : undefined
+    if (!body || !list) return
+    const index = findOtherIp(list, step === 1 ? 0 : list.count() - 1, step, from.ip)
+    if (index !== -1) {
+      // Clear the flag first, or the arrows re-read it as still loading.
+      stepping = false
+      land(body, list, index, focus, inspect)
+      return
+    }
+  }
 }

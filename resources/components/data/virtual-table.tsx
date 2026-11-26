@@ -282,6 +282,9 @@ export function VirtualTableBody<T>({
   // The rows the docked inspector marks and steps through.
   const rowList = useRef<RowList | null>(null)
   const [body, setBody] = useState<HTMLTableSectionElement | null>(null)
+  // One reveal at a time: a later step must not be undone by an earlier one.
+  const revealFrame = useRef(0)
+  useEffect(() => () => cancelAnimationFrame(revealFrame.current), [])
   useLayoutEffect(() => {
     if (!shortcutValues) return
     rowList.current = {
@@ -290,23 +293,26 @@ export function VirtualTableBody<T>({
       keyAt: (index) => (rows[index] === undefined ? undefined : getRowKey(rows[index])),
       indexOfKey: (key) => rows.findIndex((row) => getRowKey(row) === key),
       reveal: (index, focus) => {
+        cancelAnimationFrame(revealFrame.current)
         virtualizer.scrollToIndex(index, { align: "auto" })
         let frames = 0
         const settle = () => {
           const row = body?.querySelector<HTMLElement>(`tr[data-index="${index}"]`)
           if (!row) {
-            if (++frames < 10) requestAnimationFrame(settle)
+            if (++frames < 10) revealFrame.current = requestAnimationFrame(settle)
             return
           }
           if (focus) row.focus({ preventScroll: true })
           // The page around the table may need to scroll too.
           row.scrollIntoView({ block: "nearest" })
         }
-        requestAnimationFrame(settle)
+        revealFrame.current = requestAnimationFrame(settle)
       },
     }
-    notifyRowsChanged()
+    notifyRowsChanged(body ?? undefined)
   }, [shortcutValues, rows, getRowKey, virtualizer, body])
+  // A table that goes away, such as History when Live tail opens, takes its arrows with it.
+  useLayoutEffect(() => () => notifyRowsChanged(), [])
   const markedKey = useSyncExternalStore(subscribeInspectedRow, () => markedKeyFor(body))
 
   const registerBody = useCallback((element: HTMLTableSectionElement | null) => {

@@ -8,12 +8,13 @@ const SHARED_IP = "203.0.113.1"
 
 /** Rows 0 and 1 share an IP; every other row has its own. */
 const ipFor = (index: number) => (index < 2 ? SHARED_IP : `198.51.100.${index}`)
+let ipOf = ipFor
 
 function accessRow(index: number): AccessLog {
   return {
     id: index + 1,
     timestamp: "2026-08-16T12:00:00Z",
-    ipAddress: ipFor(index),
+    ipAddress: ipOf(index),
     remoteUser: null,
     method: "GET",
     url: `/request/${index}`,
@@ -45,6 +46,7 @@ async function login(page: Page) {
 }
 
 test.beforeEach(async ({ page }) => {
+  ipOf = ipFor
   await login(page)
   await page.addInitScript(() => {
     localStorage.setItem(
@@ -75,7 +77,7 @@ async function openAccessLogs(page: Page, search = "") {
 
 async function inspectRow(page: Page, index: number) {
   const row = page.locator(`table[data-density] tr[data-index="${index}"]`)
-  await row.getByRole("button", { name: `Actions for ${ipFor(index)}` }).click()
+  await row.getByRole("button", { name: `Actions for ${ipOf(index)}` }).click()
   await page.getByRole("menuitem", { name: "Inspect IP" }).click()
 }
 
@@ -168,4 +170,62 @@ test("the mark shows only while the inspector is docked", async ({ page }) => {
     .getByRole("button", { name: "Dock the inspector beside the page" })
     .click()
   await expect(marked(page)).toHaveAttribute("data-index", "3")
+})
+
+test("a page holding only the IP shown is skipped", async ({ page }) => {
+  const repeated = "198.51.100.250"
+  ipOf = (index) => (index >= 49 && index < 100 ? repeated : ipFor(index))
+  await openAccessLogs(page)
+  await page
+    .locator("table[data-density]")
+    .evaluate((table) => table.parentElement?.scrollTo({ top: table.scrollHeight }))
+  await inspectRow(page, 49)
+  await expect(dock(page)).toHaveAccessibleName(startsWith(repeated))
+  await next(page).click()
+  await expect(page.locator("[data-pagination]")).toHaveAttribute("data-page", "3")
+  await expect(dock(page)).toHaveAccessibleName(startsWith(ipFor(100)))
+  await expect(marked(page)).toHaveAttribute("data-index", "0")
+  await expect(next(page)).toBeFocused()
+})
+
+test("inspecting another row with the IP shown moves the mark", async ({ page }) => {
+  await openAccessLogs(page)
+  await inspectRow(page, 0)
+  await expect(marked(page)).toHaveAttribute("data-index", "0")
+  await inspectRow(page, 1)
+  await expect(marked(page)).toHaveAttribute("data-index", "1")
+  await next(page).click()
+  await expect(marked(page)).toHaveAttribute("data-index", "2")
+})
+
+test("without a row to step from, J and K move row focus as usual", async ({ page }) => {
+  await openAccessLogs(page, `?inspect=${ipFor(5)}`)
+  await expect(dock(page)).toHaveAccessibleName(startsWith(ipFor(5)))
+  await page.getByRole("heading", { name: "Access Logs", exact: true }).click()
+  await page.keyboard.press("j")
+  await expect
+    .poll(() => page.evaluate(() => document.activeElement?.getAttribute("data-index") ?? null))
+    .toBe("0")
+  await expect(dock(page)).toHaveAccessibleName(startsWith(ipFor(5)))
+})
+
+test("Inspect IP in a row's record marks that row", async ({ page }) => {
+  await openAccessLogs(page)
+  await page.locator('table[data-density] tr[data-index="4"]').click()
+  const record = page.getByRole("dialog")
+  await record.getByRole("button", { name: "Inspect IP" }).click()
+  await expect(dock(page)).toHaveAccessibleName(startsWith(ipFor(4)))
+  await expect(record).toHaveCount(0)
+  await expect(marked(page)).toHaveAttribute("data-index", "4")
+})
+
+test("closing the dock after steps puts focus on the marked row", async ({ page }) => {
+  await openAccessLogs(page)
+  await inspectRow(page, 2)
+  await next(page).click()
+  await next(page).click()
+  await expect(marked(page)).toHaveAttribute("data-index", "4")
+  await page.keyboard.press("Escape")
+  await expect(dock(page)).toHaveCount(0)
+  await expect(page.locator('table[data-density] tr[data-index="4"]')).toBeFocused()
 })

@@ -7,7 +7,7 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react"
-import { Link } from "@tanstack/react-router"
+import { Link, useRouterState } from "@tanstack/react-router"
 import {
   BarChart3,
   Bug,
@@ -38,10 +38,12 @@ import { formatTs } from "@/lib/datetime"
 import {
   useInspectOnNavigate,
   useIpInspector,
+  onIpInspectorOpen,
   useIpInspectorActions,
   useIpInspectorDock,
 } from "@/lib/ip-inspector"
 import { useShortcutAction } from "@/components/shortcuts/keyboard-shortcuts"
+import { moveRow } from "@/components/data/table-shortcuts"
 import { abuseipdbCheckUrl, isPublicIp } from "@/lib/abuseipdb"
 import { useCoverBar } from "@/lib/phone-chrome"
 import { usePhoneMapSide } from "@/hooks/use-phone-map"
@@ -61,7 +63,7 @@ import { DockToggle, InspectorDock, useLastPageFocus } from "./inspector-dock"
 import {
   canStepInspectedRow,
   claimInspectedRow,
-  getInspectedRow,
+  inspectedRowElement,
   inspectedRowInTable,
   inspectedRowVersion,
   setInspectedRow,
@@ -132,18 +134,50 @@ export function IpInspectorSheet() {
 
   // The table row this IP came from, for the row mark and the step arrows.
   useEffect(() => trackRowInteraction(), [])
+  useEffect(() => {
+    const stop = onIpInspectorOpen(claimInspectedRow)
+    return () => {
+      stop()
+      setInspectedRow(null)
+    }
+  }, [])
+  // Focus leaving with the dock goes back to the marked row, or to the control
+  // in it that opened the inspector. After a few steps that row can be far
+  // from the opener.
+  const returnFocus = () => {
+    const row = inspectedRowElement()
+    const last = lastPageFocus()
+    return row && !(last && row.contains(last)) ? row : last
+  }
+  // Covers Back, Forward and closing. The IP and the entry come from one
+  // location, so they always match.
+  const opened = useRouterState({
+    select: (state) => {
+      const location = state.resolvedLocation ?? state.location
+      const inspect = (location.search as { inspect?: unknown }).inspect
+      return {
+        key: location.state.__TSR_key,
+        ip: typeof inspect === "string" && inspect ? inspect : undefined,
+      }
+    },
+    structuralSharing: true,
+  })
   useLayoutEffect(() => {
-    if (ip === undefined) setInspectedRow(null)
-    else if (getInspectedRow()?.ip !== ip) setInspectedRow(claimInspectedRow(ip))
-  }, [ip])
+    if (opened.ip === undefined) setInspectedRow(null)
+    else claimInspectedRow(opened.ip)
+  }, [opened.key, opened.ip])
   useLayoutEffect(() => {
     setInspectedRowMarkShown(open && docked)
     return () => setInspectedRowMarkShown(false)
   }, [open, docked])
   const { open: inspect } = useIpInspectorActions()
   const stepping = open && docked
-  useShortcutAction("row-next", stepping ? () => stepInspectedRow(1, inspect) : null)
-  useShortcutAction("row-previous", stepping ? () => stepInspectedRow(-1, inspect) : null)
+  // Without a row to step from, J and K move row focus as usual.
+  useShortcutAction("row-next", stepping ? () => stepInspectedRow(1, inspect) || moveRow(1) : null)
+  useShortcutAction(
+    "row-previous",
+    stepping ? () => stepInspectedRow(-1, inspect) || moveRow(-1) : null,
+  )
 
   const title = (
     // One row: IP, ban action, then the range picker; wraps only when a custom range needs the room.
@@ -190,7 +224,7 @@ export function IpInspectorSheet() {
             </>
           }
           onClose={close}
-          returnFocus={lastPageFocus}
+          returnFocus={returnFocus}
           focusToggle={focusDockToggle}
           contentKey={ip}
         >
