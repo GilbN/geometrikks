@@ -337,7 +337,8 @@ export function FilterValueGroups({
   onPending: (pending: boolean) => void
 }) {
   // The field can still hold the last opening's text for the debounce after it was cleared.
-  const asking = enabled && search.trim().length >= NAME_SEARCH_MIN
+  const asking =
+    enabled && search.trim().length >= NAME_SEARCH_MIN && search.trim().length <= NAME_SEARCH_MAX
   const { data, dataUpdatedAt, isFetching, isPlaceholderData } = useFilterValueSearch(
     settled,
     asking,

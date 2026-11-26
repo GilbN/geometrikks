@@ -4,7 +4,7 @@
  * keys are learned along the way. On a phone it is a full-screen sheet
  * opened from the search button in the header.
  */
-import { useEffect, useRef, useState, type KeyboardEvent } from "react"
+import { Fragment, useEffect, useRef, useState, type KeyboardEvent } from "react"
 import { useNavigate, useRouter, type RouterHistory } from "@tanstack/react-router"
 import { useQuery } from "@tanstack/react-query"
 import { defaultFilter, useCommandState } from "cmdk"
@@ -419,6 +419,43 @@ export function CommandPalette() {
     </CommandGroup>
   )
 
+  // cmdk ranks rows inside a group but never reorders the groups. Pages and actions go
+  // above the names when one of them matches the text at least as well as a name row.
+  const commandValues = [
+    ...shownPages.map((item) => item.title),
+    ...(routeHeader.timeRange ? ["change the time range"] : []),
+    ...(crowdsec?.writeEnabled ? ["ban an ip or range"] : []),
+    "start the live tail",
+  ]
+  const commandsFirst =
+    search.trim() !== "" &&
+    commandValues.some((value) => defaultFilter(value, search) >= NAME_ROW_SCORE)
+  const commands = phone ? (
+    <>
+      {actions}
+      {goTo}
+    </>
+  ) : (
+    <>
+      {goTo}
+      {actions}
+    </>
+  )
+  const nameGroups = !ipQuery && (
+    <FilterValueGroups
+      search={search}
+      settled={settledSearch}
+      enabled={isOpen}
+      onPick={pick}
+      onArrived={raiseNameRows}
+      onPending={(pending) => {
+        namesPending.current = pending
+        // An answer with no names drops the waiting Enter.
+        if (!pending) enterWaiting.current = false
+      }}
+    />
+  )
+
   return (
     <Dialog open={isOpen} onOpenChange={setCommandPaletteOpen}>
       <DialogContent
@@ -597,31 +634,10 @@ export function CommandPalette() {
                     <RecentIpsGroup ips={recentIps} actions={ipActions} enabled={isOpen} />
                   )
                 )}
-                {!ipQuery && (
-                  <FilterValueGroups
-                    search={search}
-                    settled={settledSearch}
-                    enabled={isOpen}
-                    onPick={pick}
-                    onArrived={raiseNameRows}
-                    onPending={(pending) => {
-                      namesPending.current = pending
-                      // An answer with no names drops the waiting Enter.
-                      if (!pending) enterWaiting.current = false
-                    }}
-                  />
-                )}
-                {phone ? (
-                  <>
-                    {actions}
-                    {goTo}
-                  </>
-                ) : (
-                  <>
-                    {goTo}
-                    {actions}
-                  </>
-                )}
+                {/* Keyed, so a change of order moves the groups instead of mounting them again. */}
+                {(commandsFirst ? ["commands", "names"] : ["names", "commands"]).map((part) => (
+                  <Fragment key={part}>{part === "commands" ? commands : nameGroups}</Fragment>
+                ))}
               </>
             )}
           </CommandList>

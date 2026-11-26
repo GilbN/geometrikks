@@ -351,8 +351,11 @@ test("a page whose name starts with the text stays first above the places", asyn
   await page.goto("/")
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Overview")
   await page.keyboard.press("Control+k")
-  await page.keyboard.type("acc")
+  // Accra is on screen before the last letter, which is when a stale order would win.
+  await page.keyboard.type("ac")
   await expect(palette(page).getByRole("option", { name: /^Accra / })).toBeVisible()
+  await page.keyboard.type("c")
+  await expect(palette(page).getByRole("option").first()).toHaveText(/^Access Logs/)
   await expect(palette(page).getByRole("option", { name: /^Access Logs/ })).toHaveAttribute(
     "aria-selected",
     "true",
