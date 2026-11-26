@@ -286,7 +286,7 @@ for (const fixture of [
       .locator("th")
       .evaluateAll((cells) => cells.map((cell) => cell.getBoundingClientRect().width))
 
-    if (!("mobile" in fixture) && fixture.path === "access-logs") {
+    if (!("mobile" in fixture) && fixture.path !== "geo-logs") {
       // Under the filter bar the rows scroll inside the card, and the page keeps the pager in view.
       const main = table.locator("xpath=ancestor::main[1]")
       await expect
