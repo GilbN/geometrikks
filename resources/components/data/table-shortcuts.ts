@@ -159,11 +159,15 @@ export function stepPage(step: 1 | -1): boolean {
   return true
 }
 
-/** Focuses the page's main filter field, marked `data-page-filter`. */
+/**
+ * Focuses the page's main filter field, marked `data-page-filter`. A page
+ * whose filter bar has no search field marks its Filter button, which opens.
+ */
 export function focusPageFilter(): boolean {
   const field = [...document.querySelectorAll<HTMLElement>("[data-page-filter]")].find(isShown)
   if (!field) return false
   field.focus()
   if (field instanceof HTMLInputElement) field.select()
+  if (field instanceof HTMLButtonElement) field.click()
   return true
 }

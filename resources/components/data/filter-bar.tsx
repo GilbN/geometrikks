@@ -61,7 +61,8 @@ export function FilterBar({
   /** Pins are kept per page under this id. */
   pageId: string
   leading?: React.ReactNode
-  search: React.ReactNode
+  /** The page's search field. Without one, `/` opens the Filter menu. */
+  search?: React.ReactNode
   fields: FilterBarField[]
   /** Filter groups set, the search included; Clear shows from two. */
   activeCount: number
@@ -245,6 +246,7 @@ export function FilterBar({
         {items}
         <AddFilterMenu
           ref={addRef}
+          pageFilter={!search}
           compact={items.length > 0}
           fields={fields}
           pins={pinned}

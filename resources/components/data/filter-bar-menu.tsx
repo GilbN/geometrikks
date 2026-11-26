@@ -43,6 +43,7 @@ const number = new Intl.NumberFormat()
 
 export function AddFilterMenu({
   ref,
+  pageFilter,
   compact,
   fields,
   pins,
@@ -54,6 +55,8 @@ export function AddFilterMenu({
   valueSearch,
 }: {
   ref: React.Ref<HTMLButtonElement>
+  /** The page has no search field, so `/` lands here. */
+  pageFilter: boolean
   /** A plus only, once the bar holds a chip. */
   compact: boolean
   fields: FilterBarField[]
@@ -106,6 +109,7 @@ export function AddFilterMenu({
           type="button"
           aria-label="Add a filter"
           title="Add a filter"
+          data-page-filter={pageFilter ? "" : undefined}
           className={cn(
             "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-dashed border-muted-foreground/55 text-[13px] font-medium text-muted-foreground outline-none hover:border-solid hover:text-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
             "data-[state=open]:border-solid data-[state=open]:border-ring data-[state=open]:text-foreground data-[state=open]:ring-3 data-[state=open]:ring-ring/50",
