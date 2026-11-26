@@ -116,9 +116,14 @@ export function AccessLogsFilterBar({ leading }: { leading?: React.ReactNode }) 
   }
   const remove = (key: ListKey, value: string) =>
     setFilters((prev) => ({ ...prev, [key]: prev[key].filter((v) => v !== value) }))
-  const myIp = useMyIpExclusion(filters.ipsExclude, add("ipsExclude"), (ip) =>
-    remove("ipsExclude", ip),
-  )
+  // Hiding your IP takes it out of the IP "is" list too, so it is never on both sides.
+  const hideMyIp = (ip: string) =>
+    setFilters((prev) =>
+      prev.ipsExclude.includes(ip)
+        ? prev
+        : { ...prev, ips: prev.ips.filter((v) => v !== ip), ipsExclude: [...prev.ipsExclude, ip] },
+    )
+  const myIp = useMyIpExclusion(filters.ipsExclude, hideMyIp, (ip) => remove("ipsExclude", ip))
   const setAsns = (key: AsnKey) => (values: number[]) =>
     setFilters((prev) => ({ ...prev, [key]: values }))
   const removeAsn = (key: AsnKey, asn: number) =>

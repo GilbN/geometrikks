@@ -97,6 +97,9 @@ export function FilterBar({
   const inFlight =
     switching.current !== null &&
     active.includes(chipId(switching.current.fieldId, switching.current.from))
+  // Once the switch has landed it is done, so a value that later arrives for the mode it came
+  // from, as Hide my IP's lookup can add, doesn't reopen that mode.
+  if (switching.current && !inFlight) switching.current = null
   // A field picked from the menu shows as a chip with its picker open until it gets a value.
   const draft =
     open && !active.includes(openId!) && !(inFlight && switching.current?.fieldId === open.fieldId)
@@ -104,8 +107,9 @@ export function FilterBar({
       : undefined
   const isPinnedEmpty = (field: FilterBarField) =>
     pinned.includes(field.id) && activeModes(field).length === 0
-  // Where focus goes once a chip it was on has left: the add button, or a pinned field's button.
-  const focusAfter = useRef<"add" | { fieldId: string } | null>(null)
+  // Where focus goes once a chip it was on has left: the add button, or a field's chip, such as a
+  // pinned field's button or the chip a merge left behind.
+  const focusAfter = useRef<"add" | { fieldId: string; mode?: FilterMode } | null>(null)
   useEffect(() => {
     const target = focusAfter.current
     if (!target) return
@@ -114,19 +118,24 @@ export function FilterBar({
     // before the frame cancels it, and the next effect schedules it again.
     const frame = requestAnimationFrame(() => {
       focusAfter.current = null
-      if (target === "add") {
-        const lost = !document.activeElement || document.activeElement === document.body
-        if (lost) addRef.current?.focus()
-        return
-      }
-      barRef.current?.querySelector<HTMLElement>(`[data-field="${target.fieldId}"] button`)?.focus()
+      const lost = !document.activeElement || document.activeElement === document.body
+      if (!lost) return
+      if (target === "add") return addRef.current?.focus()
+      const mode = target.mode ? `[data-mode="${target.mode}"]` : ""
+      barRef.current
+        ?.querySelector<HTMLElement>(`[data-field="${target.fieldId}"]${mode} button`)
+        ?.focus()
     })
     return () => cancelAnimationFrame(frame)
   })
   const closeIf = (id: string) => (next: boolean) => {
     if (next) return setOpenId(id)
-    const field = byId.get(parseChipId(id).fieldId)
+    const { fieldId, mode } = parseChipId(id)
+    const field = byId.get(fieldId)
     if (field && !active.includes(id) && !isPinnedEmpty(field)) focusAfter.current = "add"
+    // A chip that kept its key through a merge takes its own key on closing and mounts again.
+    else if (field && openKey.current && openKey.current.key !== keyFor(field, mode))
+      focusAfter.current = { fieldId, mode }
     setOpenId((current) => (current === id ? null : current))
   }
   const switchTo = (field: FilterBarField, from: FilterMode) => (to: FilterMode) => {
@@ -180,7 +189,8 @@ export function FilterBar({
         mode={mode}
         slot={slot}
         open={isOpen}
-        onOpenChange={closeIf(id)}
+        // The open chip closes the picker the bar has open, even while a switch is landing.
+        onOpenChange={closeIf(isOpen && openId ? openId : id)}
         onModeChange={switchTo(field, mode)}
         onRemove={() => removeChip(field, mode)}
       />
@@ -507,6 +517,18 @@ function ListChip(
   useEffect(() => {
     if (!open) setQuery("")
   }, [open])
+  // A focus return still on its way, such as the Filter menu's to its button, can land after
+  // the picker opened, so the picker takes the focus back once it shows.
+  const contentRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const frame = requestAnimationFrame(() => {
+      const content = contentRef.current
+      if (content && !content.contains(document.activeElement))
+        content.querySelector<HTMLInputElement>("input")?.focus()
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [open])
   useEffect(() => {
     if (open) field.onOpen?.()
     // Only the opening matters; a new onOpen each render must not refire it.
@@ -537,6 +559,8 @@ function ListChip(
       />
       {/* A column, so the list scrolls in the height the header and search field leave. */}
       <ComboboxContent
+        ref={contentRef}
+        aria-label={`${field.label} ${mode === "not" ? "is not" : "is"}`}
         anchor={anchorRef}
         className="flex max-h-[min(20rem,var(--available-height))] w-64 min-w-64 flex-col"
       >
@@ -589,7 +613,8 @@ function TypedChip(props: Omit<ChipProps, "field"> & { field: TypedFilterBarFiel
         align="start"
         sideOffset={6}
         aria-label={`${field.label} filter`}
-        className="w-[22rem] gap-0 p-0"
+        // The value list scrolls in what the field and its note leave of the room beside the chip.
+        className="max-h-(--radix-popover-content-available-height) w-[22rem] gap-0 overflow-hidden p-0"
       >
         <PickerHeader field={field} mode={mode} onModeChange={onModeChange} />
         <div className="px-1 pt-1 pb-1">
@@ -618,7 +643,10 @@ function TypedChip(props: Omit<ChipProps, "field"> & { field: TypedFilterBarFiel
           )}
         </div>
         {values.length > 0 && (
-          <ul className="max-h-40 overflow-y-auto px-1 pb-1" aria-label={`${field.label} values`}>
+          <ul
+            className="max-h-40 min-h-0 shrink overflow-y-auto px-1 pb-1"
+            aria-label={`${field.label} values`}
+          >
             {values.map((entry) => (
               <li
                 key={entry}

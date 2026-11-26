@@ -152,39 +152,39 @@ export function AddFilterMenu({
                   const Icon = field.icon
                   const isPinned = pins.includes(field.id)
                   return (
-                    <CommandItem
-                      key={field.id}
-                      value={`field:${field.id}`}
-                      onSelect={() => pickField(field.id)}
-                      className={cn(ITEM, "group/field")}
-                    >
-                      <Icon aria-hidden className="size-[15px] text-muted-foreground" />
-                      <span className="min-w-0 flex-1 truncate">{field.label}</span>
-                      {field.exclude && (
-                        <span className="text-xs text-muted-foreground">is / is not</span>
-                      )}
+                    // The pin button sits beside the option, not in it: an option's
+                    // contents read as plain text, so a button there goes unannounced.
+                    <div key={field.id} className="group/field relative">
+                      <CommandItem
+                        value={`field:${field.id}`}
+                        onSelect={() => pickField(field.id)}
+                        className={cn(ITEM, "pr-9")}
+                      >
+                        <Icon aria-hidden className="size-[15px] text-muted-foreground" />
+                        <span className="min-w-0 flex-1 truncate">{field.label}</span>
+                        {field.exclude && (
+                          <span className="text-xs text-muted-foreground">is / is not</span>
+                        )}
+                      </CommandItem>
                       <button
                         type="button"
                         aria-label={isPinned ? `Unpin ${field.label}` : `Pin ${field.label}`}
                         aria-pressed={isPinned}
                         title={isPinned ? "Unpin from the bar" : "Pin to the bar"}
-                        // cmdk would run the highlighted row on Enter and on a click.
+                        // cmdk would run the highlighted row on Enter.
                         onKeyDown={(event) => event.key === "Enter" && event.stopPropagation()}
                         onPointerDown={(event) => event.preventDefault()}
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          onTogglePin(field.id)
-                        }}
+                        onClick={() => onTogglePin(field.id)}
                         className={cn(
-                          "-mr-1 grid size-6 shrink-0 place-items-center rounded-sm outline-none hover:bg-background/60 focus-visible:ring-2 focus-visible:ring-ring",
+                          "absolute top-1/2 right-1.5 grid size-6 -translate-y-1/2 place-items-center rounded-sm outline-none hover:bg-background/60 focus-visible:ring-2 focus-visible:ring-ring",
                           isPinned
                             ? "text-primary"
-                            : "text-muted-foreground opacity-0 group-hover/field:opacity-100 group-data-selected/field:opacity-100 focus-visible:opacity-100",
+                            : "text-muted-foreground opacity-0 group-hover/field:opacity-100 group-has-[[data-selected=true]]/field:opacity-100 focus-visible:opacity-100",
                         )}
                       >
                         <Pin aria-hidden className="size-3.5" />
                       </button>
-                    </CommandItem>
+                    </div>
                   )
                 })}
               </CommandGroup>

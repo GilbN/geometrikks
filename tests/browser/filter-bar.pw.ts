@@ -69,6 +69,7 @@ test("a field from the Filter menu becomes a chip whose ticks filter at once", a
   await expect(addFilter(page)).toHaveText("Filter")
   await addFilter(page).click()
   await page.getByRole("option", { name: /Country/ }).click()
+  await expect(page.getByPlaceholder("Search country…")).toBeFocused()
   await page.keyboard.type("no")
   // The exact code comes first, so Enter picks Norway over North Macedonia.
   await page.keyboard.press("Enter")
@@ -102,6 +103,9 @@ test("a field with an is chip gets an is not chip beside it", async ({ page }) =
   await expect.poll(() => param(page, "ip")).toBe('["203.0.113.0/24","203.0.113.7"]')
   expect(param(page, "ipx")).toBeNull()
   await expect(page.locator("input[data-before-merge]")).toHaveValue("198.51.100.9")
+  // Escape hands focus to the chip the merge left, though it mounts again under its own key.
+  await page.keyboard.press("Escape")
+  await expect(bar(page).locator('[data-field="ip"][data-mode="is"] button').first()).toBeFocused()
 })
 
 test("Enter in the Filter menu never picks a match for older text", async ({ page }) => {
@@ -133,6 +137,7 @@ test("a pinned field stays in the bar and its x keeps the button", async ({ page
 
   await pinned.click()
   const picker = page.getByPlaceholder("Search status…")
+  await picker.click()
   await picker.evaluate((input) => input.setAttribute("data-before-tick", ""))
   await page.keyboard.type("404")
   await page.keyboard.press("Enter")
