@@ -9,6 +9,7 @@ Keyboard shortcuts need a keyboard and apply on desktop. Phones show no change.
 
 | Keys | Action |
 | --- | --- |
+| `Ctrl+K` / `Cmd+K` | Opens search and commands |
 | `/` | Focuses the page's main filter field (Access Logs search, the IP field on Geo Logs and Analytics, Debug Logs search, the Security search fields) |
 | `T` | Opens the time range menu |
 | `R` | Refreshes now |
@@ -48,9 +49,20 @@ These work on Access Logs History, Geo Logs and Debug Logs.
 
 `I` and `C` act on the focused row, or the row under the mouse pointer when no row has focus. `F` works on cells whose column the page can filter on: IP, host, server, country and ASN on Access Logs; IP, country and ASN on Geo Logs; IP and country on Debug Logs. In combined columns, `F` uses the field the column sorts by, so Client filters by IP, while Request (sorts by path) and Location (sorts by city) are ignored because there is no filter for path or city there.
 
+## Search and commands
+
+Press `Ctrl+K` (`Cmd+K` on a Mac) from any page to open the search-and-commands palette, including while you type in a field. Press the same keys again or `Esc` to close it. On desktop, the search field in the top bar ("Search pages and actions…", showing `Ctrl K`, or `⌘ K` on a Mac) opens the same palette, and shrinks to a search icon button on narrow windows.
+
+The palette lists two groups, with each row showing its keyboard shortcut:
+
+- **Go to** lists every page in the sidebar with its `G` shortcut.
+- **Actions** lists "Change the time range…" with the current range on pages that use the time range, "Ban an IP or range…" when CrowdSec has write access (`CROWDSEC_MACHINE_ID` and `CROWDSEC_MACHINE_PASSWORD`), and "Start the live tail".
+
+Type to filter the list, move with the arrow keys and press `Enter` to run the selected row. The footer has a button that opens the shortcuts cheat sheet.
+
 ## When shortcuts don't fire
 
-Shortcuts never fire while you type in a field, or while a dialog, menu or drawer has focus. Keys held with `Ctrl`, `Cmd` or `Alt` are left to the browser, except `Ctrl+B` (`Cmd+B` on a Mac).
+Shortcuts never fire while you type in a field, or while a dialog, menu or drawer has focus. `Ctrl+K` (`Cmd+K` on a Mac) still works while you type in a field. Keys held with `Ctrl`, `Cmd` or `Alt` are left to the browser, except `Ctrl+K` and `Ctrl+B` (`Cmd+K` and `Cmd+B` on a Mac).
 
 ## Cheat sheet
 
@@ -58,4 +70,4 @@ Press `?`, or open the user menu at the bottom of the sidebar and pick Keyboard 
 
 ## Turning single-key shortcuts off
 
-Settings > Appearance > Keyboard shortcuts has a Single-key shortcuts switch. It is on by default and stored per browser. Turn it off if the keys clash with a browser extension such as Vimium. Turning it off disables every single-key shortcut (letters, `/`, `?` and arrows), while `Ctrl+B` (`Cmd+B` on a Mac) keeps working. With the switch off, the cheat sheet still opens from the user menu and says the keys are off.
+Settings > Appearance > Keyboard shortcuts has a Single-key shortcuts switch. It is on by default and stored per browser. Turn it off if the keys clash with a browser extension such as Vimium. Turning it off disables every single-key shortcut (letters, `/`, `?` and arrows), while `Ctrl+K` and `Ctrl+B` (`Cmd+K` and `Cmd+B` on a Mac) keep working. With the switch off, the cheat sheet still opens from the user menu and says the keys are off.

@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vite-plus/test"
-import { SHORTCUTS, keyLabel, matchKey, shortcutKeyLabels, type KeyInput } from "@/lib/shortcuts"
+import {
+  SHORTCUTS,
+  isPaletteKey,
+  keyLabel,
+  matchKey,
+  shortcutKeyLabels,
+  type KeyInput,
+} from "@/lib/shortcuts"
 
 const press = (key: string, extra: Partial<KeyInput> = {}): KeyInput => ({
   key,
@@ -86,7 +93,8 @@ describe("labels", () => {
     expect(keyLabel("Enter")).toBe("↵")
     expect(keyLabel(",")).toBe(",")
     const sidebar = SHORTCUTS.find((shortcut) => shortcut.id === "toggle-sidebar")!
-    expect(shortcutKeyLabels(sidebar)).toEqual(["Ctrl", "B"])
+    expect(shortcutKeyLabels(sidebar, false)).toEqual(["Ctrl", "B"])
+    expect(shortcutKeyLabels(sidebar, true)).toEqual(["⌘", "B"])
   })
 
   it("has one binding per key", () => {
@@ -94,5 +102,20 @@ describe("labels", () => {
       (shortcut) => `${shortcut.mod ? "mod+" : ""}${shortcut.keys.join(" ")}`,
     )
     expect(new Set(bound).size).toBe(bound.length)
+  })
+})
+
+describe("isPaletteKey", () => {
+  it("takes Ctrl+K off a Mac and Cmd+K on one", () => {
+    expect(isPaletteKey(press("k", { ctrlKey: true }), false)).toBe(true)
+    expect(isPaletteKey(press("k", { metaKey: true }), false)).toBe(false)
+    expect(isPaletteKey(press("k", { metaKey: true }), true)).toBe(true)
+    expect(isPaletteKey(press("k", { ctrlKey: true }), true)).toBe(false)
+  })
+
+  it("follows the key's position only on a non-Latin layout", () => {
+    expect(isPaletteKey(press("л", { ctrlKey: true, code: "KeyK" }), false)).toBe(true)
+    expect(isPaletteKey(press("e", { ctrlKey: true, code: "KeyK" }), false)).toBe(false)
+    expect(isPaletteKey(press("î", { ctrlKey: true, code: "KeyK" }), false)).toBe(false)
   })
 })

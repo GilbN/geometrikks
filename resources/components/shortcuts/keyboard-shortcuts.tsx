@@ -13,6 +13,11 @@ import { toast } from "sonner"
 import { BanIpDialog } from "@/components/security/ban-ip-dialog"
 import { ShortcutsDialog } from "@/components/shortcuts/shortcuts-dialog"
 import {
+  closeCommandPalette,
+  commandPaletteOpen,
+  openCommandPalette,
+} from "@/lib/command-palette-store"
+import {
   filterCellUnderPointer,
   focusPageFilter,
   moveRow,
@@ -32,6 +37,7 @@ import {
   MODIFIER_KEYS,
   SEQUENCE_TIMEOUT_MS,
   isInOverlay,
+  isPaletteKey,
   isTypingTarget,
   matchKey,
   modalLayerOpen,
@@ -93,6 +99,29 @@ export function useShortcutAction(id: ShortcutId, handler: Handler | null): void
     if (!active) return
     return register(id, () => handlerRef.current?.())
   }, [id, active])
+}
+
+/**
+ * A modal dialog, sheet or menu that is open, not one on its way out. The
+ * page stays scroll-locked until a closing layer's animation ends, and Ctrl+K
+ * pressed then should still reopen the palette.
+ */
+function openModalLayer(): boolean {
+  return (
+    modalLayerOpen() &&
+    document.querySelector(
+      '[role="dialog"][data-state="open"],[role="alertdialog"][data-state="open"],[role="menu"][data-state="open"]',
+    ) !== null
+  )
+}
+
+let runBuiltIn: ((id: ShortcutId) => boolean) | null = null
+
+/** Runs a shortcut's action as if its keys were pressed, for the command palette. */
+export function runShortcut(id: ShortcutId): boolean {
+  const handler = registered.get(id)?.at(-1)
+  if (handler) return handler() !== false
+  return runBuiltIn?.(id) ?? false
 }
 
 export function KeyboardShortcuts() {
@@ -199,6 +228,13 @@ export function KeyboardShortcuts() {
     [navigate, router, queryClient, refresh, inspect],
   )
 
+  useEffect(() => {
+    runBuiltIn = builtIn
+    return () => {
+      runBuiltIn = null
+    }
+  }, [builtIn])
+
   useEffect(() => trackPointer(), [])
   // A sign-out unmounts the shell. Closing here keeps the sheet shut after the next sign-in.
   useEffect(() => () => setCheatSheetOpen(false), [])
@@ -210,6 +246,15 @@ export function KeyboardShortcuts() {
     }
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.isComposing) return
+      // Ctrl+K works in fields too, and toggles the palette closed again.
+      if (isPaletteKey(event)) {
+        event.preventDefault()
+        if (event.repeat) return
+        if (commandPaletteOpen()) closeCommandPalette()
+        else if (!openModalLayer()) openCommandPalette()
+        clearPrefix()
+        return
+      }
       if (isTypingTarget(event.target) || isInOverlay(event.target) || modalLayerOpen()) {
         clearPrefix()
         return

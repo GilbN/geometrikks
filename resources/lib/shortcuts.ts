@@ -7,6 +7,7 @@
 export type ShortcutGroup = "anywhere" | "goto" | "tables"
 
 export type ShortcutId =
+  | "palette"
   | "focus-filter"
   | "time-range"
   | "refresh"
@@ -47,6 +48,14 @@ export interface Shortcut {
 }
 
 export const SHORTCUTS: readonly Shortcut[] = [
+  {
+    id: "palette",
+    group: "anywhere",
+    label: "Search and commands",
+    keys: ["k"],
+    mod: true,
+    external: true,
+  },
   { id: "focus-filter", group: "anywhere", label: "Focus the page filter", keys: ["/"] },
   { id: "time-range", group: "anywhere", label: "Change the time range", keys: ["t"] },
   { id: "refresh", group: "anywhere", label: "Refresh now", keys: ["r"] },
@@ -129,9 +138,9 @@ const SPOKEN_KEYS: Record<string, string> = {
 }
 
 /** How a screen reader should hear one shortcut's keys. */
-export function shortcutSpokenKeys(shortcut: Shortcut): string[] {
+export function shortcutSpokenKeys(shortcut: Shortcut, apple = applePlatform()): string[] {
   return [
-    ...(shortcut.mod ? ["Ctrl"] : []),
+    ...(shortcut.mod ? [apple ? "Command" : "Ctrl"] : []),
     ...shortcut.keys.map((key) => SPOKEN_KEYS[key] ?? keyLabel(key)),
   ]
 }
@@ -142,8 +151,18 @@ export function keyLabel(key: string): string {
 }
 
 /** The labels for one shortcut's keys, Ctrl first for a held one. */
-export function shortcutKeyLabels(shortcut: Shortcut): string[] {
-  return [...(shortcut.mod ? ["Ctrl"] : []), ...shortcut.keys.map(keyLabel)]
+export function shortcutKeyLabels(shortcut: Shortcut, apple = applePlatform()): string[] {
+  return [...(shortcut.mod ? [modifierLabel(apple)] : []), ...shortcut.keys.map(keyLabel)]
+}
+
+/** The held key the Ctrl shortcuts use, which is Cmd on a Mac. */
+export function modifierLabel(apple = applePlatform()): string {
+  return apple ? "⌘" : "Ctrl"
+}
+
+/** `aria-keyshortcuts` for a Ctrl shortcut on this platform. */
+export function ariaKeyShortcut(key: string, apple = applePlatform()): string {
+  return `${apple ? "Meta" : "Control"}+${key.toUpperCase()}`
 }
 
 export interface KeyInput {
@@ -184,7 +203,8 @@ export const MODIFIER_KEYS: ReadonlySet<string> = new Set([
  */
 function normalize(key: string, code: string | undefined): string {
   if (key.length !== 1 || !/\p{L}/u.test(key)) return key
-  if (/[a-z]/i.test(key)) return key.toLowerCase()
+  // Accented Latin letters are their own keys, not stand-ins for A to Z.
+  if (/\p{Script=Latin}/u.test(key)) return key.toLowerCase()
   const position = code?.match(/^Key([A-Z])$/)
   return position ? position[1].toLowerCase() : key
 }
@@ -212,6 +232,27 @@ export function matchKey(event: KeyInput, pendingPrefix: string | null): MatchRe
   if (!shortcut) return { kind: "none" }
   if (event.repeat && !REPEATABLE.has(shortcut.id)) return { kind: "none" }
   return { kind: "match", shortcut }
+}
+
+/** Whether this is a Mac or iPad, where Cmd takes the place of Ctrl. */
+export function applePlatform(): boolean {
+  if (typeof navigator === "undefined") return false
+  const platform =
+    (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform ||
+    navigator.platform
+  return /mac|iphone|ipad|ipod/i.test(platform)
+}
+
+/**
+ * Ctrl+K, or Cmd+K on a Mac, with no other modifier. On a Mac, Ctrl+K stays
+ * the system's "delete to end of line" in text fields.
+ */
+export function isPaletteKey(
+  event: KeyInput & { shiftKey?: boolean },
+  apple: boolean = applePlatform(),
+): boolean {
+  const modifier = apple ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey
+  return modifier && !event.altKey && !event.shiftKey && normalize(event.key, event.code) === "k"
 }
 
 /** Whether keys typed here belong to the element, not to the shortcuts. */

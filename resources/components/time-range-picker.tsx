@@ -41,6 +41,7 @@ import {
 import { useTimeRange } from "@/lib/time-range-context"
 import { cn } from "@/lib/utils"
 import { useOverlayEntry } from "@/lib/overlay-history"
+import { isPaletteKey } from "@/lib/shortcuts"
 
 /** Trigger text for the current selection: the preset, or the custom span's dates. */
 export function timeRangeLabel(range: TimeRangeValue, customRange: CustomTimeRange | null): string {
@@ -276,7 +277,8 @@ export function TimeRangePicker({
         ))}
         <DropdownMenuSeparator />
         <DropdownMenuLabel className="text-xs">Custom range</DropdownMenuLabel>
-        <div onKeyDown={(e) => e.stopPropagation()}>
+        {/* Ctrl+K still reaches the palette's handler from the date fields. */}
+        <div onKeyDown={(e) => !isPaletteKey(e.nativeEvent) && e.stopPropagation()}>
           <CustomRangeFields onApply={setCustomRange} />
         </div>
       </DropdownMenuContent>
