@@ -86,7 +86,7 @@
     "path": "/docs/next/features/app-tour/",
     "status": 200,
     "scope": "article",
-    "contains": ["LOGPARSER_STORE_DEBUG_LINES", "Exclude ASN"],
+    "contains": ["LOGPARSER_STORE_DEBUG_LINES", "Hide my IP"],
     "absent": ["raw source lines behind every request", "id=\"live\""]
   },
   {
