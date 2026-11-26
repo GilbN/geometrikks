@@ -513,6 +513,9 @@ export function CommandPalette() {
             if (
               event.key === "Enter" &&
               event.isTrusted &&
+              // Enter that confirms an input method's text belongs to the input method.
+              !event.nativeEvent.isComposing &&
+              event.keyCode !== 229 &&
               !event.ctrlKey &&
               !event.metaKey &&
               namesPending.current &&
