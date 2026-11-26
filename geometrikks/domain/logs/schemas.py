@@ -41,6 +41,61 @@ class AccessLogFacets(msgspec.Struct, rename="camel"):
     ]
 
 
+_HITS = msgspec.Meta(description="Requests kept for it, muted IPs included.")
+
+
+class CountryMatch(msgspec.Struct, rename="camel"):
+    """A country whose name or code matches the search."""
+
+    code: Annotated[str, msgspec.Meta(description="The two-letter ISO 3166-1 code, the value `countryCode` takes.")]
+    name: Annotated[str, msgspec.Meta(description="The country name, or the code when GeoIP gave no name.")]
+    hits: Annotated[int, _HITS]
+
+
+class CityMatch(msgspec.Struct, rename="camel"):
+    """A city whose name matches the search. The same name in two countries is two matches."""
+
+    city: Annotated[str, msgspec.Meta(description="The city name, the value `city` takes.")]
+    country_code: Annotated[str | None, msgspec.Meta(description="The city's country code. Null when GeoIP gave none.")]
+    country_name: Annotated[str | None, msgspec.Meta(description="The city's country name. Null when GeoIP gave none.")]
+    hits: Annotated[int, _HITS]
+
+
+class HostMatch(msgspec.Struct, rename="camel"):
+    """A Host header value that matches the search."""
+
+    host: str
+    hits: Annotated[int, _HITS]
+
+
+class ServerMatch(msgspec.Struct, rename="camel"):
+    """A server name that matches the search."""
+
+    server: str
+    hits: Annotated[int, _HITS]
+
+
+class AsnMatch(msgspec.Struct, rename="camel"):
+    """An autonomous system whose organization or number matches the search."""
+
+    asn: Annotated[int, msgspec.Meta(description="The autonomous system number, the value `asnIn` takes.")]
+    organization: Annotated[
+        str | None,
+        msgspec.Meta(description="The network's name from the GeoLite2 ASN database. Null when it has none."),
+    ]
+    hits: Annotated[int, _HITS]
+
+
+class FilterValueMatches(msgspec.Struct, rename="camel"):
+    """Filter values that match a search, busiest first in each list."""
+
+    countries: list[CountryMatch]
+    cities: list[CityMatch]
+    hosts: list[HostMatch]
+    servers: list[ServerMatch]
+    asns: list[AsnMatch]
+
+
 RawLineFieldGroup = Literal["request_header", "response_header", "origin_header", "field"]
 
 

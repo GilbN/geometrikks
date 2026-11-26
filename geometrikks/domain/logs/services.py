@@ -7,8 +7,15 @@ from advanced_alchemy.filters import FilterTypes, LimitOffset
 from advanced_alchemy.repository import SQLAlchemyAsyncRepository
 from advanced_alchemy.service import SQLAlchemyAsyncRepositoryService
 from sqlalchemy import func, select, text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from geometrikks.domain.exceptions import DomainValidationError
+from geometrikks.domain.logs.filter_value_search import (
+    FilterValueTotals,
+    filter_value_totals,
+    load_filter_value_totals,
+    match_filter_values,
+)
 from geometrikks.domain.logs.models import AccessLog, AccessLogDebug
 from geometrikks.domain.logs.raw_line_fields import raw_line_fields
 from geometrikks.domain.logs.schemas import (
@@ -17,6 +24,7 @@ from geometrikks.domain.logs.schemas import (
     AccessLogFacets,
     AsnFacet,
     CountryFacet,
+    FilterValueMatches,
     ParseErrorCount,
 )
 from geometrikks.lib.ip_filters import ip_match_clause
@@ -105,6 +113,18 @@ class AccessLogService(SQLAlchemyAsyncRepositoryService[AccessLog]):
             log_formats=list(log_formats),
             asns=[AsnFacet(asn=int(row.asn), organization=row.organization) for row in asn_rows],
         )
+
+    async def search_filter_values(self, query: str, limit: int) -> FilterValueMatches:
+        """The busiest countries, cities, hosts, servers and ASNs whose name holds ``query``."""
+        bind = self.repository.session.bind
+
+        async def load() -> FilterValueTotals:
+            # Its own session: a reload can outlive the request that started it.
+            async with AsyncSession(bind) as session:
+                return await load_filter_value_totals(session)
+
+        totals = await filter_value_totals.get(load)
+        return match_filter_values(totals, query, limit)
 
 
 # Sortable columns for the debug list. All of them live on AccessLogDebug:

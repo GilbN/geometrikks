@@ -1061,6 +1061,17 @@
       ],
       "uri": "/api/v1/system/scheduler/jobs/{job_id}/run"
     },
+    "search_access_log_facets": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "limit": "number | undefined",
+        "q": "string"
+      },
+      "uri": "/api/v1/access-logs/facets/search"
+    },
     "server_locations": {
       "method": "get",
       "methods": [

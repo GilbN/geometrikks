@@ -18,6 +18,7 @@ from sqlalchemy import or_, text
 from geometrikks.domain.logs.controllers.access_logs import (
     provide_access_log_in_filters,
 )
+from geometrikks.domain.logs.filter_value_search import filter_value_totals
 from geometrikks.domain.logs.services import AccessLogService
 from geometrikks.server.timescale import refresh_caggs_range
 
@@ -393,3 +394,68 @@ async def test_facets_lists_asns_with_organizations(pg_engine, pg_session_maker,
     assert [(a.asn, a.organization) for a in facets.asns] == [
         (13335, "Cloudflare"), (15169, "Google"), (64512, None),
     ]
+
+
+async def _insert_located(session_maker, ts: datetime, places: list[tuple[str, str, str | None, int]]) -> None:
+    """Geo events for each (country code, country name, city, count), one location per place."""
+    async with session_maker() as session:
+        for index, (code, name, city, count) in enumerate(places):
+            location_id = (
+                await session.execute(
+                    text(
+                        "INSERT INTO geo_locations (geohash, latitude, longitude, geographic_point, "
+                        " country_code, country_name, city, created_at, updated_at) "
+                        "VALUES (:geohash, :lat, 10, ST_SetSRID(ST_MakePoint(10, :lat), 4326)::geography, "
+                        " :code, :name, :city, now(), now()) RETURNING id"
+                    ),
+                    {"geohash": f"place{index}", "lat": float(index), "code": code, "name": name, "city": city},
+                )
+            ).scalar_one()
+            for event in range(count):
+                await session.execute(
+                    text(
+                        "INSERT INTO geo_events (timestamp, ip_address, server, location_id) "
+                        "VALUES (:ts, :ip, 'edge', :location_id)"
+                    ),
+                    {"ts": ts, "ip": f"10.9.{index}.{event}", "location_id": location_id},
+                )
+        await session.commit()
+
+
+async def test_filter_value_search_ranks_by_requests(pg_engine, pg_session_maker, clean_tables) -> None:
+    ts = NOW - timedelta(hours=1)
+    for index in range(3):
+        await _insert(
+            pg_session_maker, ts, f"10.0.1.{index}", host="git.example.com", server="edge",
+            asn=2119, asn_org="Telenor Norge AS",
+        )
+    await _insert(
+        pg_session_maker, ts, "10.0.2.1", host="norge.example.com", server="nas",
+        asn=198830, asn_org="Nordcom S.p.a.",
+    )
+    await _insert_located(pg_session_maker, ts, [
+        ("NO", "Norway", "Oslo", 3),
+        ("NO", "Norway", None, 2),
+        ("MK", "North Macedonia", "Skopje", 1),
+        ("US", "United States", "Oslo", 1),
+    ])
+    for cagg in ("location_daily_stats", "host_daily_stats", "log_source_daily_stats", "asn_daily_stats"):
+        await _refresh_facets_cagg(pg_engine, cagg)
+    filter_value_totals.clear()
+
+    async with pg_session_maker() as session:
+        service = AccessLogService(session=session)
+        found = await service.search_filter_values("nor", 4)
+        oslo = await service.search_filter_values("oslo", 4)
+        edge = await service.search_filter_values("edg", 4)
+    filter_value_totals.clear()
+
+    # Norway counts its city and its places without one.
+    assert [(country.code, country.hits) for country in found.countries] == [("NO", 5), ("MK", 1)]
+    assert [(asn.asn, asn.hits) for asn in found.asns] == [(2119, 3), (198830, 1)]
+    assert [(host.host, host.hits) for host in found.hosts] == [("norge.example.com", 1)]
+    assert [(city.city, city.country_name, city.hits) for city in oslo.cities] == [
+        ("Oslo", "Norway", 3),
+        ("Oslo", "United States", 1),
+    ]
+    assert [(server.server, server.hits) for server in edge.servers] == [("edge", 3)]

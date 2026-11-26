@@ -36,6 +36,9 @@ import type {
   ApiV1AccessLogDebugStatsGetAccessLogDebugStatsResponses,
   ApiV1AccessLogsFacetsGetAccessLogFacetsData,
   ApiV1AccessLogsFacetsGetAccessLogFacetsResponses,
+  ApiV1AccessLogsFacetsSearchSearchAccessLogFacetsData,
+  ApiV1AccessLogsFacetsSearchSearchAccessLogFacetsErrors,
+  ApiV1AccessLogsFacetsSearchSearchAccessLogFacetsResponses,
   ApiV1AccessLogsListAccessLogsData,
   ApiV1AccessLogsListAccessLogsErrors,
   ApiV1AccessLogsListAccessLogsResponses,
@@ -622,6 +625,40 @@ export const apiV1AccessLogsFacetsGetAccessLogFacets = <
       { scheme: "bearer", type: "http" },
     ],
     url: "/api/v1/access-logs/facets",
+    ...options,
+  });
+
+/**
+ * Search the filter values by name
+ *
+ * Returns the countries, cities, hosts, server names and ASNs whose name holds `q`, ignoring case and accents, busiest first, up to `limit` of each. A country also matches its two-letter code, and an ASN matches its number with or without `AS`, from the first digits. Totals cover everything the daily aggregates keep, muted IPs included, and can trail new requests by up to five minutes.
+ */
+export const apiV1AccessLogsFacetsSearchSearchAccessLogFacets = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<
+    ApiV1AccessLogsFacetsSearchSearchAccessLogFacetsData,
+    ThrowOnError
+  >,
+): RequestResult<
+  ApiV1AccessLogsFacetsSearchSearchAccessLogFacetsResponses,
+  ApiV1AccessLogsFacetsSearchSearchAccessLogFacetsErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).get<
+    ApiV1AccessLogsFacetsSearchSearchAccessLogFacetsResponses,
+    ApiV1AccessLogsFacetsSearchSearchAccessLogFacetsErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+      { scheme: "bearer", type: "http" },
+    ],
+    url: "/api/v1/access-logs/facets/search",
     ...options,
   });
 

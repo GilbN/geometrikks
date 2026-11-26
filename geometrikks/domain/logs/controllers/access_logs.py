@@ -25,7 +25,7 @@ from sqlalchemy import or_
 from geometrikks.domain.exceptions import DomainValidationError
 from geometrikks.domain.logs.dtos import AccessLogDTO
 from geometrikks.domain.logs.models import AccessLog
-from geometrikks.domain.logs.schemas import AccessLogFacets
+from geometrikks.domain.logs.schemas import AccessLogFacets, FilterValueMatches
 from geometrikks.domain.logs.services import AccessLogService
 from geometrikks.domain.logs.sorting import nulls_last_for_timings
 from geometrikks.domain.logs.window_headers import (
@@ -389,3 +389,29 @@ class AccessLogController(Controller):
         (``log_formats`` goes out as ``logFormats``).
         """
         return await access_log_service.get_facets()
+
+    @get(
+        "/facets/search",
+        return_dto=None,
+        summary="Search the filter values by name",
+        description=(
+            "Returns the countries, cities, hosts, server names and ASNs whose name holds `q`, ignoring case "
+            "and accents, busiest first, up to `limit` of each. A country also matches its two-letter code, and "
+            "an ASN matches its number with or without `AS`, from the first digits. Totals cover everything the "
+            "daily aggregates keep, muted IPs included, and can trail new requests by up to five minutes."
+        ),
+    )
+    async def search_access_log_facets(
+        self,
+        access_log_service: NamedDependency[AccessLogService],
+        q: Annotated[
+            str,
+            QueryParameter(description="The text to look for, 2 to 100 characters.", min_length=2, max_length=100),
+        ],
+        limit: Annotated[
+            int,
+            QueryParameter(description="How many values of each kind to return, from 1 to 20. Defaults to 4.", ge=1, le=20),
+        ] = 4,
+    ) -> FilterValueMatches:
+        """Name search over the filter values, for the command palette."""
+        return await access_log_service.search_filter_values(q, limit)
