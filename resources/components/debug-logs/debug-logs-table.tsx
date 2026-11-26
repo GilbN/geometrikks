@@ -511,13 +511,12 @@ export function DebugLogsTable() {
     }
   }
 
-  const activeFilterCount =
-    (search ? 1 : 0) +
-    // The chip shows at once, so the count follows the field, not the debounced request.
-    (ipDraft && !ipInvalid ? 1 : 0) +
-    (malformedFilter !== "all" ? 1 : 0) +
-    (countries.length ? 1 : 0) +
-    (cities.length ? 1 : 0)
+  const otherFilterCount =
+    (malformedFilter !== "all" ? 1 : 0) + (countries.length ? 1 : 0) + (cities.length ? 1 : 0)
+  // The phone drawer counts any IP text, so Clear can take back a half-typed one.
+  const activeFilterCount = (search ? 1 : 0) + (ip ? 1 : 0) + otherFilterCount
+  // The desktop bar's IP chip shows at once and only for an address the request uses.
+  const barFilterCount = (search ? 1 : 0) + (ipDraft && !ipInvalid ? 1 : 0) + otherFilterCount
 
   function clearFilters() {
     setSearchInput("")
@@ -771,7 +770,7 @@ export function DebugLogsTable() {
                   if (picked.kind === "city") setCities((prev) => add(prev, picked.city))
                 },
               }}
-              activeCount={activeFilterCount}
+              activeCount={barFilterCount}
               onClear={clearFilters}
             />
           )}
