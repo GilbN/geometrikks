@@ -9,6 +9,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type ComponentProps,
   type ReactElement,
 } from "react"
@@ -19,6 +20,13 @@ import type { RowDensity } from "@/lib/table-view"
 import type { IpRowValues } from "@/lib/ip-filter-targets"
 import { useIpFilterTargetsFor } from "@/components/ip-actions/ip-actions-menu"
 import { registerShortcutBody, type RowShortcutData } from "@/components/data/table-shortcuts"
+import {
+  markedKeyFor,
+  notifyRowsChanged,
+  registerRowList,
+  subscribeInspectedRow,
+  type RowList,
+} from "@/components/ip-inspector/inspected-row"
 
 const HEADER_HEIGHT = 40
 const ScrollContext = createContext<{
@@ -83,7 +91,9 @@ export function VirtualTable({
         containerClassName={
           narrow ? "overflow-visible" : "max-h-[65dvh] overflow-auto overscroll-x-contain"
         }
-        className={
+        className={cn(
+          // The row the docked inspector shows.
+          "[&_tbody_tr[data-inspected]]:bg-primary/10 [&_tbody_tr[data-inspected]>td:first-child]:shadow-[inset_2px_0_0_var(--color-primary)]",
           narrow
             ? "table-fixed"
             : cn(
@@ -91,8 +101,8 @@ export function VirtualTable({
                 density === "compact" && "[&_tbody_td]:py-[3px]",
                 // Rows that J and K scroll to stay clear of the sticky header.
                 "[&_tbody_tr]:scroll-mt-10",
-              )
-        }
+              ),
+        )}
         data-density={narrow ? undefined : density}
         data-shortcut-table=""
         aria-rowcount={narrow ? rowCount : rowCount + 1}
@@ -269,8 +279,47 @@ export function VirtualTableBody<T>({
       return values ? { values, targetsFor } : undefined
     }
   }, [shortcutValues, rows, targetsFor])
-  const registerBody = useCallback((body: HTMLTableSectionElement | null) => {
-    if (body) registerShortcutBody(body, (index) => shortcutLookup.current(index))
+  // The rows the docked inspector marks and steps through.
+  const rowList = useRef<RowList | null>(null)
+  const [body, setBody] = useState<HTMLTableSectionElement | null>(null)
+  useLayoutEffect(() => {
+    if (!shortcutValues) return
+    rowList.current = {
+      count: () => rows.length,
+      ipAt: (index) => (rows[index] === undefined ? undefined : shortcutValues(rows[index])?.ip),
+      keyAt: (index) => (rows[index] === undefined ? undefined : getRowKey(rows[index])),
+      indexOfKey: (key) => rows.findIndex((row) => getRowKey(row) === key),
+      reveal: (index, focus) => {
+        virtualizer.scrollToIndex(index, { align: "auto" })
+        let frames = 0
+        const settle = () => {
+          const row = body?.querySelector<HTMLElement>(`tr[data-index="${index}"]`)
+          if (!row) {
+            if (++frames < 10) requestAnimationFrame(settle)
+            return
+          }
+          if (focus) row.focus({ preventScroll: true })
+          // The page around the table may need to scroll too.
+          row.scrollIntoView({ block: "nearest" })
+        }
+        requestAnimationFrame(settle)
+      },
+    }
+    notifyRowsChanged()
+  }, [shortcutValues, rows, getRowKey, virtualizer, body])
+  const markedKey = useSyncExternalStore(subscribeInspectedRow, () => markedKeyFor(body))
+
+  const registerBody = useCallback((element: HTMLTableSectionElement | null) => {
+    setBody(element)
+    if (!element) return
+    registerShortcutBody(element, (index) => shortcutLookup.current(index))
+    registerRowList(element, {
+      count: () => rowList.current?.count() ?? 0,
+      ipAt: (index) => rowList.current?.ipAt(index),
+      keyAt: (index) => rowList.current?.keyAt(index),
+      indexOfKey: (key) => rowList.current?.indexOfKey(key) ?? -1,
+      reveal: (index, focus) => rowList.current?.reveal(index, focus),
+    })
   }, [])
 
   const items = virtualizer.getVirtualItems()
@@ -304,6 +353,9 @@ export function VirtualTableBody<T>({
             "data-index": item.index,
             "aria-rowindex": item.index + (narrow ? 1 : 2),
             role: "row",
+            ...(markedKey !== null && getRowKey(rows[item.index]) === markedKey
+              ? { "data-inspected": "", "aria-current": "true" }
+              : {}),
           } as ComponentProps<"tr">)}
         </Fragment>
       ))}

@@ -132,7 +132,7 @@ export function DockToggle({
   )
 }
 
-const OUTSIDE_PAGE = [
+export const OUTSIDE_PAGE = [
   '[data-slot="inspector-dock"]',
   '[role="dialog"]',
   '[role="alertdialog"]',
