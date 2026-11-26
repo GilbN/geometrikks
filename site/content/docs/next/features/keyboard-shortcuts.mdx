@@ -1,0 +1,61 @@
+---
+title: Keyboard shortcuts
+description: Navigate pages, focus filters and work through log tables from the keyboard on desktop.
+---
+
+Keyboard shortcuts need a keyboard and apply on desktop. Phones show no change.
+
+## Anywhere
+
+| Keys | Action |
+| --- | --- |
+| `/` | Focuses the page's main filter field (Access Logs search, the IP field on Geo Logs and Analytics, Debug Logs search, the Security search fields) |
+| `T` | Opens the time range menu |
+| `R` | Refreshes now |
+| `L` | Opens Access Logs on its Live tail tab |
+| `B` | Opens the "Ban an IP or range" dialog when CrowdSec has write access (`CROWDSEC_MACHINE_ID` and `CROWDSEC_MACHINE_PASSWORD`); without it, `B` does nothing |
+| `Ctrl+B` / `Cmd+B` | Collapses or expands the sidebar |
+| `?` | Opens the keyboard shortcuts cheat sheet |
+
+## Go to
+
+Press `G`, then a second key within about 1.5 seconds.
+
+| Keys | Page |
+| --- | --- |
+| `G` then `O` | Overview |
+| `G` then `M` | Map |
+| `G` then `A` | Access Logs |
+| `G` then `G` | Geo Logs |
+| `G` then `D` | Debug Logs |
+| `G` then `N` | Analytics |
+| `G` then `S` | Security |
+| `G` then `,` | Settings |
+
+## Tables
+
+These work on Access Logs History, Geo Logs and Debug Logs.
+
+| Keys | Action |
+| --- | --- |
+| `J` | Next row (the first `J` focuses the first row in view) |
+| `K` | Previous row |
+| `Enter` | Opens the focused row's record |
+| `I` | Opens the [IP inspector](./ip-inspector.mdx) for the row's IP |
+| `C` | Copies the row's IP |
+| `F` | Filters the page by the cell under the mouse pointer; press `F` again on a cell already filtered to remove that filter |
+| `Right` / `Left` | Next and previous page while a row has focus |
+
+`I` and `C` act on the focused row, or the row under the mouse pointer when no row has focus. `F` works on cells whose column the page can filter on: IP, host, server, country and ASN on Access Logs; IP, country and ASN on Geo Logs; IP and country on Debug Logs. In combined columns, `F` uses the field the column sorts by, so Client filters by IP, while Request (sorts by path) and Location (sorts by city) are ignored because there is no filter for path or city there.
+
+## When shortcuts don't fire
+
+Shortcuts never fire while you type in a field, or while a dialog, menu or drawer has focus. Keys held with `Ctrl`, `Cmd` or `Alt` are left to the browser, except `Ctrl+B` (`Cmd+B` on a Mac).
+
+## Cheat sheet
+
+Press `?`, or open the user menu at the bottom of the sidebar and pick Keyboard shortcuts. The cheat sheet lists Anywhere, Go to and Tables, and leaves out `B` when CrowdSec write access is not set up.
+
+## Turning single-key shortcuts off
+
+Settings > Appearance > Keyboard shortcuts has a Single-key shortcuts switch. It is on by default and stored per browser. Turn it off if the keys clash with a browser extension such as Vimium. Turning it off disables every single-key shortcut (letters, `/`, `?` and arrows), while `Ctrl+B` (`Cmd+B` on a Mac) keeps working. With the switch off, the cheat sheet still opens from the user menu and says the keys are off.

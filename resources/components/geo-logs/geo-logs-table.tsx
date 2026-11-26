@@ -37,7 +37,7 @@ import type { GeoLogEntry } from "@/generated/api/types.gen"
 import { formatNumber, type GeoLogSortField, type GeoLogSortOrder } from "@/lib/api"
 import { IpActionsMenu, IpFilterTargetsProvider } from "@/components/ip-actions/ip-actions-menu"
 import { IpLabel } from "@/components/ip-actions/ip-label"
-import { geoLogFilterTargets } from "@/lib/ip-filter-targets"
+import { geoLogFilterTargets, type IpRowValues } from "@/lib/ip-filter-targets"
 import { useGeoLogs } from "@/lib/queries"
 import { pageToClamp } from "@/lib/use-muted-page"
 import { cn } from "@/lib/utils"
@@ -169,6 +169,30 @@ const COMBINED_SORT_LABELS: Partial<Record<GeoLogSortField, string>> = {
 
 const getRowKey = (row: GeoLogEntry) => `${row.locationId}-${row.ipAddress}`
 
+const shortcutValues = (row: GeoLogEntry): IpRowValues => ({
+  ip: row.ipAddress,
+  countryCode: row.countryCode,
+  countryName: row.countryName,
+  city: row.city,
+  asn: row.asn,
+  asOrganization: row.asOrganization,
+})
+
+/** The filter F applies on a column, when the page filters on its field. */
+const FILTER_NOUNS: Partial<Record<GeoLogColumn["key"], string>> = {
+  ipAddress: "IP",
+  countryCode: "country",
+  countryName: "country",
+  asn: "ASN",
+  asOrganization: "ASN",
+}
+
+/** A combined column filters on the field its header sorts by. */
+function combinedFilterNoun(column: GeoLogCombinedColumn): string | undefined {
+  const main = column.fields.find((field) => field.sortField) ?? column.fields[0]
+  return main ? FILTER_NOUNS[main.key] : undefined
+}
+
 const SORT_OPTIONS = sortOptions(GEO_LOG_COLUMNS)
 
 function GeoLogIpActions({ row }: { row: GeoLogEntry }) {
@@ -237,6 +261,7 @@ const GeoLogTableBody = memo(function GeoLogTableBody({
         narrow ? 1 : layout === "combined" ? combinedColumns.length : shownColumns.length
       }
       getRowKey={getRowKey}
+      shortcutValues={shortcutValues}
     >
       {(row) => (
         <TableRow
@@ -250,6 +275,7 @@ const GeoLogTableBody = memo(function GeoLogTableBody({
             combinedColumns.map((c) => (
               <TableCell
                 key={c.key}
+                data-filter-noun={combinedFilterNoun(c)}
                 className={cn(c.grow && "max-w-0 truncate", c.align === "right" && "text-right")}
                 style={c.minWidth ? { minWidth: c.minWidth } : undefined}
               >
@@ -260,6 +286,7 @@ const GeoLogTableBody = memo(function GeoLogTableBody({
             shownColumns.map((c) => (
               <TableCell
                 key={c.key}
+                data-filter-noun={FILTER_NOUNS[c.key]}
                 className={cn(c.grow && "max-w-0 truncate", c.align === "right" && "text-right")}
               >
                 {renderCell(c, row, timeFormat)}

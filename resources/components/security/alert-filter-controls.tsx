@@ -147,6 +147,7 @@ export function AlertIpFilter({
           onChange={(event) => onTextChange(event.target.value)}
           placeholder="Filter by IP (Enter)"
           aria-label="Filter alerts by IP"
+          data-page-filter={inDrawer ? undefined : ""}
         />
         {applied && (
           <InputGroupAddon align="inline-end">

@@ -19,6 +19,7 @@ import { PageHeader } from "@/components/page-header"
 import { ACCESS_LOGS_TABLE_ID, AccessLogsTable } from "@/components/access-logs/access-logs-table"
 import { AccessLogsFilterBar } from "@/components/access-logs/access-logs-filter-bar"
 import { LiveTail } from "@/components/access-logs/live-tail"
+import { useLiveTailRequest } from "@/lib/live-tail-request"
 import { AccessLogFiltersProvider } from "@/lib/access-log-filters-context"
 import {
   ACCESS_LOGS_RESET_ON_CHANGE,
@@ -51,6 +52,7 @@ function AccessLogsPage() {
   })
   const navigate = Route.useNavigate()
   const [mode, setMode] = useState<Mode>("history")
+  useLiveTailRequest(useCallback(() => setMode("live"), []))
 
   const { filters, setFilters, patchSearch } = useUrlFilters({
     search,

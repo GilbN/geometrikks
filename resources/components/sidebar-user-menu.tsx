@@ -2,13 +2,14 @@ import { Link } from "@tanstack/react-router"
 import {
   ChevronsUpDown,
   ExternalLink,
+  Keyboard,
   LogOut,
   Palette,
   ScrollText,
   Sparkles,
   UserRound,
 } from "lucide-react"
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { SiDocker } from "react-icons/si"
 import {
   DropdownMenu,
@@ -19,6 +20,7 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuShortcut,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
@@ -31,6 +33,8 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import { GlowDot } from "@/components/reload-notice"
+import { openShortcutsCheatSheet } from "@/components/shortcuts/keyboard-shortcuts"
+import { useSingleKeyShortcuts } from "@/lib/shortcut-preference"
 import { Avatar, AvatarBadge, AvatarFallback } from "@/components/ui/avatar"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useTheme } from "@/components/theme-provider"
@@ -88,6 +92,10 @@ export function SidebarUserMenu() {
   const [menuOpen, setMenuOpen] = useState(false)
   // Closing the menu returns focus to the row, which would reopen the tooltip and leave it up.
   const [tooltipHeld, setTooltipHeld] = useState(false)
+  // The cheat sheet opens once the menu has closed, so focus lands in the dialog.
+  const cheatSheetAfterClose = useRef(false)
+  const menuTrigger = useRef<HTMLButtonElement>(null)
+  const [singleKeys] = useSingleKeyShortcuts()
 
   const collapsed = !isMobile && state === "collapsed"
 
@@ -130,6 +138,7 @@ export function SidebarUserMenu() {
             <TooltipTrigger asChild>
               <DropdownMenuTrigger asChild>
                 <SidebarMenuButton
+                  ref={menuTrigger}
                   size="lg"
                   aria-label={rowLabel}
                   onBlur={() => setTooltipHeld(false)}
@@ -176,6 +185,12 @@ export function SidebarUserMenu() {
             align={collapsed ? "end" : "start"}
             sideOffset={8}
             className="w-auto max-w-72 min-w-58"
+            onCloseAutoFocus={(event) => {
+              if (!cheatSheetAfterClose.current) return
+              cheatSheetAfterClose.current = false
+              event.preventDefault()
+              openShortcutsCheatSheet(menuTrigger.current)
+            }}
           >
             {name && (
               <>
@@ -196,6 +211,16 @@ export function SidebarUserMenu() {
             )}
             <DropdownMenuGroup>
               <AppearanceSubmenu />
+              <DropdownMenuItem
+                className="text-[13px]"
+                onSelect={() => {
+                  cheatSheetAfterClose.current = true
+                }}
+              >
+                <Keyboard className="text-muted-foreground" />
+                Keyboard shortcuts
+                {singleKeys && <DropdownMenuShortcut>?</DropdownMenuShortcut>}
+              </DropdownMenuItem>
               <DropdownMenuItem asChild className="text-[13px]">
                 <Link to="/settings/changelog">
                   <ScrollText className="text-muted-foreground" />

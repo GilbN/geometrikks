@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react"
 import { useRouterState } from "@tanstack/react-router"
 import { ChevronDown, RotateCw, Filter } from "lucide-react"
 
@@ -17,6 +18,8 @@ import { useRouteHeader } from "@/lib/route-header"
 import { CHART_GRANULARITY_OPTIONS, POLL_INTERVAL_OPTIONS, type ChartGranularity } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { useIsFetching } from "@tanstack/react-query"
+import { usePhoneLayout } from "@/hooks/use-phone-map"
+import { useShortcutAction } from "@/components/shortcuts/keyboard-shortcuts"
 
 export function TimeRangeToolbar() {
   const {
@@ -34,6 +37,25 @@ export function TimeRangeToolbar() {
   // The map page has no time-series charts, so granularity is irrelevant there.
   const showGranularity = pathname !== "/map"
   const rangeLabel = timeRangeLabel(range, customRange)
+  const phone = usePhoneLayout()
+  const [rangeMenuOpen, setRangeMenuOpen] = useState(false)
+  // The desktop menu unmounts on a phone layout. Closing it here stops it reopening on widening.
+  useEffect(() => {
+    if (phone) setRangeMenuOpen(false)
+  }, [phone])
+  // T opens the menu from wherever focus is, such as a table row, and closing goes back there.
+  const focusBeforeShortcut = useRef<HTMLElement | null>(null)
+  useShortcutAction(
+    "time-range",
+    phone
+      ? null
+      : () => {
+          const active = document.activeElement
+          focusBeforeShortcut.current =
+            active instanceof HTMLElement && active !== document.body ? active : null
+          setRangeMenuOpen(true)
+        },
+  )
 
   return (
     <>
@@ -41,6 +63,15 @@ export function TimeRangeToolbar() {
       <div className="hidden md:flex phone:hidden items-center gap-2">
         {/* Time Range Dropdown Menu */}
         <TimeRangePicker
+          open={rangeMenuOpen}
+          onOpenChange={setRangeMenuOpen}
+          onCloseAutoFocus={(event) => {
+            const target = focusBeforeShortcut.current
+            focusBeforeShortcut.current = null
+            if (!target?.isConnected) return
+            event.preventDefault()
+            target.focus({ preventScroll: true })
+          }}
           trigger={
             <Button variant="outline" size="sm" className="flex items-center gap-2">
               <Filter className="w-4 h-4" />

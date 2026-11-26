@@ -131,6 +131,11 @@ export function IpFilterTargetsProvider({
   )
 }
 
+/** The page's filter targets for a row's values, or null outside a provider. */
+export function useIpFilterTargetsFor(): FilterTargetsFor | null {
+  return useContext(FilterTargetsContext)
+}
+
 export interface IpAction {
   key: string
   icon: ReactNode

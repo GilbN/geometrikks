@@ -35,7 +35,7 @@ import { pageToClamp } from "@/lib/use-muted-page"
 import { useAccessLogs, useCrowdsecLiveUpdates } from "@/lib/queries"
 import { IpActionsMenu, IpFilterTargetsProvider } from "@/components/ip-actions/ip-actions-menu"
 import { IpLabel } from "@/components/ip-actions/ip-label"
-import { accessLogFilterTargets } from "@/lib/ip-filter-targets"
+import { accessLogFilterTargets, type IpRowValues } from "@/lib/ip-filter-targets"
 import {
   formatBytes,
   formatDuration,
@@ -233,6 +233,37 @@ const sortRank = (field: AccessLogSortField) => SORT_RANK[field] ?? 0
 
 const getRowKey = (row: AccessLog) => row.id
 
+const shortcutValues = (row: AccessLog): IpRowValues => ({
+  ip: row.ipAddress,
+  host: row.host,
+  server: row.server,
+  countryCode: row.countryCode,
+  countryName: row.countryName,
+  city: row.city,
+  asn: row.autonomousSystemNumber,
+  asOrganization: row.autonomousSystemOrganization,
+})
+
+/** The filter F applies on a column: its sort field's, when the page filters on that. */
+const FILTER_NOUNS: Partial<Record<AccessLogColumn["key"], string>> = {
+  ipAddress: "IP",
+  host: "host",
+  server: "server",
+  country: "country",
+  asn: "ASN",
+  asnOrganization: "ASN",
+}
+
+/** A combined column filters on the field its header sorts by first. */
+function combinedFilterNoun(column: AccessLogCombinedColumn): string | undefined {
+  const sortable = column.fields.filter((field) => field.sortField)
+  const main =
+    column.key === "request"
+      ? [...sortable].sort((a, b) => sortRank(a.sortField!) - sortRank(b.sortField!))[0]
+      : (sortable[0] ?? column.fields[0])
+  return main ? FILTER_NOUNS[main.key] : undefined
+}
+
 const SORT_OPTIONS = sortOptions(ACCESS_LOG_COLUMNS)
 
 function AccessLogIpActions({ row }: { row: AccessLog }) {
@@ -310,6 +341,7 @@ const AccessLogTableBody = memo(function AccessLogTableBody({
         narrow ? 1 : layout === "combined" ? combinedColumns.length : shownColumns.length
       }
       getRowKey={getRowKey}
+      shortcutValues={shortcutValues}
     >
       {(row) => (
         <TableRow
@@ -323,6 +355,7 @@ const AccessLogTableBody = memo(function AccessLogTableBody({
             combinedColumns.map((c) => (
               <TableCell
                 key={c.key}
+                data-filter-noun={combinedFilterNoun(c)}
                 className={cn(
                   (c.grow || c.width) && "max-w-0 truncate",
                   c.align === "right" && "text-right",
@@ -336,6 +369,7 @@ const AccessLogTableBody = memo(function AccessLogTableBody({
             shownColumns.map((c) => (
               <TableCell
                 key={c.key}
+                data-filter-noun={FILTER_NOUNS[c.key]}
                 className={cn(c.grow && "max-w-0 truncate", c.align === "right" && "text-right")}
               >
                 {renderCell(c, row, timeFormat)}

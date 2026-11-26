@@ -16,6 +16,9 @@ import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual"
 import { cn } from "@/lib/utils"
 import { Table, TableBody } from "@/components/ui/table"
 import type { RowDensity } from "@/lib/table-view"
+import type { IpRowValues } from "@/lib/ip-filter-targets"
+import { useIpFilterTargetsFor } from "@/components/ip-actions/ip-actions-menu"
+import { registerShortcutBody, type RowShortcutData } from "@/components/data/table-shortcuts"
 
 const HEADER_HEIGHT = 40
 const ScrollContext = createContext<{
@@ -86,9 +89,12 @@ export function VirtualTable({
             : cn(
                 "table-auto [&_thead]:sticky [&_thead]:top-0 [&_thead]:z-10 [&_thead]:bg-card",
                 density === "compact" && "[&_tbody_td]:py-[3px]",
+                // Rows that J and K scroll to stay clear of the sticky header.
+                "[&_tbody_tr]:scroll-mt-10",
               )
         }
         data-density={narrow ? undefined : density}
+        data-shortcut-table=""
         aria-rowcount={narrow ? rowCount : rowCount + 1}
       >
         {narrow ? (
@@ -123,6 +129,7 @@ export function VirtualTableBody<T>({
   columnCount,
   getRowKey,
   onAwayFromTopChange,
+  shortcutValues,
   children,
 }: {
   rows: readonly T[]
@@ -131,11 +138,14 @@ export function VirtualTableBody<T>({
   /** Called when the scroll moves more than a row past the top of the list,
    *  and back. A list that grows at the top can hold new rows meanwhile. */
   onAwayFromTopChange?: (away: boolean) => void
+  /** The row's IP and the values its cells filter on, for the I, C and F shortcuts. */
+  shortcutValues?: (row: T) => IpRowValues | null
   children: (row: T) => ReactElement<ComponentProps<"tr">>
 }) {
   const context = useContext(ScrollContext)
   if (!context) throw new Error("VirtualTableBody requires VirtualTable")
   const { scrollElement, resetKey, narrow, density } = context
+  const targetsFor = useIpFilterTargetsFor()
   const headerHeight = narrow ? 0 : HEADER_HEIGHT
   const rowEstimate = narrow ? 76 : ROW_ESTIMATE[density]
   // A narrow table scrolls with the page, so the virtualizer follows <main>
@@ -250,6 +260,19 @@ export function VirtualTableBody<T>({
     }
   }, [resetKey, virtualizer])
 
+  // One lookup per body, read when a shortcut fires, so rows keep a stable ref.
+  const shortcutLookup = useRef<(index: number) => RowShortcutData | undefined>(() => undefined)
+  useLayoutEffect(() => {
+    shortcutLookup.current = (index) => {
+      const values =
+        shortcutValues && rows[index] !== undefined ? shortcutValues(rows[index]) : null
+      return values ? { values, targetsFor } : undefined
+    }
+  }, [shortcutValues, rows, targetsFor])
+  const registerBody = useCallback((body: HTMLTableSectionElement | null) => {
+    if (body) registerShortcutBody(body, (index) => shortcutLookup.current(index))
+  }, [])
+
   const items = virtualizer.getVirtualItems()
   // Until the virtualizer has its scroller there are no items. Reserve the
   // estimated height so the page doesn't shrink and drop its scroll position.
@@ -264,6 +287,7 @@ export function VirtualTableBody<T>({
 
   return (
     <TableBody
+      ref={registerBody}
       onFocusCapture={(event) => {
         const row = (event.target as HTMLElement).closest<HTMLTableRowElement>("tr[data-index]")
         if (row) setFocusedKey(getRowKey(rows[Number(row.dataset.index)]))

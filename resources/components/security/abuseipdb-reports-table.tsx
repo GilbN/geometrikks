@@ -120,6 +120,7 @@ export function AbuseIpdbReportsTable() {
             onChange={(event) => setSearchInput(event.target.value)}
             placeholder="IP, comment or sender"
             aria-label="Search AbuseIPDB reports"
+            data-page-filter=""
             maxLength={200}
             className="pl-8 pr-9 pointer-coarse:h-11 [&::-webkit-search-cancel-button]:hidden"
           />

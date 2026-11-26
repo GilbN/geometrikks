@@ -204,7 +204,7 @@ function CollapsedStatus() {
 }
 
 function StatusProblem() {
-  const { variant, color, label } = useServiceStatus()
+  const { variant, color, label, requestsPerMinute } = useServiceStatus()
   const offline = variant === "offline"
 
   return (
@@ -219,13 +219,27 @@ function StatusProblem() {
       <StatusDot color={color} pulse={false} />
       <span
         className={cn(
-          "text-xs font-medium",
+          "min-w-0 truncate text-xs font-medium",
           offline ? "text-sidebar-foreground/70" : "text-amber-700 dark:text-amber-300",
         )}
       >
         {label}
       </span>
-      <AlertCircle className={cn("ml-auto size-3", offline ? "text-gray-400" : "text-amber-500")} />
+      {requestsPerMinute !== null && (
+        <span
+          aria-hidden="true"
+          className="ml-auto whitespace-nowrap text-xs tabular-nums text-sidebar-foreground/70"
+        >
+          {formatRequestRate(requestsPerMinute)}
+        </span>
+      )}
+      <AlertCircle
+        className={cn(
+          "size-3 shrink-0",
+          requestsPerMinute === null && "ml-auto",
+          offline ? "text-gray-400" : "text-amber-500",
+        )}
+      />
     </StatusLink>
   )
 }
