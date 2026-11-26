@@ -48,6 +48,7 @@ export function FilterBar({
   pageId,
   leading,
   search,
+  trailing,
   fields,
   activeCount,
   onClear,
@@ -63,6 +64,8 @@ export function FilterBar({
   leading?: React.ReactNode
   /** The page's search field. Without one, `/` opens the Filter menu. */
   search?: React.ReactNode
+  /** Page controls at the right end, after the Muted IPs button. */
+  trailing?: React.ReactNode
   fields: FilterBarField[]
   /** Filter groups set, the search included; Clear shows from two. */
   activeCount: number
@@ -276,6 +279,7 @@ export function FilterBar({
           </Button>
         )}
         {muted && onToggleMuted && <MutedIpsButton scope={muted} onToggle={onToggleMuted} />}
+        {trailing}
         <FilterBarToolsSlot />
       </div>
     </div>

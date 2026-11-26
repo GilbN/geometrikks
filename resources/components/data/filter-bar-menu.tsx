@@ -34,6 +34,8 @@ import { cn } from "@/lib/utils"
 /** A page whose values the Filter menu can search, and what a picked value sets. */
 export interface FilterValueSearch {
   onPick: (picked: PickedValue) => void
+  /** The kinds of value the page filters on; every kind when left out. */
+  kinds?: PickedValue["kind"][]
 }
 
 const ITEM = "h-8 gap-2 rounded-sm px-2 text-sm data-selected:bg-accent [&>svg:last-child]:hidden"
@@ -79,7 +81,12 @@ export function AddFilterMenu({
   // Rows for older text would let Enter pick a match for something no longer typed.
   const current = !isPlaceholderData && settled.trim() === text.trim()
   const shownFields = fields.filter((field) => field.label.toLowerCase().includes(typed))
-  const groups = asking && current && data ? valueGroups(data) : []
+  const groups =
+    asking && current && data
+      ? valueGroups(data).filter(([, rows]) =>
+          rows.some((row) => !valueSearch.kinds || valueSearch.kinds.includes(row.picked.kind)),
+        )
+      : []
   const showMyIp = myIp !== undefined && (myIp.ip !== null || myIp.behindUntrustedProxy)
   const showMuted = muted !== undefined && onToggleMuted !== undefined && muted.chip !== "none"
   const searching = asking && (isFetching || !current)

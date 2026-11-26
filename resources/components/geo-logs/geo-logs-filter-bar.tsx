@@ -13,6 +13,7 @@ import { ExcludeMyIpButton } from "@/components/data/exclude-my-ip"
 import { FilterBar } from "@/components/data/filter-bar"
 import { listField, typedField, type FilterBarField } from "@/components/data/filter-bar-fields"
 import { FilterRow } from "@/components/data/filter-rail"
+import type { PickedValue } from "@/components/command-palette/filter-value-results"
 import { FilterChip, TagInput } from "@/components/data/tag-input"
 import {
   FilterExcludedIpRows,
@@ -37,7 +38,8 @@ import {
 
 type IpKey = "ips" | "ipsExclude"
 
-export function GeoLogsFilterBar() {
+/** `trailing` goes at the right end of the desktop bar, such as the Charts switch. */
+export function GeoLogsFilterBar({ trailing }: { trailing?: React.ReactNode }) {
   const phone = usePhoneLayout()
   const { filters, setFilters, muted, toggleMuted } = useGeoLogFilters()
   const [facetsEnabled, setFacetsEnabled] = useState(false)
@@ -281,10 +283,35 @@ export function GeoLogsFilterBar() {
     }),
   ]
 
+  // Geo events carry the same countries, cities, servers and networks as access logs, so the
+  // name search ranks them by access-log requests.
+  const onPick = (picked: PickedValue) =>
+    setFilters((prev) => {
+      const add = <T,>(list: T[], value: T) => (list.includes(value) ? list : [...list, value])
+      switch (picked.kind) {
+        case "country":
+          return { ...prev, countryCodes: add(prev.countryCodes, picked.code) }
+        case "city":
+          return { ...prev, cities: add(prev.cities, picked.city) }
+        case "server":
+          return { ...prev, servers: add(prev.servers, picked.server) }
+        case "asn":
+          return {
+            ...prev,
+            asns: add(prev.asns, picked.asn),
+            asnsExclude: prev.asnsExclude.filter((asn) => asn !== picked.asn),
+          }
+        case "host":
+          return prev
+      }
+    })
+
   return (
     <FilterBar
       label="Location filters"
       pageId="geo-logs"
+      trailing={trailing}
+      valueSearch={{ onPick, kinds: ["country", "city", "server", "asn"] }}
       fields={fields}
       activeCount={urlCount}
       onClear={clear}
