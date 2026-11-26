@@ -21,6 +21,7 @@ import type { IpRowValues } from "@/lib/ip-filter-targets"
 import { useIpFilterTargetsFor } from "@/components/ip-actions/ip-actions-menu"
 import { registerShortcutBody, type RowShortcutData } from "@/components/data/table-shortcuts"
 import {
+  focusSteppedRow,
   markedKeyFor,
   notifyRowsChanged,
   registerRowList,
@@ -311,11 +312,12 @@ export function VirtualTableBody<T>({
             if (++frames < 10) revealFrame.current = requestAnimationFrame(settle)
             return
           }
-          if (focus) row.focus({ preventScroll: true })
+          if (focus) focusSteppedRow(row)
           // The page around the table may need to scroll too.
           row.scrollIntoView({ block: "nearest" })
         }
-        revealFrame.current = requestAnimationFrame(settle)
+        // A row already rendered takes focus now, so a held J cannot cancel it.
+        settle()
       },
     }
     notifyRowsChanged(bodyRef.current ?? undefined)

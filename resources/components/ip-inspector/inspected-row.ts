@@ -4,7 +4,7 @@
  * Rows are held by key, so the mark stays on its row when a refresh adds rows
  * above it.
  */
-import { targetRow } from "@/components/data/table-shortcuts"
+import { focusedRow, targetRow } from "@/components/data/table-shortcuts"
 import { OUTSIDE_PAGE } from "./inspector-dock"
 
 type RowKey = string | number
@@ -131,6 +131,20 @@ let landedIp: string | null = null
 // waits for a page can tell they moved on meanwhile, such as to the dock's
 // range picker.
 let pageInteractions = 0
+// When I was last pressed. Only I acts on the row under the mouse, so an
+// open by any other means must not claim a row just because it is hovered.
+let lastIKeyAt = Number.NEGATIVE_INFINITY
+let movingFocus = false
+
+/** Focuses a row a step landed on. That focus is the step's, not the user's. */
+export function focusSteppedRow(row: HTMLElement): void {
+  movingFocus = true
+  try {
+    row.focus({ preventScroll: true })
+  } finally {
+    movingFocus = false
+  }
+}
 
 /**
  * Remembers the table row the user last clicked or focused on the page. Row
@@ -141,15 +155,20 @@ export function trackRowInteraction(): () => void {
   const note = (event: Event) => {
     const target = event.target
     if (!(target instanceof Element)) return
-    if (!target.closest("[data-row-step]")) pageInteractions++
+    if (!movingFocus && !target.closest("[data-row-step]")) pageInteractions++
     if (target.closest(OUTSIDE_PAGE)) return
     lastRow = target.closest<HTMLTableRowElement>("[data-shortcut-table] tr[data-index]")
   }
   // Keys count too, such as F filtering Debug Logs, whose filters are not in
   // the URL. J, K and keys on the arrows are the step itself.
   const noteKey = (event: KeyboardEvent) => {
-    const onArrow = event.target instanceof Element && event.target.closest("[data-row-step]")
-    if (!onArrow && !/^[jk]$/i.test(event.key)) pageInteractions++
+    // By physical key, as the shortcuts match them on any layout.
+    if (event.code === "KeyI") lastIKeyAt = event.timeStamp
+    const pressesArrow =
+      (event.key === "Enter" || event.key === " ") &&
+      event.target instanceof Element &&
+      event.target.closest("[data-row-step]")
+    if (!pressesArrow && event.code !== "KeyJ" && event.code !== "KeyK") pageInteractions++
   }
   document.addEventListener("pointerdown", note, true)
   document.addEventListener("focusin", note, true)
@@ -173,7 +192,8 @@ export function claimInspectedRow(ip: string): void {
   steppedTo = null
   if (stepped) return
   landedIp = null
-  for (const row of [targetRow(), lastRow]) {
+  const fromIKey = performance.now() - lastIKeyAt < 500
+  for (const row of [fromIKey ? targetRow() : focusedRow(), lastRow]) {
     const body = row?.isConnected ? row.closest("tbody") : null
     const list = body ? lists.get(body) : undefined
     if (!row || !body || !list) continue
@@ -189,7 +209,8 @@ export function claimInspectedRow(ip: string): void {
 
 /** Back, Forward or a closed inspector: the row stays only while its IP shows. */
 export function keepInspectedRowFor(ip: string | undefined): void {
-  if (ip === undefined) landedIp = null
+  // The stepped IP has reached the URL, or the inspector closed.
+  if (ip === undefined || ip === landedIp) landedIp = null
   if (inspected && inspected.ip !== ip && inspected.ip !== landedIp) setInspectedRow(null)
 }
 
@@ -327,15 +348,12 @@ async function stepAcrossPages(
     if (!footer || !button || button.disabled || turns === MAX_PAGES_PER_STEP) {
       // The pages turned hold only the IP shown. Mark the last row reached, so
       // the arrows stay and lead on or back.
-      if (reached) {
-        // The far end can be a line with no IP, as on Debug Logs.
-        const index = findIp(
-          reached.list,
-          step === 1 ? reached.list.count() - 1 : 0,
-          step === 1 ? -1 : 1,
-          from.ip,
-        )
-        const key = index === -1 ? undefined : reached.list.keyAt(index)
+      if (reached && reached.list.count() > 0) {
+        // Prefer a row with the IP shown. On a Debug Logs page of lines
+        // without an IP, the walk stops on the far one.
+        const edge = step === 1 ? reached.list.count() - 1 : 0
+        const withIp = findIp(reached.list, edge, step === 1 ? -1 : 1, from.ip)
+        const key = reached.list.keyAt(withIp === -1 ? edge : withIp)
         if (key === undefined) return
         stepping = false
         setInspectedRow({ body: reached.body, frame, key, ip: from.ip })
