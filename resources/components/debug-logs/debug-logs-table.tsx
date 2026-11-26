@@ -513,7 +513,8 @@ export function DebugLogsTable() {
 
   const activeFilterCount =
     (search ? 1 : 0) +
-    (ip && isValidIpFilter(ip) ? 1 : 0) +
+    // The chip shows at once, so the count follows the field, not the debounced request.
+    (ipDraft && !ipInvalid ? 1 : 0) +
     (malformedFilter !== "all" ? 1 : 0) +
     (countries.length ? 1 : 0) +
     (cities.length ? 1 : 0)
