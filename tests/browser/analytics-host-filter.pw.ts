@@ -271,6 +271,7 @@ test("a host param that is not a JSON list loads with no host filter", async ({ 
   page.on("pageerror", (error) => pageErrors.push(error))
   const analyticsRequests = await openAnalytics(page, "?host=garbage")
 
+  await expect(bar(page).getByRole("button", { name: "Add a filter" })).toBeVisible()
   await expect(bar(page).locator('[data-slot="filter-chip"]')).toHaveCount(0)
   await expect(bar(page).getByRole("button", { name: "Clear", exact: true })).toHaveCount(0)
   await expect
