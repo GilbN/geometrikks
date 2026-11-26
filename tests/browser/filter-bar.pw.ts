@@ -197,3 +197,11 @@ test("is / is not on a chip with values keeps its picker", async ({ page }) => {
     bar(page).getByRole("combobox", { name: "Host is not git.example.com" }),
   ).toBeVisible()
 })
+
+test("/ opens the Filter menu on a page whose bar has no search field", async ({ page }) => {
+  await page.goto("/geo-logs")
+  const geoBar = page.getByRole("region", { name: "Location filters" })
+  await expect(geoBar.getByRole("button", { name: "Add a filter" })).toBeVisible()
+  await page.keyboard.press("/")
+  await expect(page.getByRole("combobox", { name: "Filter by" })).toBeFocused()
+})
