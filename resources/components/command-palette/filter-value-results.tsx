@@ -42,7 +42,8 @@ export const NAME_ROW = "name:"
 export const NAME_SEARCH_MIN = 2
 /** The server turns longer text away. */
 export const NAME_SEARCH_MAX = 100
-const SHOWN = 4
+/** Matches per kind a name search asks for. */
+export const NAME_SEARCH_SHOWN = 4
 
 export type PickedValue =
   | { kind: "country"; code: string; name: string }
@@ -214,7 +215,7 @@ export function useFilterValueSearch(text: string, enabled: boolean) {
   const query = text.trim()
   return useQuery({
     queryKey: ["command-palette", "filter-values", query],
-    queryFn: ({ signal }) => fetchFilterValueMatches(query, SHOWN, signal),
+    queryFn: ({ signal }) => fetchFilterValueMatches(query, NAME_SEARCH_SHOWN, signal),
     enabled: enabled && query.length >= NAME_SEARCH_MIN && query.length <= NAME_SEARCH_MAX,
     // The server can answer from old totals while it reloads them, so a repeat search asks again.
     staleTime: 0,

@@ -23,6 +23,7 @@ import type { FilterBarField } from "@/components/data/filter-bar-fields"
 import {
   NAME_SEARCH_MAX,
   NAME_SEARCH_MIN,
+  NAME_SEARCH_SHOWN,
   useFilterValueSearch,
   type PickedValue,
 } from "@/components/command-palette/filter-value-results"
@@ -334,13 +335,13 @@ type ValueRow = {
 
 type Matches = NonNullable<ReturnType<typeof useFilterValueSearch>["data"]>
 
-function cityRows(cities: Matches["cities"]): ValueRow[] {
+function cityRows(cities: Matches["cities"], complete: boolean): ValueRow[] {
   const byName = new Map<string, Matches["cities"]>()
   for (const city of cities) byName.set(city.city, [...(byName.get(city.city) ?? []), city])
   return [...byName.entries()]
     .map(([name, matches]) => {
       const codes = new Set(matches.map((match) => match.countryCode))
-      const only = codes.size === 1 ? matches[0] : null
+      const only = complete && codes.size === 1 ? matches[0] : null
       const country = only ? only.countryName || only.countryCode : null
       return {
         key: `city:${name}`,
@@ -379,8 +380,9 @@ function valueGroups(data: Matches): [string, ValueRow[]][] {
     [
       "City",
       // The filter takes a city by name, so a name found in several countries is one row,
-      // and only a name from one country shows that country.
-      cityRows(data.cities),
+      // and only a name from one country shows that country. A full answer may have left
+      // the same name in another country out, so then no country shows.
+      cityRows(data.cities, data.cities.length < NAME_SEARCH_SHOWN),
     ],
     [
       "Host",
