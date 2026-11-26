@@ -1,6 +1,5 @@
-/** Controls that exclude the viewer's own IP on the log pages. useMyIpExclusion supplies their state. */
-import { Check, UserX } from "lucide-react"
-import { FilterField } from "@/components/data/filter-rail"
+/** The phone button that excludes the viewer's own IP on the log pages. useMyIpExclusion supplies its state. */
+import { UserX } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { MyIpExclusion } from "@/lib/my-ip-exclusion"
 import { cn } from "@/lib/utils"
@@ -31,34 +30,5 @@ export function ExcludeMyIpButton({ exclusion }: { exclusion: MyIpExclusion }) {
         />
       )}
     </Button>
-  )
-}
-
-export function ExcludeMyIpField({ exclusion }: { exclusion: MyIpExclusion }) {
-  if (exclusion.behindUntrustedProxy) {
-    return (
-      <FilterField label="Exclude your IP" group>
-        <span className="flex h-8 items-center text-xs text-muted-foreground">
-          {UNTRUSTED_PROXY_HINT}
-        </span>
-      </FilterField>
-    )
-  }
-  if (exclusion.ip === null) return null
-  return (
-    <FilterField label="Exclude your IP" group>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        aria-label={`Exclude your IP, ${exclusion.ip}`}
-        aria-pressed={exclusion.excluded}
-        onClick={exclusion.toggle}
-        className={cn("h-8 font-mono text-xs", exclusion.excluded && EXCLUDED_BUTTON)}
-      >
-        {exclusion.excluded ? <Check className="size-3.5" /> : <UserX className="size-3.5" />}
-        {exclusion.ip}
-      </Button>
-    </FilterField>
   )
 }
