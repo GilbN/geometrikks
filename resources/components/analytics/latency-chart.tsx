@@ -14,8 +14,9 @@ import { ChartReadout, CursorStamp, useCursorRow, type ReadoutItem } from "./cha
 import { createChartCursor, type ChartCursor } from "./chart-cursor"
 import { LATENCY_OPTIONS, latencyBandChartConfig, latencyChartConfig } from "./chart-utils"
 import { bandRows, LATENCY_KEYS } from "./latency-series"
-import { TimeChart } from "./time-chart"
-import { chartRangeText, fillHourlyGaps } from "./traffic-series"
+import { useTrafficBuckets } from "./use-traffic-buckets"
+import { isolatedDot, TimeChart } from "./time-chart"
+import { chartRangeText } from "./traffic-series"
 
 const TITLE = "Request latency"
 
@@ -71,13 +72,14 @@ export function LatencyChart() {
   const { data, error, isLoading, isError, refetch } = useTimeSeries()
   const options = useChartOptions("latency", LATENCY_OPTIONS)
   const [cursor] = useState(createChartCursor)
-  const buckets = useMemo(() => (data ? fillHourlyGaps(data) : []), [data])
+  const buckets = useTrafficBuckets(data)
   const hasTimings = buckets.some((d) => d.timedRequests > 0)
   const noTimings = buckets.length > 0 && !hasTimings
   const series = useMemo(() => {
     const scaled = scaleSeries(buckets, LATENCY_KEYS, options.scale)
     return { ...scaled, rows: bandRows(scaled.rows) }
   }, [buckets, options.scale])
+  const valuesOf = (key: (typeof LATENCY_KEYS)[number]) => series.rows.map((row) => row[key])
   const band = options.view.id === "band"
   const config = band ? latencyBandChartConfig : latencyChartConfig
   const state = dataState(isLoading, isError, noTimings ? 0 : buckets.length)
@@ -96,7 +98,7 @@ export function LatencyChart() {
             clip={series.clipMax != null ? formatDurationOrNa(series.clipMax) : null}
             zerosRaised={series.zerosRaised}
           />
-          <CursorStamp cursor={cursor} granularity={data?.granularity} />
+          <CursorStamp cursor={cursor} rows={buckets} granularity={data?.granularity} />
           <GranularityBadge granularity={data?.granularity} />
           <ChartOptionsMenu title={TITLE} spec={LATENCY_OPTIONS} options={options} />
         </>
@@ -137,6 +139,7 @@ export function LatencyChart() {
             {band
               ? [
                   <Area
+                    activeDot={false}
                     key="band"
                     dataKey="band"
                     type="linear"
@@ -146,33 +149,36 @@ export function LatencyChart() {
                     connectNulls={false}
                   />,
                   <Line
+                    activeDot={false}
                     key="p99"
                     dataKey="p99RequestTime"
                     type="linear"
                     stroke="var(--color-p99RequestTime)"
                     strokeWidth={1.5}
                     strokeDasharray="4 3"
-                    dot={false}
+                    dot={isolatedDot(valuesOf("p99RequestTime"), "var(--color-p99RequestTime)")}
                     connectNulls={false}
                   />,
                   <Line
+                    activeDot={false}
                     key="avg"
                     dataKey="avgRequestTime"
                     type="linear"
                     stroke="var(--color-avgRequestTime)"
                     strokeWidth={2}
-                    dot={false}
+                    dot={isolatedDot(valuesOf("avgRequestTime"), "var(--color-avgRequestTime)")}
                     connectNulls={false}
                   />,
                 ]
               : LATENCY_KEYS.map((key) => (
                   <Line
+                    activeDot={false}
                     key={key}
                     dataKey={key}
                     type="linear"
                     stroke={`var(--color-${key})`}
                     strokeWidth={2}
-                    dot={false}
+                    dot={isolatedDot(valuesOf(key), `var(--color-${key})`)}
                     connectNulls={false}
                   />
                 ))}

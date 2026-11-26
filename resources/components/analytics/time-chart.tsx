@@ -19,6 +19,7 @@ import { ChartContainer, type ChartConfig } from "@/components/ui/chart"
 import { formatTs } from "@/lib/datetime"
 import { cn } from "@/lib/utils"
 import { useCursorBucket, type ChartCursor } from "./chart-cursor"
+import { isIsolated } from "./status-series"
 import { hourlyTicks } from "./traffic-series"
 
 type Row = { timestamp: string }
@@ -31,6 +32,26 @@ type Row = { timestamp: string }
 export type CursorMarks =
   | { kind: "bar"; top: (row: Row) => number | null }
   | { kind: "line"; dots: ReadonlyArray<{ key: string; color: string }> }
+
+/**
+ * A line's dot renderer that marks only values with empty buckets on both
+ * sides: a line through one point draws nothing, so a lone busy hour would
+ * not show at all.
+ */
+export function isolatedDot(values: ReadonlyArray<number | null | undefined>, color: string) {
+  return function IsolatedDot(props: {
+    key?: React.Key | null
+    index: number
+    cx?: number
+    cy?: number
+  }) {
+    return isIsolated(values, props.index) ? (
+      <circle key={props.key ?? undefined} cx={props.cx} cy={props.cy} r={2.5} fill={color} />
+    ) : (
+      <g key={props.key ?? undefined} />
+    )
+  }
+}
 
 type Geometry = { plotX: number; plotWidth: number; centers: number[] }
 
@@ -79,11 +100,12 @@ function CursorLayer({
     geometry.current = plot ? { plotX: plot.x, plotWidth: plot.width, centers } : null
   })
 
-  const bucket = useCursorBucket(cursor)
-  const index = useMemo(
-    () => (bucket == null ? -1 : rows.findIndex((row) => Date.parse(row.timestamp) === bucket)),
-    [bucket, rows],
+  const indexByTime = useMemo(
+    () => new Map(rows.map((row, index) => [Date.parse(row.timestamp), index])),
+    [rows],
   )
+  const bucket = useCursorBucket(cursor)
+  const index = bucket == null ? -1 : (indexByTime.get(bucket) ?? -1)
   if (!plot || !yScale || index < 0 || !Number.isFinite(centers[index])) return null
 
   const x = centers[index]
@@ -180,6 +202,11 @@ export function TimeChart({
   const [frameRef, width] = useElementWidth<HTMLDivElement>()
   const geometry = useRef<Geometry | null>(null)
   const touch = useRef<Touch | null>(null)
+  // A held finger reads its bucket after HOLD_MS, from the rows of that moment.
+  const latestRows = useRef(rows)
+  useLayoutEffect(() => {
+    latestRows.current = rows
+  })
 
   const ticks = useMemo(
     () =>
@@ -192,6 +219,7 @@ export function TimeChart({
   )
 
   const bucketAt = (clientX: number): number | null => {
+    const rows = latestRows.current
     const frame = frameRef.current
     const shape = geometry.current
     if (!frame || !shape || shape.centers.length !== rows.length || rows.length === 0) return null
@@ -218,13 +246,20 @@ export function TimeChart({
     frame.addEventListener("touchmove", onTouchMove, { passive: false })
     return () => frame.removeEventListener("touchmove", onTouchMove)
   }, [frameRef])
-  useEffect(() => () => window.clearTimeout(touch.current?.timer), [])
+  // A chart that unmounts under the pointer, such as on a range change, sends no pointerleave.
+  useEffect(
+    () => () => {
+      window.clearTimeout(touch.current?.timer)
+      cursor.set(null)
+    },
+    [cursor],
+  )
 
   return (
     <div
       ref={frameRef}
       aria-hidden
-      className="touch-pan-y select-none"
+      className="touch-pan-y touch-pinch-zoom select-none"
       onPointerMove={(event) => {
         if (event.pointerType === "mouse") {
           cursor.set(bucketAt(event.clientX))
@@ -256,14 +291,19 @@ export function TimeChart({
         }, HOLD_MS)
         touch.current = held
       }}
-      onPointerUp={endTouch}
-      onPointerCancel={endTouch}
+      onPointerUp={(event) => {
+        if (touch.current?.id === event.pointerId) endTouch()
+      }}
+      onPointerCancel={(event) => {
+        if (touch.current?.id === event.pointerId) endTouch()
+      }}
       // A long press opens the context menu on some phones.
       onContextMenu={(event) => {
         if (touch.current) event.preventDefault()
       }}
     >
-      <ChartContainer config={config} className={cn("w-full", className)}>
+      {/* The frame handles the pointer; Recharts' own hover state would only draw its active dots. */}
+      <ChartContainer config={config} className={cn("pointer-events-none w-full", className)}>
         <ComposedChart data={rows as Row[]} stackOffset={stackOffset} accessibilityLayer={false}>
           <CartesianGrid vertical={false} />
           <XAxis

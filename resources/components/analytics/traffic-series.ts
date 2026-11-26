@@ -4,7 +4,6 @@ import type { TimeSeriesResponse } from "@/lib/api"
 import { formatTs } from "@/lib/datetime"
 
 const HOUR_MS = 3_600_000
-const DAY_MS = 24 * HOUR_MS
 /** A week of hours is 169 buckets; a year is 8,785. Past this, draw the rows as they come. */
 const MAX_FILLED_BUCKETS = 10_000
 
@@ -32,12 +31,16 @@ function emptyPoint(ms: number): TimeSeriesDataPoint {
  * The endpoint leaves out hours without traffic. On a time axis that would
  * pull the hours on either side together, so the missing hours go back in as
  * empty buckets. The grid follows the returned rows, which keeps half-hour
- * timezones on their own bucket edges. Past 30 days hourly rows may have
- * expired, so the grid starts at the first row instead of the range start.
+ * timezones on their own bucket edges, and ends before the range's exclusive
+ * end. Hours older than `keptSinceMs` may have expired, so a range that
+ * starts before it begins at the first row instead of the range start.
  * Daily rows are returned as they are: their days are local days on one
  * rollup and UTC days on the other.
  */
-export function fillHourlyGaps(response: TimeSeriesResponse): TimeSeriesDataPoint[] {
+export function fillHourlyGaps(
+  response: TimeSeriesResponse,
+  keptSinceMs: number,
+): TimeSeriesDataPoint[] {
   const rows = response.data
   if (response.granularity !== "hourly" || rows.length === 0) return rows
   const startMs = Date.parse(response.startDate)
@@ -47,10 +50,10 @@ export function fillHourlyGaps(response: TimeSeriesResponse): TimeSeriesDataPoin
   if ([startMs, endMs, firstMs, lastMs].some(Number.isNaN)) return rows
 
   const fromMs =
-    endMs - startMs > 30 * DAY_MS
+    startMs < keptSinceMs
       ? firstMs
-      : firstMs - Math.ceil((firstMs - startMs) / HOUR_MS) * HOUR_MS
-  const toMs = lastMs + Math.max(0, Math.floor((endMs - lastMs) / HOUR_MS)) * HOUR_MS
+      : firstMs - Math.max(0, Math.ceil((firstMs - startMs) / HOUR_MS)) * HOUR_MS
+  const toMs = lastMs + Math.max(0, Math.ceil((endMs - lastMs) / HOUR_MS) - 1) * HOUR_MS
   const count = Math.round((toMs - fromMs) / HOUR_MS) + 1
   if (count > MAX_FILLED_BUCKETS) return rows
 
@@ -113,21 +116,31 @@ export function hourlyTicks(
   if (granularity !== "hourly" || timestamps.length === 0) return null
   const DAY_LABEL = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" })
   const HOUR_LABEL = new Intl.DateTimeFormat(undefined, { hour: "numeric" })
+  const HOUR_MINUTE_LABEL = new Intl.DateTimeFormat(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  })
   const dates = timestamps.map((timestamp) => new Date(timestamp))
   const midnight = (date: Date) => date.getHours() === 0
+  // When daylight saving ends, the repeated hour gets one label.
+  const repeat = (index: number) =>
+    index > 0 &&
+    dates[index - 1].getHours() === dates[index].getHours() &&
+    dates[index - 1].getDate() === dates[index].getDate()
   const fits = (labels: number, px: number) => labels * px <= Math.max(plotWidth, px)
   const clear = (index: number) => {
     const x = ((index + 0.5) / timestamps.length) * plotWidth
     return x > EDGE_PX && x < plotWidth - EDGE_PX
   }
 
-  if (timestamps.length > 48) {
+  // Two days of hours span 49 buckets, or 50 across the end of daylight saving.
+  if (timestamps.length > 50) {
     const days = dates.filter(midnight).length
     const every =
       [1, 2, 3, 7, 14, 30].find((step) => fits(Math.ceil(days / step), DAY_LABEL_PX)) ?? 30
     let day = 0
     const ticks = timestamps.filter(
-      (_, index) => midnight(dates[index]) && day++ % every === 0 && clear(index),
+      (_, index) => midnight(dates[index]) && !repeat(index) && day++ % every === 0 && clear(index),
     )
     return { ticks, format: (timestamp) => DAY_LABEL.format(new Date(timestamp)) }
   }
@@ -136,13 +149,15 @@ export function hourlyTicks(
   const step =
     steps.find((hours) => fits(Math.ceil(timestamps.length / hours), HOUR_LABEL_PX)) ?? 12
   const ticks = timestamps.filter(
-    (_, index) => dates[index].getHours() % step === 0 && clear(index),
+    (_, index) => dates[index].getHours() % step === 0 && !repeat(index) && clear(index),
   )
   return {
     ticks,
     format: (timestamp) => {
       const date = new Date(timestamp)
-      return (midnight(date) ? DAY_LABEL : HOUR_LABEL).format(date)
+      if (midnight(date)) return DAY_LABEL.format(date)
+      // Buckets in a half-hour timezone start at :30 local time.
+      return (date.getMinutes() === 0 ? HOUR_LABEL : HOUR_MINUTE_LABEL).format(date)
     },
   }
 }
@@ -168,8 +183,9 @@ export function byteTicks(top: number): { ticks: number[]; domain: [number, numb
   while (top / unit >= 1024 && unit < 1024 ** 4) unit *= 1024
   const scaled = top / unit
   const magnitude = 10 ** Math.floor(Math.log10(scaled / 4))
-  const step =
-    ([1, 2, 2.5, 5, 10].find((s) => scaled / 4 / magnitude <= s) ?? 10) * magnitude * unit
+  const nice = [1, 2, 2.5, 5, 10].find((s) => scaled / 4 / magnitude <= s) ?? 10
+  // Labels show whole bytes, so a step under 1 B would repeat them.
+  const step = Math.max(nice * magnitude * unit, 1)
   const count = Math.ceil(top / step - 1e-9)
   const ticks = Array.from({ length: count + 1 }, (_, index) => index * step)
   return { ticks, domain: [0, ticks[ticks.length - 1]] }

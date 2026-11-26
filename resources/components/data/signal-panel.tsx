@@ -64,7 +64,8 @@ export function SignalPanel({
         <div
           className={cn(
             "min-w-0 max-md:flex-1 max-md:[overflow-wrap:anywhere]",
-            readout && "flex-1",
+            // A readout header keeps its title on one line; the notes beside it truncate.
+            readout && "md:shrink-0 md:whitespace-nowrap",
           )}
         >
           <h2 id={titleId} className={FRAME_LABEL}>
@@ -75,7 +76,12 @@ export function SignalPanel({
           )}
         </div>
         {actions && (
-          <div className="flex shrink-0 flex-wrap items-center gap-2 text-xs text-muted-foreground max-md:contents">
+          <div
+            className={cn(
+              "flex items-center gap-2 text-xs text-muted-foreground max-md:contents",
+              readout ? "min-w-0 flex-1 justify-end" : "shrink-0 flex-wrap",
+            )}
+          >
             {actions}
           </div>
         )}
@@ -114,5 +120,7 @@ export function SignalPanel({
 /** A line of header text among a SignalPanel's actions. Phones show it on its
  *  own line under the title row. */
 export function SignalPanelNote({ children }: { children: React.ReactNode }) {
-  return <span className="max-md:order-last max-md:basis-full">{children}</span>
+  return (
+    <span className="max-md:order-last max-md:basis-full md:min-w-0 md:truncate">{children}</span>
+  )
 }

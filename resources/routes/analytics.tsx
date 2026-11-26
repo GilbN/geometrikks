@@ -115,7 +115,7 @@ function AnalyticsPage() {
         <AnalyticsFilterBar />
         <AnalyticsMutedNote scope={muted} />
         <SectionHeader>Traffic</SectionHeader>
-        <div className="grid gap-4 md:grid-cols-2 [&>*]:min-w-0">
+        <div className="grid gap-4 md:grid-cols-2">
           <JumpTarget id="requests">
             <RequestsChart className="md:col-span-2" />
           </JumpTarget>

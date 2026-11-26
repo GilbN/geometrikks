@@ -23,12 +23,9 @@ export function useCursorRow<T extends { timestamp: string }>(
   cursor: ChartCursor,
   rows: readonly T[],
 ): T | null {
+  const byTime = useMemo(() => new Map(rows.map((row) => [Date.parse(row.timestamp), row])), [rows])
   const bucket = useCursorBucket(cursor)
-  return useMemo(
-    () =>
-      bucket == null ? null : (rows.find((row) => Date.parse(row.timestamp) === bucket) ?? null),
-    [bucket, rows],
-  )
+  return bucket == null ? null : (byTime.get(bucket) ?? null)
 }
 
 function Item({ item }: { item: ReadoutItem }) {
@@ -55,16 +52,18 @@ function Item({ item }: { item: ReadoutItem }) {
 /** The cursor bucket's time, for the header's first line on desktop. */
 export function CursorStamp({
   cursor,
+  rows,
   granularity,
 }: {
   cursor: ChartCursor
+  rows: readonly { timestamp: string }[]
   granularity?: string
 }) {
-  const bucket = useCursorBucket(cursor)
-  if (bucket == null) return null
+  const row = useCursorRow(cursor, rows)
+  if (!row) return null
   return (
     <span className="text-xs font-medium whitespace-nowrap text-foreground tabular-nums max-md:hidden">
-      {formatTs(bucket, granularity)}
+      {formatTs(row.timestamp, granularity)}
     </span>
   )
 }

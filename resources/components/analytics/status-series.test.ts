@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vite-plus/test"
 import type { TimeSeriesDataPoint } from "@/generated/api/types.gen"
-import { errorRateSeries, isIsolated, shareRows, statusTotal } from "./status-series"
+import {
+  errorRateSeries,
+  isIsolated,
+  shareRows,
+  statusTotal,
+  withInformational,
+} from "./status-series"
 
 function point(overrides: Partial<TimeSeriesDataPoint>): TimeSeriesDataPoint {
   return {
@@ -44,6 +50,17 @@ describe("statusTotal", () => {
     expect(statusTotal({ status2xx: 1234, status3xx: null, status4xx: 266, status5xx: 0 })).toBe(
       1500,
     )
+  })
+})
+
+describe("withInformational", () => {
+  it("counts the requests no class holds as 1xx", () => {
+    const [ws, plain] = withInformational([
+      point({ totalRequests: 50, status2xx: 8, status4xx: 2 }),
+      point({ totalRequests: 10, status2xx: 10 }),
+    ])
+    expect(ws.status1xx).toBe(40)
+    expect(plain.status1xx).toBe(0)
   })
 })
 

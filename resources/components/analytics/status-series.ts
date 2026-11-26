@@ -2,6 +2,7 @@
 import type { TimeSeriesDataPoint } from "@/generated/api/types.gen"
 import type { ChartScale } from "@/lib/chart-options"
 import { clampedYMax, type YAxisScaleProps } from "@/lib/chart-scale"
+import type { ChartConfig } from "@/components/ui/chart"
 import { statusChartConfig } from "./chart-utils"
 
 export type StatusKey = keyof typeof statusChartConfig
@@ -13,6 +14,24 @@ type StatusCounts = Record<StatusKey, number | null>
 /** Sum of the four classes; 1xx is in totalRequests but in no class. */
 export function statusTotal(row: StatusCounts): number {
   return STATUS_KEYS.reduce((sum, key) => sum + (row[key] ?? 0), 0)
+}
+
+/** 1xx has no class of its own, so the chart draws it only on ranges that have some. */
+export const informationalChartConfig = {
+  status1xx: { label: "1xx Informational", color: "var(--chart-5)" },
+} satisfies ChartConfig
+
+export type CountRow = TimeSeriesDataPoint & { status1xx: number }
+
+/**
+ * Adds the 1xx count, which totalRequests includes and no class does. On a
+ * WebSocket host the 101 upgrades can be most of an hour's requests.
+ */
+export function withInformational(points: readonly TimeSeriesDataPoint[]): CountRow[] {
+  return points.map((point) => ({
+    ...point,
+    status1xx: Math.max(0, point.totalRequests - statusTotal(point)),
+  }))
 }
 
 export type ShareRow = Omit<TimeSeriesDataPoint, StatusKey> & StatusCounts

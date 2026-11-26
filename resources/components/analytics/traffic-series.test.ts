@@ -44,6 +44,7 @@ describe("fillHourlyGaps", () => {
     // Range 21:37 to 03:37 the next day; rows at 22:00, 23:00 and 01:00.
     const filled = fillHourlyGaps(
       response([row(0), row(1), row(3)], START - 23 * 60_000, START + 5 * HOUR + 37 * 60_000),
+      0,
     )
     expect(filled.map((point) => (Date.parse(point.timestamp) - START) / HOUR)).toEqual([
       -1, 0, 1, 2, 3, 4, 5,
@@ -53,14 +54,21 @@ describe("fillHourlyGaps", () => {
 
   it("keeps daily rows as they are", () => {
     const rows = [row(0), row(48)]
-    expect(fillHourlyGaps(response(rows, START, START + 72 * HOUR, "daily"))).toBe(rows)
+    expect(fillHourlyGaps(response(rows, START, START + 72 * HOUR, "daily"), 0)).toBe(rows)
   })
 
-  it("starts at the first row past 30 days, where hourly rows may have expired", () => {
+  it("starts at the first row when the range starts before the kept hours", () => {
     const rows = [row(0), row(2)]
-    const filled = fillHourlyGaps(response(rows, START - 60 * 24 * HOUR, START + 2 * HOUR))
+    const range = response(rows, START - 10 * HOUR, START + 3 * HOUR)
+    const filled = fillHourlyGaps(range, START - 5 * HOUR)
     expect(filled).toHaveLength(3)
     expect(filled[0]).toBe(rows[0])
+    expect(fillHourlyGaps(range, START - 10 * HOUR)).toHaveLength(13)
+  })
+
+  it("adds no bucket at the range's exclusive end", () => {
+    const filled = fillHourlyGaps(response([row(0), row(1)], START, START + 3 * HOUR), 0)
+    expect(filled.map((point) => (Date.parse(point.timestamp) - START) / HOUR)).toEqual([0, 1, 2])
   })
 
   it("follows half-hour bucket edges", () => {
@@ -68,7 +76,7 @@ describe("fillHourlyGaps", () => {
       ...row(hour),
       timestamp: new Date(START + hour * HOUR + 30 * 60_000).toISOString(),
     })
-    const filled = fillHourlyGaps(response([half(0), half(2)], START, START + 3 * HOUR))
+    const filled = fillHourlyGaps(response([half(0), half(2)], START, START + 3 * HOUR), 0)
     // The bucket from half past the hour before the start overlaps the range too.
     expect(filled.map((point) => new Date(point.timestamp).getUTCMinutes())).toEqual([
       30, 30, 30, 30,
@@ -79,7 +87,7 @@ describe("fillHourlyGaps", () => {
   it("draws the rows as sent when one is off the hour grid", () => {
     const odd = { ...row(1), timestamp: new Date(START + HOUR + 60_000).toISOString() }
     const rows = [row(0), odd, row(2)]
-    expect(fillHourlyGaps(response(rows, START, START + 2 * HOUR))).toBe(rows)
+    expect(fillHourlyGaps(response(rows, START, START + 2 * HOUR), 0)).toBe(rows)
   })
 })
 
@@ -135,6 +143,33 @@ describe("hourlyTicks", () => {
     process.env.TZ = "UTC"
     const ticks = hourlyTicks(hours("2026-11-23T00:00:00Z", 10), "hourly", 1060)!
     expect(ticks.ticks.map(ticks.format)).toEqual(["Nov 23", "2 AM", "4 AM", "6 AM", "8 AM"])
+  })
+
+  it("marks hours, not dates, on a two-day range of 49 buckets", () => {
+    process.env.TZ = "UTC"
+    const ticks = hourlyTicks(hours("2026-11-23T10:00:00Z", 49), "hourly", 1060)!
+    expect(ticks.ticks.map(ticks.format)).toContain("Nov 24")
+    expect(ticks.ticks.map(ticks.format)).toContain("3 PM")
+  })
+
+  it("labels the repeated hour at the end of daylight saving once", () => {
+    process.env.TZ = "Europe/Oslo"
+    // 2026-10-25 02:00 local happens twice: 00:00Z and 01:00Z.
+    const ticks = hourlyTicks(hours("2026-10-24T22:00:00Z", 12), "hourly", 1060)!
+    expect(ticks.ticks.map(ticks.format)).toEqual([
+      "Oct 25",
+      "2 AM",
+      "4 AM",
+      "6 AM",
+      "8 AM",
+      "10 AM",
+    ])
+  })
+
+  it("shows minutes on buckets that start at half past in the browser's timezone", () => {
+    process.env.TZ = "Asia/Kolkata"
+    const ticks = hourlyTicks(hours("2026-11-23T00:00:00Z", 12), "hourly", 1060)!
+    expect(ticks.ticks.map(ticks.format)[0]).toMatch(/^\d{1,2}:30 [AP]M$/)
   })
 
   it("marks every third hour on a day, and fewer on a phone", () => {

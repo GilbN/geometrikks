@@ -27,16 +27,21 @@ import {
 } from "./chart-utils"
 import {
   errorRateSeries,
-  isIsolated,
+  informationalChartConfig,
   SHARE_TICKS,
   shareRows,
   STATUS_KEYS,
   statusTotal,
+  withInformational,
+  type CountRow,
 } from "./status-series"
-import { TimeChart, type CursorMarks } from "./time-chart"
-import { chartRangeText, fillHourlyGaps, trafficTotals } from "./traffic-series"
+import { useTrafficBuckets } from "./use-traffic-buckets"
+import { isolatedDot, TimeChart, type CursorMarks } from "./time-chart"
+import { chartRangeText, trafficTotals } from "./traffic-series"
 
 const TITLE = "Requests"
+const COUNT_CONFIG = { ...statusChartConfig, ...informationalChartConfig }
+const COUNT_KEYS = [...STATUS_KEYS, "status1xx"] as const
 
 function RequestsReadout({
   cursor,
@@ -44,15 +49,21 @@ function RequestsReadout({
   view,
   granularity,
   ready,
+  informational,
 }: {
   cursor: ChartCursor
-  buckets: readonly TimeSeriesDataPoint[]
+  buckets: readonly CountRow[]
   view: string
   granularity?: string
   /** Before the data arrives the legend shows its labels alone. */
   ready: boolean
+  /** Adds 1xx to the count views' legend. */
+  informational: boolean
 }) {
-  const totals = useMemo(() => trafficTotals(buckets), [buckets])
+  const totals = useMemo(() => {
+    const sums = trafficTotals(buckets)
+    return { ...sums, status1xx: Math.max(0, sums.totalRequests - statusTotal(sums)) }
+  }, [buckets])
   const row = useCursorRow(cursor, buckets)
   const source = row ?? totals
   const requests = source.totalRequests
@@ -77,11 +88,11 @@ function RequestsReadout({
                 : "n/a",
           },
         ]
-      : STATUS_KEYS.map((key) => ({
+      : (view !== "share" && informational ? COUNT_KEYS : STATUS_KEYS).map((key) => ({
           key,
-          label: String(statusChartConfig[key].label),
-          short: String(statusChartConfig[key].label).slice(0, 3),
-          color: statusChartConfig[key].color,
+          label: String(COUNT_CONFIG[key].label),
+          short: String(COUNT_CONFIG[key].label).slice(0, 3),
+          color: COUNT_CONFIG[key].color,
           value: !ready
             ? null
             : view === "share"
@@ -99,22 +110,30 @@ export function RequestsChart({ className }: { className?: string }) {
   // The Status classes chart's key: its view ids carry over, the old Requests chart's do not.
   const options = useChartOptions("status", REQUESTS_OPTIONS)
   const [cursor] = useState(createChartCursor)
-  const buckets = useMemo(() => (data ? fillHourlyGaps(data) : []), [data])
+  const buckets = useTrafficBuckets(data)
   const view = options.view.id
   const lines = (view === "stacked" || view === "area") && options.scale === "log"
+  const counted = useMemo(() => withInformational(buckets), [buckets])
+  const informational = counted.some((row) => row.status1xx > 0)
+  const countKeys = informational ? COUNT_KEYS : STATUS_KEYS
   const stacked = useMemo(
     () =>
-      scaleSeries(buckets, STATUS_KEYS, options.scale, {
+      scaleSeries(counted, countKeys, options.scale, {
         integer: true,
-        clipValues: buckets.map(statusTotal),
+        clipValues: counted.map((row) => row.totalRequests),
       }),
-    [buckets, options.scale],
+    [counted, countKeys, options.scale],
   )
   const share = useMemo(() => shareRows(buckets), [buckets])
   const rate = useMemo(() => errorRateSeries(buckets, options.scale), [buckets, options.scale])
   const state = dataState(isLoading, isError, buckets.length)
 
-  const config: ChartConfig = view === "error-rate" ? statusErrorRateChartConfig : statusChartConfig
+  const config: ChartConfig =
+    view === "error-rate"
+      ? statusErrorRateChartConfig
+      : view === "share" || !informational
+        ? statusChartConfig
+        : COUNT_CONFIG
   const rows = view === "share" ? share : view === "error-rate" ? rate.rows : stacked.rows
   const clipMax = view === "share" ? null : view === "error-rate" ? rate.clipMax : stacked.clipMax
   const clipLabel =
@@ -135,7 +154,7 @@ export function RequestsChart({ className }: { className?: string }) {
     view === "error-rate"
       ? { kind: "line", dots: [{ key: "errorRate", color: "var(--color-errorRate)" }] }
       : lines
-        ? { kind: "line", dots: STATUS_KEYS.map((key) => ({ key, color: `var(--color-${key})` })) }
+        ? { kind: "line", dots: countKeys.map((key) => ({ key, color: `var(--color-${key})` })) }
         : view === "area"
           ? { kind: "line", dots: [] }
           : view === "share"
@@ -143,35 +162,23 @@ export function RequestsChart({ className }: { className?: string }) {
                 kind: "bar",
                 top: (row) => (statusTotal(row as TimeSeriesDataPoint) > 0 ? 1 : null),
               }
-            : { kind: "bar", top: (row) => statusTotal(row as TimeSeriesDataPoint) }
+            : { kind: "bar", top: (row) => (row as TimeSeriesDataPoint).totalRequests }
 
   const series =
     view === "error-rate" ? (
       <Line
+        activeDot={false}
         dataKey="errorRate"
         type="linear"
         stroke="var(--color-errorRate)"
         strokeWidth={2}
-        // A rate with empty buckets on both sides is a one-point line, which
-        // draws nothing; mark it so a lone bad hour still shows.
-        dot={(props: { key?: React.Key | null; index: number; cx?: number; cy?: number }) =>
-          isIsolated(rates, props.index) ? (
-            <circle
-              key={props.key ?? undefined}
-              cx={props.cx}
-              cy={props.cy}
-              r={2.5}
-              fill="var(--color-errorRate)"
-            />
-          ) : (
-            <g key={props.key ?? undefined} />
-          )
-        }
+        dot={isolatedDot(rates, "var(--color-errorRate)")}
         connectNulls={false}
       />
     ) : lines ? (
-      STATUS_KEYS.map((key) => (
+      countKeys.map((key) => (
         <Line
+          activeDot={false}
           key={key}
           dataKey={key}
           type="linear"
@@ -182,8 +189,9 @@ export function RequestsChart({ className }: { className?: string }) {
         />
       ))
     ) : view === "area" ? (
-      STATUS_KEYS.map((key) => (
+      countKeys.map((key) => (
         <Area
+          activeDot={false}
           key={key}
           dataKey={key}
           stackId="s"
@@ -196,7 +204,7 @@ export function RequestsChart({ className }: { className?: string }) {
         />
       ))
     ) : (
-      STATUS_KEYS.map((key, i) => (
+      countKeys.map((key, i) => (
         // stroke = card surface: the spacer between stacked segments, dropped when dense
         <Bar
           key={key}
@@ -204,7 +212,7 @@ export function RequestsChart({ className }: { className?: string }) {
           stackId="s"
           fill={`var(--color-${key})`}
           {...barSpacer(buckets.length)}
-          radius={i === STATUS_KEYS.length - 1 ? [2, 2, 0, 0] : undefined}
+          radius={i === countKeys.length - 1 ? [2, 2, 0, 0] : undefined}
         />
       ))
     )
@@ -223,7 +231,7 @@ export function RequestsChart({ className }: { className?: string }) {
             clip={clipLabel}
             zerosRaised={view === "share" || view === "error-rate" ? 0 : stacked.zerosRaised}
           />
-          <CursorStamp cursor={cursor} granularity={data?.granularity} />
+          <CursorStamp cursor={cursor} rows={buckets} granularity={data?.granularity} />
           <GranularityBadge granularity={data?.granularity} />
           <ChartOptionsMenu title={TITLE} spec={REQUESTS_OPTIONS} options={options} />
         </>
@@ -231,7 +239,8 @@ export function RequestsChart({ className }: { className?: string }) {
       readout={
         <RequestsReadout
           cursor={cursor}
-          buckets={buckets}
+          buckets={counted}
+          informational={informational}
           view={view}
           granularity={data?.granularity}
           ready={state === "ready"}

@@ -13,8 +13,9 @@ import { ChartOptionsMenu, ScaleNotes } from "./chart-options-menu"
 import { ChartReadout, CursorStamp, useCursorRow } from "./chart-readout"
 import { createChartCursor, type ChartCursor } from "./chart-cursor"
 import { barSpacer, BYTES_OPTIONS, bytesChartConfig } from "./chart-utils"
+import { useTrafficBuckets } from "./use-traffic-buckets"
 import { TimeChart } from "./time-chart"
-import { byteTicks, chartRangeText, fillHourlyGaps } from "./traffic-series"
+import { byteTicks, chartRangeText } from "./traffic-series"
 
 const TITLE = "Bandwidth"
 const SERIES = ["totalBytesSent"] as const
@@ -54,7 +55,7 @@ export function BytesChart() {
   const { data, error, isLoading, isError, refetch } = useTimeSeries()
   const options = useChartOptions("bytes", BYTES_OPTIONS)
   const [cursor] = useState(createChartCursor)
-  const buckets = useMemo(() => (data ? fillHourlyGaps(data) : []), [data])
+  const buckets = useTrafficBuckets(data)
   const series = useMemo(
     () => scaleSeries(buckets, SERIES, options.scale, { base: 1024, integer: true }),
     [buckets, options.scale],
@@ -65,7 +66,11 @@ export function BytesChart() {
     if (options.scale === "log") return { ...series.axis, clippedAt: null }
     const largest = Math.max(0, ...buckets.map((bucket) => bucket.totalBytesSent))
     const { ticks, domain } = byteTicks(series.clipMax ?? largest)
-    const clipped = series.clipMax != null
+    // Rounding the clip up to a whole unit can lift the axis over the largest bucket.
+    const clipped = series.clipMax != null && domain[1] < largest
+    if (series.clipMax != null && !clipped) {
+      return { ...byteTicks(largest), clippedAt: null }
+    }
     return { ticks, domain, allowDataOverflow: clipped, clippedAt: clipped ? domain[1] : null }
   }, [buckets, options.scale, series])
   const state = dataState(isLoading, isError, buckets.length)
@@ -84,7 +89,7 @@ export function BytesChart() {
             clip={axis.clippedAt != null ? formatBytes(axis.clippedAt) : null}
             zerosRaised={series.zerosRaised}
           />
-          <CursorStamp cursor={cursor} granularity={data?.granularity} />
+          <CursorStamp cursor={cursor} rows={buckets} granularity={data?.granularity} />
           <GranularityBadge granularity={data?.granularity} />
           <ChartOptionsMenu title={TITLE} spec={BYTES_OPTIONS} options={options} />
         </>
@@ -135,6 +140,7 @@ export function BytesChart() {
               />
             ) : (
               <Area
+                activeDot={false}
                 dataKey="totalBytesSent"
                 type="linear"
                 fill="var(--color-totalBytesSent)"

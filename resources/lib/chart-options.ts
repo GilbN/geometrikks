@@ -97,12 +97,10 @@ export function saveChartOptions(
   options: ChartOptions,
   storage: StorageLike | undefined = browserStorage(),
 ): void {
-  memory.set(chartId, options)
+  const record = { ...options, v: STORAGE_VERSION }
+  memory.set(chartId, record)
   try {
-    storage?.setItem(
-      chartOptionsStorageKey(chartId),
-      JSON.stringify({ ...options, v: STORAGE_VERSION }),
-    )
+    storage?.setItem(chartOptionsStorageKey(chartId), JSON.stringify(record))
     unsaved.delete(chartId)
   } catch {
     // Storage may be blocked or full; the in-memory copy keeps the choice.

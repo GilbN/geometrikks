@@ -189,6 +189,27 @@ test.describe("requests chart", () => {
     await expectReadout(card, `${points[12].totalRequests.toLocaleString("en-US")} requests`)
   })
 
+  test("requests no class holds draw as a 1xx segment", async ({ page }) => {
+    // Hour 30 adds 40 WebSocket upgrades (101) to its classified requests.
+    const upgrades = points.map((point, index) =>
+      index === 30 ? { ...point, totalRequests: point.totalRequests + 40 } : point,
+    )
+    await mockTimeSeries(page, upgrades)
+    await page.goto("/analytics")
+    const card = panel(page, "Requests")
+    await expect(card.locator(".recharts-bar")).toHaveCount(5)
+    await expectReadout(card, "1xx Informational 40")
+    await hoverBar(page, card, 30, BUCKETS)
+    await expectReadout(card, "1xx Informational 40")
+    await hoverBar(page, card, 29, BUCKETS)
+    await expectReadout(card, "1xx Informational 0")
+
+    await mockTimeSeries(page, points)
+    await page.reload()
+    await expect(panel(page, "Requests").locator(".recharts-bar")).toHaveCount(4)
+    await expectReadout(panel(page, "Requests"), "1xx", false)
+  })
+
   test("a Log pick shows as lines and survives a reload", async ({ page }) => {
     await mockTimeSeries(page, points)
     await page.goto("/analytics")
@@ -352,6 +373,20 @@ test.describe("latency chart", () => {
   })
 })
 
+test("latency marks timed hours that have empty hours on both sides", async ({ page }) => {
+  // Two quiet hours with traffic among empty ones: a line through one point draws nothing.
+  const sparse = Array.from({ length: BUCKETS }, (_, i) =>
+    timeSeriesPoint(i, i === 20 || i === 40 ? 30 : 0),
+  )
+  await mockTimeSeries(page, sparse)
+  await page.goto("/analytics")
+  const card = panel(page, "Request latency")
+  // p99 and Average in the band view, at both hours.
+  await expect(card.locator(".recharts-line-dots circle")).toHaveCount(4)
+  await choose(page, card, "Request latency", "Lines")
+  await expect(card.locator(".recharts-line-dots circle")).toHaveCount(8)
+})
+
 test.describe("phone", () => {
   test.use({ viewport: { width: 393, height: 852 }, hasTouch: true, isMobile: true })
   const points = Array.from({ length: BUCKETS }, (_, i) => timeSeriesPoint(i))
@@ -379,6 +414,17 @@ test.describe("phone", () => {
       card,
       `${points.reduce((total, point) => total + point.totalRequests, 0).toLocaleString("en-US")} requests`,
     )
+
+    // A sideways drag reads the hours without waiting for a hold, and keeps the page still.
+    const still = (await card.boundingBox())!.y
+    await touch("touchStart", [{ x, y }])
+    for (let step = 1; step <= 4; step++)
+      await touch("touchMove", [{ x: x + step * 6, y: y + step }])
+    await expectReadout(card, "requests")
+    expect((await card.boundingBox())!.y).toBe(still)
+    await expect(card.locator('rect[fill="var(--card)"]')).toHaveCount(2)
+    await touch("touchEnd", [])
+    await expect(card.locator('rect[fill="var(--card)"]')).toHaveCount(0)
 
     // The card moves up the screen when the page scrolls under the swipe.
     const top = async () => (await card.boundingBox())!.y

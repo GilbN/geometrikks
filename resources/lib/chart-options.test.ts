@@ -131,7 +131,7 @@ describe("loadChartOptions / saveChartOptions", () => {
       },
     }
     saveChartOptions("t-quota", { view: "share", scale: "full" }, quotaFull)
-    expect(loadChartOptions("t-quota", quotaFull)).toEqual({ view: "share", scale: "full" })
+    expect(loadChartOptions("t-quota", quotaFull)).toEqual({ view: "share", scale: "full", v: 2 })
 
     const working = fakeStorage()
     saveChartOptions("t-quota", { view: "error-rate", scale: "clip" }, working)
@@ -139,11 +139,18 @@ describe("loadChartOptions / saveChartOptions", () => {
     expect(loadChartOptions("t-quota", working)).toEqual({ view: "stacked", scale: "log" })
   })
 
+  it("keeps a Log pick in memory when storage throws", () => {
+    saveChartOptions("t-blocked-log", { view: "stacked", scale: "log" }, throwingStorage)
+    const parsed = parseChartOptions(spec, loadChartOptions("t-blocked-log", throwingStorage))
+    expect(resolveChartOptions(spec, parsed)).toEqual({ view: "stacked", scale: "log" })
+  })
+
   it("falls back to the in-memory copy when storage throws", () => {
     saveChartOptions("t-blocked", { view: "error-rate", scale: "full" }, throwingStorage)
     expect(loadChartOptions("t-blocked", throwingStorage)).toEqual({
       view: "error-rate",
       scale: "full",
+      v: 2,
     })
   })
 })

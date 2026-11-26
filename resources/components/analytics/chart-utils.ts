@@ -30,7 +30,7 @@ export const latencyChartConfig = {
  * Above this many buckets the card-colored bar spacers are wider than the
  * bars (they erase the fill on 7d+ hourly views), so bar views drop them.
  */
-export const DENSE_BUCKETS = 48
+const DENSE_BUCKETS = 48
 
 export function barSpacer(buckets: number): { stroke?: string; strokeWidth?: number } {
   return buckets > DENSE_BUCKETS ? {} : { stroke: "var(--card)", strokeWidth: 1 }
@@ -67,7 +67,6 @@ export const AREA_BARS_OPTIONS = {
   ],
 } satisfies ChartOptionsSpec
 
-/** Bandwidth: linear by default, like the Requests chart. */
 export const BYTES_OPTIONS = {
   views: [
     { id: "area", label: "Area", scales: ["clip", "full", "log"] },
