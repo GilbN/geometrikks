@@ -130,80 +130,78 @@ export function LatencyChart() {
       }
     >
       {data && (
-        <>
-          <TimeChart
-            label={TITLE}
-            summary={`${band ? "Average, p99, and a p50 to p95 band" : "Average, p50, p95 and p99"} of response time, ${chartRangeText(buckets, data.granularity)}.`}
-            describe={(bucket) => {
-              const row = bucketsByTime.get(bucket) ?? null
-              return spokenReadout(formatTs(bucket, data.granularity), latencyItems(row, band))
-            }}
-            config={config}
-            rows={series.rows}
-            granularity={data.granularity}
-            cursor={cursor}
-            marks={{
-              kind: "line",
-              dots: (band ? (["p99RequestTime", "avgRequestTime"] as const) : LATENCY_KEYS).map(
-                (key) => ({ key, color: `var(--color-${key})` }),
-              ),
-            }}
-            // request_time is seconds; formatDurationOrNa takes seconds
-            yAxis={{
-              width: 56,
-              tickFormatter: (v: number) => (v === 0 ? "0ms" : formatDurationOrNa(v)),
-              ...series.axis,
-            }}
-            className="h-[196px] max-md:h-[170px]"
-          >
-            {band
-              ? [
-                  <Area
-                    activeDot={false}
-                    key="band"
-                    dataKey="band"
-                    type="linear"
-                    fill="var(--color-band)"
-                    fillOpacity={0.25}
-                    stroke="none"
-                    connectNulls={false}
-                  />,
-                  <Line
-                    activeDot={false}
-                    key="p99"
-                    dataKey="p99RequestTime"
-                    type="linear"
-                    stroke="var(--color-p99RequestTime)"
-                    strokeWidth={1.5}
-                    strokeDasharray="4 3"
-                    dot={isolatedDot(valuesOf("p99RequestTime"), "var(--color-p99RequestTime)")}
-                    connectNulls={false}
-                  />,
-                  <Line
-                    activeDot={false}
-                    key="avg"
-                    dataKey="avgRequestTime"
-                    type="linear"
-                    stroke="var(--color-avgRequestTime)"
-                    strokeWidth={2}
-                    dot={isolatedDot(valuesOf("avgRequestTime"), "var(--color-avgRequestTime)")}
-                    connectNulls={false}
-                  />,
-                ]
-              : LATENCY_KEYS.map((key) => (
-                  <Line
-                    activeDot={false}
-                    key={key}
-                    dataKey={key}
-                    type="linear"
-                    stroke={`var(--color-${key})`}
-                    strokeWidth={2}
-                    dot={isolatedDot(valuesOf(key), `var(--color-${key})`)}
-                    connectNulls={false}
-                  />
-                ))}
-          </TimeChart>
-        </>
+        <TimeChart
+          label={TITLE}
+          summary={`${band ? "Average, p99, and a p50 to p95 band" : "Average, p50, p95 and p99"} of response time, ${chartRangeText(buckets, data.granularity)}.`}
+          describe={(bucket) => {
+            const row = bucketsByTime.get(bucket) ?? null
+            return spokenReadout(formatTs(bucket, data.granularity), latencyItems(row, band))
+          }}
+          config={config}
+          rows={series.rows}
+          granularity={data.granularity}
+          cursor={cursor}
+          marks={{
+            kind: "line",
+            dots: (band ? (["p99RequestTime", "avgRequestTime"] as const) : LATENCY_KEYS).map(
+              (key) => ({ key, color: `var(--color-${key})` }),
+            ),
+          }}
+          // request_time is seconds; formatDurationOrNa takes seconds
+          yAxis={{
+            width: 56,
+            tickFormatter: (v: number) => (v === 0 ? "0ms" : formatDurationOrNa(v)),
+            ...series.axis,
+          }}
+          className="h-[196px] max-md:h-[170px]"
+        >
+          {band
+            ? [
+                <Area
+                  activeDot={false}
+                  key="band"
+                  dataKey="band"
+                  type="linear"
+                  fill="var(--color-band)"
+                  fillOpacity={0.25}
+                  stroke="none"
+                  connectNulls={false}
+                />,
+                <Line
+                  activeDot={false}
+                  key="p99"
+                  dataKey="p99RequestTime"
+                  type="linear"
+                  stroke="var(--color-p99RequestTime)"
+                  strokeWidth={1.5}
+                  strokeDasharray="4 3"
+                  dot={isolatedDot(valuesOf("p99RequestTime"), "var(--color-p99RequestTime)")}
+                  connectNulls={false}
+                />,
+                <Line
+                  activeDot={false}
+                  key="avg"
+                  dataKey="avgRequestTime"
+                  type="linear"
+                  stroke="var(--color-avgRequestTime)"
+                  strokeWidth={2}
+                  dot={isolatedDot(valuesOf("avgRequestTime"), "var(--color-avgRequestTime)")}
+                  connectNulls={false}
+                />,
+              ]
+            : LATENCY_KEYS.map((key) => (
+                <Line
+                  activeDot={false}
+                  key={key}
+                  dataKey={key}
+                  type="linear"
+                  stroke={`var(--color-${key})`}
+                  strokeWidth={2}
+                  dot={isolatedDot(valuesOf(key), `var(--color-${key})`)}
+                  connectNulls={false}
+                />
+              ))}
+        </TimeChart>
       )}
     </SignalPanel>
   )

@@ -129,7 +129,7 @@ function RequestsReadout({
       lead={lead}
       items={requestsItems(source, view, hasOther)}
       stamp={stamp}
-      note={row ? null : since}
+      note={ready && !row ? since : null}
     />
   )
 }
@@ -282,32 +282,30 @@ export function RequestsChart({ className }: { className?: string }) {
       }
     >
       {data && (
-        <>
-          <TimeChart
-            label={TITLE}
-            summary={`${lines ? "Log lines of requests by status class" : (SUMMARIES[view] ?? options.view.label)}, ${chartRangeText(buckets, data.granularity)}.`}
-            describe={(bucket) => {
-              const row = countedByTime.get(bucket)
-              return row
-                ? spokenReadout(
-                    formatTs(bucket, data.granularity),
-                    requestsItems(row, view, hasOther),
-                    `${formatNumber(row.totalRequests)} requests`,
-                  )
-                : formatTs(bucket, data.granularity)
-            }}
-            config={config}
-            rows={rows}
-            granularity={data.granularity}
-            cursor={cursor}
-            marks={marks}
-            yAxis={{ width: 48, ...yAxis }}
-            stackOffset={view === "share" ? "expand" : undefined}
-            className="h-[232px] max-md:h-[170px]"
-          >
-            {series}
-          </TimeChart>
-        </>
+        <TimeChart
+          label={TITLE}
+          summary={`${lines ? "Log lines of requests by status class" : (SUMMARIES[view] ?? options.view.label)}, ${chartRangeText(buckets, data.granularity)}.`}
+          describe={(bucket) => {
+            const row = countedByTime.get(bucket)
+            return row
+              ? spokenReadout(
+                  formatTs(bucket, data.granularity),
+                  requestsItems(row, view, hasOther),
+                  `${formatNumber(row.totalRequests)} requests`,
+                )
+              : formatTs(bucket, data.granularity)
+          }}
+          config={config}
+          rows={rows}
+          granularity={data.granularity}
+          cursor={cursor}
+          marks={marks}
+          yAxis={{ width: 48, ...yAxis }}
+          stackOffset={view === "share" ? "expand" : undefined}
+          className="h-[232px] max-md:h-[170px]"
+        >
+          {series}
+        </TimeChart>
       )}
     </SignalPanel>
   )

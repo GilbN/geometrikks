@@ -50,7 +50,7 @@ function BytesReadout({
         },
       ]}
       stamp={row ? formatTs(row.timestamp, granularity) : null}
-      note={row ? null : since}
+      note={ready && !row ? since : null}
     />
   )
 }
@@ -113,62 +113,60 @@ export function BytesChart() {
       }
     >
       {data && (
-        <>
-          <TimeChart
-            label={TITLE}
-            summary={`${options.view.label} of response bytes sent, ${chartRangeText(buckets, data.granularity)}.`}
-            describe={(bucket) =>
-              spokenReadout(formatTs(bucket, data.granularity), [
-                {
-                  key: "totalBytesSent",
-                  label: String(bytesChartConfig.totalBytesSent.label),
-                  color: bytesChartConfig.totalBytesSent.color,
-                  value: formatBytes(bytesByTime.get(bucket) ?? 0),
-                },
-              ])
-            }
-            config={bytesChartConfig}
-            rows={series.rows}
-            granularity={data.granularity}
-            cursor={cursor}
-            marks={
-              bars
-                ? { kind: "bar", top: (row) => (row as TimeSeriesDataPoint).totalBytesSent }
-                : {
-                    kind: "line",
-                    dots: [{ key: "totalBytesSent", color: "var(--color-totalBytesSent)" }],
-                  }
-            }
-            yAxis={{
-              width: 64,
-              tickFormatter: (v: number) => formatBytes(v),
-              scale: axis.scale,
-              domain: axis.domain,
-              ticks: axis.ticks,
-              allowDataOverflow: axis.allowDataOverflow,
-            }}
-            className="h-[196px] max-md:h-[170px]"
-          >
-            {bars ? (
-              <Bar
-                dataKey="totalBytesSent"
-                fill="var(--color-totalBytesSent)"
-                radius={[2, 2, 0, 0]}
-                {...barSpacer(buckets.length)}
-              />
-            ) : (
-              <Area
-                activeDot={false}
-                dataKey="totalBytesSent"
-                type="linear"
-                fill="var(--color-totalBytesSent)"
-                fillOpacity={0.2}
-                stroke="var(--color-totalBytesSent)"
-                strokeWidth={2}
-              />
-            )}
-          </TimeChart>
-        </>
+        <TimeChart
+          label={TITLE}
+          summary={`${options.view.label} of response bytes sent, ${chartRangeText(buckets, data.granularity)}.`}
+          describe={(bucket) =>
+            spokenReadout(formatTs(bucket, data.granularity), [
+              {
+                key: "totalBytesSent",
+                label: String(bytesChartConfig.totalBytesSent.label),
+                color: bytesChartConfig.totalBytesSent.color,
+                value: formatBytes(bytesByTime.get(bucket) ?? 0),
+              },
+            ])
+          }
+          config={bytesChartConfig}
+          rows={series.rows}
+          granularity={data.granularity}
+          cursor={cursor}
+          marks={
+            bars
+              ? { kind: "bar", top: (row) => (row as TimeSeriesDataPoint).totalBytesSent }
+              : {
+                  kind: "line",
+                  dots: [{ key: "totalBytesSent", color: "var(--color-totalBytesSent)" }],
+                }
+          }
+          yAxis={{
+            width: 64,
+            tickFormatter: (v: number) => formatBytes(v),
+            scale: axis.scale,
+            domain: axis.domain,
+            ticks: axis.ticks,
+            allowDataOverflow: axis.allowDataOverflow,
+          }}
+          className="h-[196px] max-md:h-[170px]"
+        >
+          {bars ? (
+            <Bar
+              dataKey="totalBytesSent"
+              fill="var(--color-totalBytesSent)"
+              radius={[2, 2, 0, 0]}
+              {...barSpacer(buckets.length)}
+            />
+          ) : (
+            <Area
+              activeDot={false}
+              dataKey="totalBytesSent"
+              type="linear"
+              fill="var(--color-totalBytesSent)"
+              fillOpacity={0.2}
+              stroke="var(--color-totalBytesSent)"
+              strokeWidth={2}
+            />
+          )}
+        </TimeChart>
       )}
     </SignalPanel>
   )

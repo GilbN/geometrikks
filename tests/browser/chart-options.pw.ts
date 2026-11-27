@@ -213,7 +213,7 @@ test.describe("requests chart", () => {
     await mockTimeSeries(page, points)
     await page.reload()
     await expect(panel(page, "Requests").locator(".recharts-bar")).toHaveCount(4)
-    await expectReadout(panel(page, "Requests"), "1xx", false)
+    await expectReadout(panel(page, "Requests"), "Other statuses", false)
   })
 
   test("the keyboard steps through hours and speaks only for key presses", async ({ page }) => {

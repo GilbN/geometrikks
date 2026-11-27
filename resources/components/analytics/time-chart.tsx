@@ -130,11 +130,10 @@ function CursorLayer({
             width={Math.max(0, plot.x + plot.width - (x + step / 2))}
           />
         </ZIndexLayer>
-        {barTop - 3 > top && (
-          <ZIndexLayer zIndex={1100}>
-            <path d={`M${x},${top}V${barTop - 3}`} {...CURSOR_LINE} />
-          </ZIndexLayer>
-        )}
+        <ZIndexLayer zIndex={1100}>
+          {/* A full-height bar, as in Share or under a clipped spike, leaves no room above it. */}
+          <path d={`M${x},${top}V${barTop - 3 > top ? barTop - 3 : bottom}`} {...CURSOR_LINE} />
+        </ZIndexLayer>
       </>
     )
   }
@@ -330,6 +329,8 @@ export function TimeChart({
       aria-label={`${label}. Arrow keys read one bucket at a time.`}
       className="touch-pan-y touch-pinch-zoom rounded-md outline-none select-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
       onKeyDown={step}
+      // A click would focus the chart and take Home, End and the arrows from the page.
+      onMouseDown={(event) => event.preventDefault()}
       onBlur={() => {
         cursor.set(null)
         speak("")
@@ -419,10 +420,10 @@ export function TimeChart({
           <CursorLayer rows={rows} cursor={cursor} marks={marks} geometry={geometry} />
         </ComposedChart>
       </ChartContainer>
-      {/* Only keyboard steps speak; hover and touch stay silent. */}
       <p id={summaryId} className="sr-only">
         {summary}
       </p>
+      {/* Only keyboard steps speak; hover and touch stay silent. */}
       <span ref={spoken} className="sr-only" aria-live="polite" />
     </div>
   )
