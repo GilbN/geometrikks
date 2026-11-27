@@ -40,11 +40,13 @@ function emptyPoint(ms: number): TimeSeriesDataPoint {
 export function fillHourlyGaps(
   response: TimeSeriesResponse,
   keptSinceMs: number,
+  nowMs: number = Date.now(),
 ): TimeSeriesDataPoint[] {
   const rows = response.data
   if (response.granularity !== "hourly" || rows.length === 0) return rows
   const startMs = Date.parse(response.startDate)
-  const endMs = Date.parse(response.endDate)
+  // Hours that have not happened yet are not empty; a custom range can end later today.
+  const endMs = Math.min(Date.parse(response.endDate), nowMs)
   const firstMs = Date.parse(rows[0].timestamp)
   const lastMs = Date.parse(rows[rows.length - 1].timestamp)
   if ([startMs, endMs, firstMs, lastMs].some(Number.isNaN)) return rows

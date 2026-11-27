@@ -184,7 +184,8 @@ test.describe("requests chart", () => {
     const card = panel(page, "Requests")
     await expect(card.locator(".recharts-bar")).toHaveCount(4)
     await hoverBar(page, card, 10, BUCKETS)
-    await expectReadout(card, "Hourly 0 requests")
+    // The bold figure before "requests" is the hour's total.
+    await expect(card.locator("header b").first()).toHaveText("0")
     await hoverBar(page, card, 12, BUCKETS)
     await expectReadout(card, `${points[12].totalRequests.toLocaleString("en-US")} requests`)
   })
@@ -213,6 +214,58 @@ test.describe("requests chart", () => {
     await page.reload()
     await expect(panel(page, "Requests").locator(".recharts-bar")).toHaveCount(4)
     await expectReadout(panel(page, "Requests"), "1xx", false)
+  })
+
+  test("the keyboard steps through hours and speaks only for key presses", async ({ page }) => {
+    await mockTimeSeries(page, points)
+    await page.goto("/analytics")
+    const card = panel(page, "Requests")
+    await expect(card.locator(".recharts-bar")).toHaveCount(4)
+    const chart = card.getByRole("group", { name: /^Requests\. Arrow keys/ })
+    const spoken = card.locator('[aria-live="polite"]')
+
+    await hoverBar(page, card, 30, BUCKETS)
+    await expect(spoken).toHaveText("")
+    await page.mouse.move(0, 0)
+
+    await chart.focus()
+    await page.keyboard.press("End")
+    const last = points[BUCKETS - 1]
+    await expect(card.locator("header b").first()).toHaveText(
+      last.totalRequests.toLocaleString("en-US"),
+    )
+    await expect(spoken).toContainText(`${last.totalRequests.toLocaleString("en-US")} requests`)
+    await page.keyboard.press("ArrowLeft")
+    await expect(card.locator("header b").first()).toHaveText(
+      points[BUCKETS - 2].totalRequests.toLocaleString("en-US"),
+    )
+    await expect(card.locator('rect[fill="var(--card)"]')).toHaveCount(2)
+    await page.keyboard.press("Escape")
+    await expect(card.locator('rect[fill="var(--card)"]')).toHaveCount(0)
+    await expect(spoken).toHaveText("")
+  })
+
+  test("at 1024px the header keeps its controls inside the card and the time in the readout", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1024, height: 800 })
+    await mockTimeSeries(page, points)
+    await page.goto("/analytics")
+    const card = panel(page, "Request latency")
+    await choose(page, card, "Request latency", "Lines")
+    await card.scrollIntoViewIfNeeded()
+    const grid = (await card.locator(".recharts-cartesian-grid").boundingBox())!
+    const top = grid.y
+    await page.mouse.move(grid.x + (30.5 / BUCKETS) * grid.width, grid.y + grid.height / 2)
+    await expectReadout(card, "p99 1.10s")
+
+    const box = (await card.boundingBox())!
+    const options = (await card.getByRole("button", { name: /^Chart options/ }).boundingBox())!
+    const title = (await card.getByRole("heading", { name: "Request latency" }).boundingBox())!
+    expect(options.x + options.width).toBeLessThanOrEqual(box.x + box.width)
+    expect(title.x + title.width).toBeLessThanOrEqual(options.x)
+    // The hover time sits in the readout, so the plot does not move under the pointer.
+    expect((await card.locator(".recharts-cartesian-grid").boundingBox())!.y).toBe(top)
   })
 
   test("a Log pick shows as lines and survives a reload", async ({ page }) => {

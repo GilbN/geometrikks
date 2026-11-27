@@ -1,12 +1,3 @@
-/** A tooltip row built by hand instead of by Recharts (the latency band). */
-export type TooltipRow = {
-  dataKey: string
-  name: string
-  value: number | null
-  color?: string
-  payload: unknown
-}
-
 type PayloadItem = { dataKey?: unknown; value?: unknown; payload?: unknown }
 
 /**

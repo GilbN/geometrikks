@@ -11,14 +11,15 @@ export const SHARE_TICKS = [0, 0.25, 0.5, 0.75, 1]
 
 type StatusCounts = Record<StatusKey, number | null>
 
-/** Sum of the four classes; 1xx is in totalRequests but in no class. */
+/** Sum of the four classes; 1xx and status 0 are in totalRequests but in no class. */
 export function statusTotal(row: StatusCounts): number {
   return STATUS_KEYS.reduce((sum, key) => sum + (row[key] ?? 0), 0)
 }
 
 /** Requests outside the four classes. The chart draws them only on ranges that have some. */
 export const otherChartConfig = {
-  statusOther: { label: "1xx and no response", color: "var(--chart-5)" },
+  // Neutral, not a fifth chart color: on a WebSocket host this segment can be most of the stack.
+  statusOther: { label: "1xx and no response", color: "var(--muted-foreground)" },
 } satisfies ChartConfig
 
 export type CountRow = TimeSeriesDataPoint & { statusOther: number }

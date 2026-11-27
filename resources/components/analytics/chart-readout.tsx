@@ -29,6 +29,14 @@ export function useCursorRow<T extends { timestamp: string }>(
   return bucket == null ? null : (byTime.get(bucket) ?? null)
 }
 
+/** A readout as one sentence for a screen reader: "Nov 23, 04:00 AM: 378 requests, 2xx Success 132". */
+export function spokenReadout(time: string, items: readonly ReadoutItem[], lead?: string): string {
+  const parts = items.map((item) =>
+    item.value == null ? item.label : `${item.label} ${item.value}`,
+  )
+  return `${time}: ${[lead, ...parts].filter(Boolean).join(", ")}`
+}
+
 function Item({ item }: { item: ReadoutItem }) {
   return (
     <span className="inline-flex min-w-0 items-center gap-[7px] whitespace-nowrap">
@@ -82,7 +90,7 @@ export function ChartReadout({
 }) {
   const [first, ...rest] = lead == null ? items : [null, ...items]
   return (
-    <div className="flex min-w-0 flex-wrap items-center gap-x-[18px] gap-y-1 text-[13px] text-muted-foreground tabular-nums max-md:gap-x-3.5 content-start md:max-xl:min-h-[calc(2lh+0.25rem)]">
+    <div className="flex min-w-0 flex-wrap content-start items-center gap-x-[18px] gap-y-1 text-[13px] text-muted-foreground tabular-nums max-md:gap-x-3.5 md:max-xl:min-h-[calc(2lh+0.25rem)]">
       {lead != null ? (
         <span className="whitespace-nowrap">{lead}</span>
       ) : (
@@ -94,7 +102,7 @@ export function ChartReadout({
         </span>
       )}
       {rest.length > 0 && (
-        <div className="max-md:grid max-md:basis-full max-md:grid-cols-2 max-md:gap-x-3.5 max-md:gap-y-1 md:contents">
+        <div className="max-md:grid max-md:grid-cols-2 max-md:gap-x-3.5 max-md:gap-y-1 max-xl:basis-full md:max-xl:flex md:max-xl:flex-wrap md:max-xl:items-center md:max-xl:gap-x-[18px] md:max-xl:gap-y-1 xl:contents">
           {rest.map((item) => item && <Item key={item.key} item={item} />)}
         </div>
       )}

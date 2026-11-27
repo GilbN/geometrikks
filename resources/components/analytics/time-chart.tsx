@@ -176,9 +176,26 @@ function useElementWidth<T extends HTMLElement>(): [React.RefObject<T | null>, n
   return [ref, width]
 }
 
-type Touch = { id: number; x: number; y: number; scrubbing: boolean; timer: number }
+type Touch = {
+  id: number
+  x: number
+  y: number
+  /** Where the finger is now; a hold reads this bucket, not the one it landed on. */
+  lastX: number
+  scrubbing: boolean
+  timer: number
+}
+
+const STEP_KEYS: Record<string, (index: number, last: number) => number> = {
+  ArrowLeft: (index) => Math.max(0, index - 1),
+  ArrowRight: (index, last) => Math.min(last, index + 1),
+  Home: () => 0,
+  End: (_, last) => last,
+}
 
 export function TimeChart({
+  label,
+  describe,
   config,
   rows,
   granularity,
@@ -189,6 +206,10 @@ export function TimeChart({
   className,
   children,
 }: {
+  /** The chart's accessible name, such as "Requests". */
+  label: string
+  /** What a screen reader hears for a bucket picked with the keyboard. */
+  describe: (bucketMs: number) => string
   config: ChartConfig
   rows: readonly Row[]
   granularity: string | undefined
@@ -202,6 +223,7 @@ export function TimeChart({
   const [frameRef, width] = useElementWidth<HTMLDivElement>()
   const geometry = useRef<Geometry | null>(null)
   const touch = useRef<Touch | null>(null)
+  const [announcement, setAnnouncement] = useState("")
   // A held finger reads its bucket after HOLD_MS, from the rows of that moment.
   const latestRows = useRef(rows)
   useLayoutEffect(() => {
@@ -251,12 +273,35 @@ export function TimeChart({
     if (!frame) return
     const onTouchMove = (event: TouchEvent) => {
       // A second finger is a pinch, which belongs to the browser.
-      if (event.touches.length > 1) return endTouch()
+      if (event.touches.length > 1) {
+        if (touch.current) window.clearTimeout(touch.current.timer)
+        touch.current = null
+        cursor.set(null)
+        return
+      }
       if (touch.current?.scrubbing && event.cancelable) event.preventDefault()
     }
     frame.addEventListener("touchmove", onTouchMove, { passive: false })
     return () => frame.removeEventListener("touchmove", onTouchMove)
-  }, [frameRef])
+  }, [frameRef, cursor])
+
+  const step = (event: React.KeyboardEvent) => {
+    if (event.key === "Escape") {
+      cursor.set(null)
+      setAnnouncement("")
+      return
+    }
+    const move = STEP_KEYS[event.key]
+    if (!move || rows.length === 0) return
+    event.preventDefault()
+    const current = cursor.get()
+    const index = rows.findIndex((row) => Date.parse(row.timestamp) === current)
+    // With no bucket marked, the first key press marks the latest one.
+    const next = index < 0 ? rows.length - 1 : move(index, rows.length - 1)
+    const bucket = Date.parse(rows[next].timestamp)
+    cursor.set(bucket)
+    setAnnouncement(describe(bucket))
+  }
   // A chart that unmounts under the pointer, such as on a range change, sends no pointerleave.
   useEffect(
     () => () => {
@@ -269,8 +314,16 @@ export function TimeChart({
   return (
     <div
       ref={frameRef}
-      aria-hidden
-      className="touch-pan-y touch-pinch-zoom select-none"
+      tabIndex={0}
+      role="group"
+      aria-roledescription="chart"
+      aria-label={`${label}. Arrow keys read one bucket at a time.`}
+      className="touch-pan-y touch-pinch-zoom rounded-md outline-none select-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+      onKeyDown={step}
+      onBlur={() => {
+        cursor.set(null)
+        setAnnouncement("")
+      }}
       onPointerMove={(event) => {
         if (event.pointerType === "mouse") {
           cursor.set(bucketAt(event.clientX))
@@ -278,6 +331,7 @@ export function TimeChart({
         }
         const held = touch.current
         if (!held || held.id !== event.pointerId) return
+        held.lastX = event.clientX
         if (!held.scrubbing) {
           const dx = Math.abs(event.clientX - held.x)
           const dy = Math.abs(event.clientY - held.y)
@@ -291,18 +345,30 @@ export function TimeChart({
       onPointerLeave={(event) => {
         if (event.pointerType === "mouse") cursor.set(null)
         // A pen has no implicit capture, so its pointerup can land outside the chart.
-        else if (!event.currentTarget.hasPointerCapture(event.pointerId)) endTouch()
+        else if (
+          touch.current?.id === event.pointerId &&
+          !event.currentTarget.hasPointerCapture(event.pointerId)
+        ) {
+          endTouch()
+        }
       }}
       onPointerDown={(event) => {
         if (event.pointerType === "mouse") return
         endTouch()
         if (!event.isPrimary) return
         const { pointerId, clientX, clientY } = event
-        const held: Touch = { id: pointerId, x: clientX, y: clientY, scrubbing: false, timer: 0 }
+        const held: Touch = {
+          id: pointerId,
+          x: clientX,
+          y: clientY,
+          lastX: clientX,
+          scrubbing: false,
+          timer: 0,
+        }
         const frame = event.currentTarget
         held.timer = window.setTimeout(() => {
           startScrub(frame, held)
-          cursor.set(bucketAt(clientX))
+          cursor.set(bucketAt(held.lastX))
         }, HOLD_MS)
         touch.current = held
       }}
@@ -318,7 +384,11 @@ export function TimeChart({
       }}
     >
       {/* The frame handles the pointer; Recharts' own hover state would only draw its active dots. */}
-      <ChartContainer config={config} className={cn("pointer-events-none w-full", className)}>
+      <ChartContainer
+        aria-hidden
+        config={config}
+        className={cn("pointer-events-none w-full", className)}
+      >
         <ComposedChart data={rows as Row[]} stackOffset={stackOffset} accessibilityLayer={false}>
           <CartesianGrid vertical={false} />
           <XAxis
@@ -339,6 +409,10 @@ export function TimeChart({
           <CursorLayer rows={rows} cursor={cursor} marks={marks} geometry={geometry} />
         </ComposedChart>
       </ChartContainer>
+      {/* Only keyboard steps speak; hover and touch stay silent. */}
+      <span className="sr-only" aria-live="polite">
+        {announcement}
+      </span>
     </div>
   )
 }

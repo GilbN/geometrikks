@@ -66,6 +66,11 @@ describe("fillHourlyGaps", () => {
     expect(fillHourlyGaps(range, START - 10 * HOUR)).toHaveLength(13)
   })
 
+  it("adds no empty buckets after now", () => {
+    const range = response([row(0)], START, START + 10 * HOUR)
+    expect(fillHourlyGaps(range, 0, START + 2 * HOUR + 60_000)).toHaveLength(3)
+  })
+
   it("adds no bucket at the range's exclusive end", () => {
     const filled = fillHourlyGaps(response([row(0), row(1)], START, START + 3 * HOUR), 0)
     expect(filled.map((point) => (Date.parse(point.timestamp) - START) / HOUR)).toEqual([0, 1, 2])

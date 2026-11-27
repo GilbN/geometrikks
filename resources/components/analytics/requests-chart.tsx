@@ -15,7 +15,13 @@ import { formatTs } from "@/lib/datetime"
 import { useTimeSeries } from "@/lib/queries"
 import { GranularityBadge } from "@/components/chart-buckets-menu"
 import { ChartOptionsMenu, ScaleNotes } from "./chart-options-menu"
-import { ChartReadout, CursorStamp, useCursorRow, type ReadoutItem } from "./chart-readout"
+import {
+  ChartReadout,
+  CursorStamp,
+  spokenReadout,
+  useCursorRow,
+  type ReadoutItem,
+} from "./chart-readout"
 import { createChartCursor, type ChartCursor } from "./chart-cursor"
 import {
   barSpacer,
@@ -37,11 +43,54 @@ import {
 } from "./status-series"
 import { useTrafficBuckets } from "./use-traffic-buckets"
 import { isolatedDot, TimeChart, type CursorMarks } from "./time-chart"
-import { chartRangeText, trafficTotals } from "./traffic-series"
+import { chartRangeText, trafficTotals, type TrafficTotals } from "./traffic-series"
 
 const TITLE = "Requests"
 const COUNT_CONFIG = { ...statusChartConfig, ...otherChartConfig }
 const COUNT_KEYS = [...STATUS_KEYS, "statusOther"] as const
+
+const SUMMARIES: Record<string, string> = {
+  stacked: "Stacked bars of requests by status class",
+  area: "Stacked area of requests by status class",
+  share: "Share of 2xx to 5xx responses by status class",
+  "error-rate": "Error rate, 4xx and 5xx over all requests",
+}
+
+type CountSource = CountRow | (TrafficTotals & { statusOther: number })
+
+/** The legend entries for one bucket or for the range; null values before the data arrives. */
+function requestsItems(source: CountSource | null, view: string, hasOther: boolean): ReadoutItem[] {
+  const requests = source?.totalRequests ?? 0
+  const classes = source ? statusTotal(source) : 0
+  if (view === "error-rate") {
+    return [
+      {
+        key: "errorRate",
+        label: String(statusErrorRateChartConfig.errorRate.label),
+        short: "Error rate",
+        color: statusErrorRateChartConfig.errorRate.color,
+        value: !source
+          ? null
+          : requests > 0
+            ? formatRate((source.status4xx + source.status5xx) / requests)
+            : "n/a",
+      },
+    ]
+  }
+  return (view !== "share" && hasOther ? COUNT_KEYS : STATUS_KEYS).map((key) => ({
+    key,
+    label: String(COUNT_CONFIG[key].label),
+    short: key === "statusOther" ? "Other" : String(COUNT_CONFIG[key].label).slice(0, 3),
+    color: COUNT_CONFIG[key].color,
+    value: !source
+      ? null
+      : view === "share"
+        ? classes > 0
+          ? formatRate(source[key] / classes)
+          : "n/a"
+        : formatNumber(source[key]),
+  }))
+}
 
 function RequestsReadout({
   cursor,
@@ -65,44 +114,14 @@ function RequestsReadout({
     return { ...sums, statusOther: Math.max(0, sums.totalRequests - statusTotal(sums)) }
   }, [buckets])
   const row = useCursorRow(cursor, buckets)
-  const source = row ?? totals
-  const requests = source.totalRequests
-  const classes = statusTotal(source)
-  const lead = ready ? (
+  const source = ready ? (row ?? totals) : null
+  const lead = source ? (
     <>
-      <b className="font-semibold text-foreground">{formatNumber(requests)}</b> requests
+      <b className="font-semibold text-foreground">{formatNumber(source.totalRequests)}</b> requests
     </>
   ) : undefined
-  const items: ReadoutItem[] =
-    view === "error-rate"
-      ? [
-          {
-            key: "errorRate",
-            label: String(statusErrorRateChartConfig.errorRate.label),
-            short: "Error rate",
-            color: statusErrorRateChartConfig.errorRate.color,
-            value: !ready
-              ? null
-              : requests > 0
-                ? formatRate((source.status4xx + source.status5xx) / requests)
-                : "n/a",
-          },
-        ]
-      : (view !== "share" && hasOther ? COUNT_KEYS : STATUS_KEYS).map((key) => ({
-          key,
-          label: String(COUNT_CONFIG[key].label),
-          short: key === "statusOther" ? "Other" : String(COUNT_CONFIG[key].label).slice(0, 3),
-          color: COUNT_CONFIG[key].color,
-          value: !ready
-            ? null
-            : view === "share"
-              ? classes > 0
-                ? formatRate(source[key] / classes)
-                : "n/a"
-              : formatNumber(source[key]),
-        }))
   const stamp = row ? formatTs(row.timestamp, granularity) : null
-  return <ChartReadout lead={lead} items={items} stamp={stamp} />
+  return <ChartReadout lead={lead} items={requestsItems(source, view, hasOther)} stamp={stamp} />
 }
 
 export function RequestsChart({ className }: { className?: string }) {
@@ -115,6 +134,10 @@ export function RequestsChart({ className }: { className?: string }) {
   const lines = (view === "stacked" || view === "area") && options.scale === "log"
   const counted = useMemo(() => withOther(buckets), [buckets])
   const hasOther = counted.some((row) => row.statusOther > 0)
+  const countedByTime = useMemo(
+    () => new Map(counted.map((row) => [Date.parse(row.timestamp), row])),
+    [counted],
+  )
   const countKeys = hasOther ? COUNT_KEYS : STATUS_KEYS
   const stacked = useMemo(
     () =>
@@ -250,9 +273,20 @@ export function RequestsChart({ className }: { className?: string }) {
       {data && (
         <>
           <p className="sr-only">
-            {`${options.view.label} of requests by status class, ${chartRangeText(buckets, data.granularity)}.`}
+            {`${SUMMARIES[view] ?? options.view.label}, ${chartRangeText(buckets, data.granularity)}.`}
           </p>
           <TimeChart
+            label={TITLE}
+            describe={(bucket) => {
+              const row = countedByTime.get(bucket)
+              return row
+                ? spokenReadout(
+                    formatTs(bucket, data.granularity),
+                    requestsItems(row, view, hasOther),
+                    `${formatNumber(row.totalRequests)} requests`,
+                  )
+                : formatTs(bucket, data.granularity)
+            }}
             config={config}
             rows={rows}
             granularity={data.granularity}

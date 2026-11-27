@@ -10,7 +10,7 @@ import { formatTs } from "@/lib/datetime"
 import { useTimeSeries } from "@/lib/queries"
 import { GranularityBadge } from "@/components/chart-buckets-menu"
 import { ChartOptionsMenu, ScaleNotes } from "./chart-options-menu"
-import { ChartReadout, CursorStamp, useCursorRow } from "./chart-readout"
+import { ChartReadout, CursorStamp, spokenReadout, useCursorRow } from "./chart-readout"
 import { createChartCursor, type ChartCursor } from "./chart-cursor"
 import { barSpacer, BYTES_OPTIONS, bytesChartConfig } from "./chart-utils"
 import { useTrafficBuckets } from "./use-traffic-buckets"
@@ -56,6 +56,10 @@ export function BytesChart() {
   const options = useChartOptions("bytes", BYTES_OPTIONS)
   const [cursor] = useState(createChartCursor)
   const buckets = useTrafficBuckets(data)
+  const bytesByTime = useMemo(
+    () => new Map(buckets.map((row) => [Date.parse(row.timestamp), row.totalBytesSent])),
+    [buckets],
+  )
   const series = useMemo(
     () => scaleSeries(buckets, SERIES, options.scale, { base: 1024, integer: true }),
     [buckets, options.scale],
@@ -109,6 +113,17 @@ export function BytesChart() {
             {`${options.view.label} of response bytes sent, ${chartRangeText(buckets, data.granularity)}.`}
           </p>
           <TimeChart
+            label={TITLE}
+            describe={(bucket) =>
+              spokenReadout(formatTs(bucket, data.granularity), [
+                {
+                  key: "totalBytesSent",
+                  label: String(bytesChartConfig.totalBytesSent.label),
+                  color: bytesChartConfig.totalBytesSent.color,
+                  value: formatBytes(bytesByTime.get(bucket) ?? 0),
+                },
+              ])
+            }
             config={bytesChartConfig}
             rows={series.rows}
             granularity={data.granularity}

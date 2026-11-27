@@ -10,7 +10,13 @@ import { useTimeSeries } from "@/lib/queries"
 import { formatDurationOrNa, TIMING_HINT } from "@/lib/timing"
 import { GranularityBadge } from "@/components/chart-buckets-menu"
 import { ChartOptionsMenu, ScaleNotes } from "./chart-options-menu"
-import { ChartReadout, CursorStamp, useCursorRow, type ReadoutItem } from "./chart-readout"
+import {
+  ChartReadout,
+  CursorStamp,
+  spokenReadout,
+  useCursorRow,
+  type ReadoutItem,
+} from "./chart-readout"
 import { createChartCursor, type ChartCursor } from "./chart-cursor"
 import { LATENCY_OPTIONS, latencyBandChartConfig, latencyChartConfig } from "./chart-utils"
 import { bandRows, LATENCY_KEYS } from "./latency-series"
@@ -21,21 +27,11 @@ import { chartRangeText } from "./traffic-series"
 const TITLE = "Request latency"
 
 /** At rest the legend shows labels alone: a range has no single percentile to show. */
-function LatencyReadout({
-  cursor,
-  buckets,
-  band,
-  granularity,
-}: {
-  cursor: ChartCursor
-  buckets: readonly TimeSeriesDataPoint[]
-  band: boolean
-  granularity?: string
-}) {
-  const row = useCursorRow(cursor, buckets)
+/** The legend entries for one bucket, or labels alone with no bucket. */
+function latencyItems(row: TimeSeriesDataPoint | null, band: boolean): ReadoutItem[] {
   const time = (value: number | null | undefined) =>
     row ? formatDurationOrNa(value ?? null) : null
-  const items: ReadoutItem[] = band
+  return band
     ? [
         {
           key: "band",
@@ -65,6 +61,21 @@ function LatencyReadout({
         color: latencyChartConfig[key].color,
         value: time(row?.[key]),
       }))
+}
+
+function LatencyReadout({
+  cursor,
+  buckets,
+  band,
+  granularity,
+}: {
+  cursor: ChartCursor
+  buckets: readonly TimeSeriesDataPoint[]
+  band: boolean
+  granularity?: string
+}) {
+  const row = useCursorRow(cursor, buckets)
+  const items = latencyItems(row, band)
   return <ChartReadout items={items} stamp={row ? formatTs(row.timestamp, granularity) : null} />
 }
 
@@ -73,6 +84,10 @@ export function LatencyChart() {
   const options = useChartOptions("latency", LATENCY_OPTIONS)
   const [cursor] = useState(createChartCursor)
   const buckets = useTrafficBuckets(data)
+  const bucketsByTime = useMemo(
+    () => new Map(buckets.map((row) => [Date.parse(row.timestamp), row])),
+    [buckets],
+  )
   const hasTimings = buckets.some((d) => d.timedRequests > 0)
   const noTimings = buckets.length > 0 && !hasTimings
   const series = useMemo(() => {
@@ -118,6 +133,11 @@ export function LatencyChart() {
             {`${band ? "Average, p99, and a p50 to p95 band" : "Average, p50, p95 and p99"} of response time, ${chartRangeText(buckets, data.granularity)}.`}
           </p>
           <TimeChart
+            label={TITLE}
+            describe={(bucket) => {
+              const row = bucketsByTime.get(bucket) ?? null
+              return spokenReadout(formatTs(bucket, data.granularity), latencyItems(row, band))
+            }}
             config={config}
             rows={series.rows}
             granularity={data.granularity}
