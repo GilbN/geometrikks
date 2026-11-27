@@ -93,7 +93,7 @@ export function zoomFits(
 }
 
 export function useChartZoomStack() {
-  const { range, customRange, setRange, setCustomRange } = useTimeRange()
+  const { range, customRange, setCustomRange, restoreRange } = useTimeRange()
   const stack = useSyncExternalStore(
     subscribe,
     () => steps,
@@ -120,14 +120,8 @@ export function useChartZoomStack() {
     const last = live[live.length - 1]
     if (!last) return
     write(live.slice(0, -1))
-    if (last.from.range === "custom" && last.from.customRange) {
-      setCustomRange(last.from.customRange)
-    } else {
-      // A preset keeps the custom dates it had beside it, for the range picker.
-      if (last.from.customRange) setCustomRange(last.from.customRange)
-      setRange(last.from.range)
-    }
-  }, [live, setRange, setCustomRange])
+    restoreRange(last.from.range, last.from.customRange)
+  }, [live, restoreRange])
 
   return { zoomTo, zoomOut, back: live[live.length - 1]?.from ?? null, depth: live.length }
 }

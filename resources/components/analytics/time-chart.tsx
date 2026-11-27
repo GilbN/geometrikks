@@ -60,6 +60,8 @@ type Geometry = { plotX: number; plotWidth: number; centers: number[] }
 const HOUR_MS = 3_600_000
 /** Movement before a press becomes a drag. */
 const DRAG_START_PX = 4
+/** Within one bucket, more: a click that slips on a wide daily bar is not a zoom. */
+const DRAG_INSIDE_PX = 12
 /** A shorter drag is a click or a slip, not a zoom. */
 const MIN_ZOOM_HOURS = 3
 
@@ -309,10 +311,12 @@ function DragLabel({
       aria-hidden
       className="pointer-events-none absolute top-1.5 z-10 -translate-x-1/2 rounded-[7px] bg-popover px-[9px] py-[3px] text-center text-xs font-medium whitespace-nowrap text-popover-foreground tabular-nums shadow-lg ring-1 ring-border"
     >
-      {formatTs(selection.startMs, format)} to {formatTs(end, format)}{" "}
+      {!inHours && selection.first === selection.last
+        ? formatTs(selection.startMs, format)
+        : `${formatTs(selection.startMs, format)} to ${formatTs(end, format)}`}{" "}
       <span className="font-normal text-muted-foreground">
         · {count} {size}
-        {!fits && <span className="block">Hourly data for these hours has expired</span>}
+        {!fits && <span className="block">Detailed data for this range has expired</span>}
       </span>
     </span>
   )
@@ -543,8 +547,9 @@ export function TimeChart({
             // it takes half the bar, so a click that slips does not zoom to that day.
             const shape = geometry.current
             const half = shape ? shape.plotWidth / Math.max(1, rows.length) / 2 : 0
+            const inside = Math.max(DRAG_START_PX, Math.min(half, DRAG_INSIDE_PX))
             const moved = Math.abs(event.clientX - started.x)
-            if (moved < (at === start ? Math.max(DRAG_START_PX, half) : DRAG_START_PX)) return
+            if (moved < (at === start ? inside : DRAG_START_PX)) return
           }
           cursor.setDrag({ source: id, from: Math.min(start, at), to: Math.max(start, at) })
           return

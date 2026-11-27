@@ -26,6 +26,8 @@ interface TimeRangeContextValue extends TimeRangeState {
   setPollInterval: (interval: number) => void
   setGranularity: (granularity: ChartGranularity) => void
   setCustomRange: (customRange: CustomTimeRange) => void
+  /** Puts back a range and the custom dates beside it in one change. */
+  restoreRange: (range: TimeRangeValue, customRange: CustomTimeRange | null) => void
   refresh: () => void
 }
 
@@ -90,6 +92,10 @@ export function TimeRangeProvider({ children }: { children: React.ReactNode }) {
     setState((prev) => ({ ...prev, range: "custom", customRange, lastRefresh: Date.now() }))
   }, [])
 
+  const restoreRange = useCallback((range: TimeRangeValue, customRange: CustomTimeRange | null) => {
+    setState((prev) => ({ ...prev, range, customRange, lastRefresh: Date.now() }))
+  }, [])
+
   const refresh = useCallback(() => {
     setState((prev) => ({ ...prev, lastRefresh: Date.now() }))
   }, [])
@@ -125,6 +131,7 @@ export function TimeRangeProvider({ children }: { children: React.ReactNode }) {
         setPollInterval,
         setGranularity,
         setCustomRange,
+        restoreRange,
         refresh,
       }}
     >

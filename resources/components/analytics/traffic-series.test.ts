@@ -254,6 +254,22 @@ describe("bucketEndMs and dragSelection", () => {
     expect(bucketEndMs(times, 1, "daily")).toBe(day("2026-11-03T00:00:00Z"))
   })
 
+  it("ends a local day that daylight saving starts at 01:00 at the next midnight", () => {
+    process.env.TZ = "America/Santiago"
+    // 2026-09-06 starts at 01:00 local (04:00Z); the next local midnight is 03:00Z on Sep 7.
+    const times = [day("2026-09-06T04:00:00Z")]
+    expect(bucketEndMs(times, 0, "daily")).toBe(day("2026-09-07T03:00:00Z"))
+  })
+
+  it("counts a range that ends a millisecond before a bucket's end as the whole bucket", () => {
+    const times = [0, 1, 2].map((hour) => START + hour * HOUR)
+    const range = { startMs: START, endMs: START + 3 * HOUR - 1 }
+    expect(dragSelection(times, times[0], times[2], "hourly", range)).toMatchObject({
+      endMs: START + 3 * HOUR,
+      clipped: false,
+    })
+  })
+
   it("ends a UTC day a day on, even on a local daylight saving date", () => {
     process.env.TZ = "Europe/London"
     const times = [day("2026-03-29T00:00:00Z")]

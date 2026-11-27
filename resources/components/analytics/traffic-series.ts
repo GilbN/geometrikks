@@ -246,12 +246,10 @@ export function bucketEndMs(
   if (utcDays) return start + 24 * HOUR_MS
   const next = times[index + 1]
   if (next != null && next - start >= 23 * HOUR_MS && next - start <= 25 * HOUR_MS) return next
+  // The next local day's first moment, even when daylight saving starts a day at 01:00.
   const date = new Date(start)
-  if (date.getHours() === 0 && date.getMinutes() === 0) {
-    date.setDate(date.getDate() + 1)
-    return date.getTime()
-  }
-  return start + 24 * HOUR_MS
+  date.setHours(24, 0, 0, 0)
+  return date.getTime()
 }
 
 /**
@@ -274,7 +272,8 @@ export function dragSelection(
   if (first < 0 || last < first) return null
   const bucketEnd = bucketEndMs(times, last, granularity, utcDays)
   const startMs = Math.max(times[first], range.startMs)
-  const endMs = Math.min(bucketEnd, range.endMs)
+  // Calendar presets such as Yesterday end at 23:59:59.999; that is the whole bucket.
+  const endMs = range.endMs >= bucketEnd - 1000 ? bucketEnd : range.endMs
   return {
     startMs,
     endMs,

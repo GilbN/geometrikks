@@ -502,7 +502,11 @@ test.describe("shared cursor and zoom", () => {
     await expect(card.locator(".recharts-bar")).toHaveCount(4)
     await across(0.2, 0.8)
     await expect(page.getByRole("button", { name: /^Zoom out to (?!Last)/ })).toBeVisible()
-    expect((await storedRange(page)).customRange).not.toEqual(first)
+    const second = (await storedRange(page)).customRange
+    // The second drag ran on the zoomed hours, so its range lies inside the first.
+    expect(Date.parse(second.from)).toBeGreaterThanOrEqual(Date.parse(first.from))
+    expect(Date.parse(second.to)).toBeLessThanOrEqual(Date.parse(first.to))
+    expect(second).not.toEqual(first)
 
     await page.getByRole("button", { name: /^Zoom out to / }).click()
     await expect.poll(async () => (await storedRange(page)).customRange).toEqual(first)
@@ -675,6 +679,7 @@ test.describe("phone", () => {
     expect((await card.boundingBox())!.y).toBe(still)
     await expect(card.locator('rect[fill="var(--card)"]')).toHaveCount(2)
     await touch("touchEnd", [])
+    await expect(page.getByRole("button", { name: /^Zoom out/ })).toHaveCount(0)
     await expect(card.locator('rect[fill="var(--card)"]')).toHaveCount(0)
 
     // The card moves up the screen when the page scrolls under the swipe.
