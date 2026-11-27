@@ -114,8 +114,10 @@ test.beforeEach(async ({ page }) => {
     data: { username: process.env.SMOKE_ADMIN_USER ?? "admin", password },
   })
   expect(login.ok()).toBe(true)
+  // Only when no test set its own range: init scripts run in no promised order.
   await page.addInitScript(
     ([from, to]) => {
+      if (localStorage.getItem("geometrikks-time-range")) return
       localStorage.setItem(
         "geometrikks-time-range",
         JSON.stringify({
@@ -460,7 +462,6 @@ test.describe("shared cursor and zoom", () => {
     await Promise.all([series, topIps])
 
     expect((await storedRange(page)).customRange).toEqual({ from, to })
-    // The zoomed charts draw the ten hours.
     await expect(
       card.locator(".recharts-bar").first().locator(".recharts-bar-rectangle path"),
     ).toHaveCount(10)
@@ -649,7 +650,13 @@ test.describe("phone", () => {
     await touch("touchStart", [{ x, y }])
     await page.waitForTimeout(400)
     await expectReadout(card, `${points[30].totalRequests.toLocaleString("en-US")} requests`)
+    // The held hour reads out on every chart, and a finger never zooms.
+    await expectReadout(
+      panel(page, "Bandwidth"),
+      `Bytes sent${(points[30].totalBytesSent / 1024 ** 2).toFixed(1)} MB`,
+    )
     await touch("touchEnd", [])
+    await expect(page.getByRole("button", { name: /^Zoom out/ })).toHaveCount(0)
     await expectReadout(
       card,
       `${points.reduce((total, point) => total + point.totalRequests, 0).toLocaleString("en-US")} requests`,

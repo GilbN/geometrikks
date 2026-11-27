@@ -15,15 +15,15 @@ describe("zoomFits", () => {
   const kept = Date.parse("2026-10-01T00:00:00Z")
   const old = Date.parse("2026-08-01T00:00:00Z")
 
-  it("refuses a short zoom into hours that are no longer kept", () => {
-    expect(zoomFits(old, old + 10 * HOUR, "auto", kept)).toBe(false)
-    expect(zoomFits(old, old + 10 * HOUR, "hourly", kept)).toBe(false)
-    expect(zoomFits(kept, kept + 10 * HOUR, "auto", kept)).toBe(true)
+  it("refuses a zoom with no kept hours in it", () => {
+    expect(zoomFits(old, old + 10 * HOUR, kept)).toBe(false)
+    expect(zoomFits(old, old + 10 * 24 * HOUR, kept)).toBe(false)
+    expect(zoomFits(kept - 5 * HOUR, kept + 30 * 60_000, kept)).toBe(false)
   })
 
-  it("allows old zooms that draw daily buckets", () => {
-    expect(zoomFits(old, old + 10 * HOUR, "daily", kept)).toBe(true)
-    expect(zoomFits(old, old + 10 * 24 * HOUR, "auto", kept)).toBe(true)
+  it("allows a zoom that reaches at least an hour into the kept hours", () => {
+    expect(zoomFits(kept, kept + 10 * HOUR, kept)).toBe(true)
+    expect(zoomFits(kept - 24 * HOUR, kept + 4 * 24 * HOUR, kept)).toBe(true)
   })
 })
 

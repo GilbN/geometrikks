@@ -57,7 +57,7 @@ function BytesReadout({
         },
       ]}
       stamp={row ? formatTs(row.timestamp, granularity) : null}
-      note={ready && !row ? since : null}
+      note={ready && !row && !dragged ? since : null}
     />
   )
 }

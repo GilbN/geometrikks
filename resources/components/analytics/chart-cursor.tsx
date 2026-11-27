@@ -5,7 +5,7 @@
  * agree. The Analytics page shares one cursor across its charts.
  */
 import { createContext, useContext, useMemo, useState, useSyncExternalStore } from "react"
-import { usePollingHold } from "@/lib/time-range-context"
+import { usePollingHold, useTimeRange } from "@/lib/time-range-context"
 
 /** Buckets from `from` to `to`, both starts, picked by a drag on chart `source`. */
 export type CursorDrag = { source: string; from: number; to: number }
@@ -54,7 +54,9 @@ const SharedCursor = createContext<{ cursor: ChartCursor; zoom?: ChartZoom } | n
 
 /** Auto refresh would move the buckets under a running drag. */
 function HoldPollingWhileDragging({ cursor }: { cursor: ChartCursor }) {
-  usePollingHold(useCursorDrag(cursor) != null)
+  const { pollInterval } = useTimeRange()
+  // Only with auto refresh on: a hold's release refetches whatever went stale.
+  usePollingHold(useCursorDrag(cursor) != null && pollInterval > 0)
   return null
 }
 
@@ -79,8 +81,8 @@ export function ChartCursorProvider({
 /** The page's shared cursor, or one of the chart's own outside a provider. */
 export function useChartCursor(): ChartCursor {
   const shared = useContext(SharedCursor)
-  const [own] = useState(() => (shared ? null : createChartCursor()))
-  return shared?.cursor ?? own ?? createChartCursor()
+  const [own] = useState(createChartCursor)
+  return shared?.cursor ?? own
 }
 
 export function useChartZoom(): ChartZoom | undefined {

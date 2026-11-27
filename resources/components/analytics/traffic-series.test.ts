@@ -268,7 +268,15 @@ describe("bucketEndMs and dragSelection", () => {
       startMs: range.startMs,
       endMs: range.endMs,
       buckets: 4,
+      first: 0,
+      last: 3,
     })
     expect(dragSelection(times, times[1], times[0], "hourly", range)).toBeNull()
+    // A bucket gone from the rows mid-drag still leaves the rest selected.
+    expect(dragSelection(times.slice(1), times[0], times[2], "hourly", range)).toMatchObject({
+      first: 0,
+      last: 1,
+      buckets: 2,
+    })
   })
 })

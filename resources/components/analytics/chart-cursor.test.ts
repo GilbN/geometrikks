@@ -12,6 +12,15 @@ describe("createChartCursor", () => {
     expect(listener).toHaveBeenCalledTimes(1)
   })
 
+  it("tells listeners about an equal drag only once", () => {
+    const cursor = createChartCursor()
+    const listener = vi.fn()
+    cursor.subscribe(listener)
+    cursor.setDrag({ source: "requests", from: 0, to: 3000 })
+    cursor.setDrag({ source: "requests", from: 0, to: 3000 })
+    expect(listener).toHaveBeenCalledTimes(1)
+  })
+
   it("drops the hovered bucket during a drag and ignores hover until it ends", () => {
     const cursor = createChartCursor()
     cursor.set(1000)

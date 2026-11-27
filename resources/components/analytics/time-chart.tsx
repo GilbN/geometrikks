@@ -57,6 +57,8 @@ export function isolatedDot(values: ReadonlyArray<number | null | undefined>, co
 type Geometry = { plotX: number; plotWidth: number; centers: number[] }
 
 const HOUR_MS = 3_600_000
+/** Movement before a press becomes a drag. */
+const DRAG_START_PX = 4
 /** A shorter drag is a click or a slip, not a zoom. */
 const MIN_ZOOM_HOURS = 3
 
@@ -105,6 +107,7 @@ function CursorLayer({
     geometry.current = plot ? { plotX: plot.x, plotWidth: plot.width, centers } : null
   })
 
+  const times = useMemo(() => rows.map((row) => Date.parse(row.timestamp)), [rows])
   const indexByTime = useMemo(
     () => new Map(rows.map((row, index) => [Date.parse(row.timestamp), index])),
     [rows],
@@ -118,10 +121,10 @@ function CursorLayer({
   const step = plot.width / rows.length
 
   if (drag) {
-    const times = rows.map((row) => Date.parse(row.timestamp))
     const first = times.findIndex((ms) => ms >= drag.from)
-    const last = times.length - 1 - [...times].reverse().findIndex((ms) => ms <= drag.to)
-    if (first < 0 || last >= times.length || last < first) return null
+    let last = times.length - 1
+    while (last >= 0 && times[last] > drag.to) last--
+    if (first < 0 || last < first) return null
     if (!Number.isFinite(centers[first]) || !Number.isFinite(centers[last])) return null
     const left = Math.max(plot.x, centers[first] - step / 2)
     const right = Math.min(plot.x + plot.width, centers[last] + step / 2)
@@ -261,11 +264,9 @@ function DragLabel({
   const shape = geometry.current
   const selection =
     drag && drag.source === id ? dragSelection(times, drag.from, drag.to, granularity, range) : null
-  const first = selection ? times.indexOf(drag!.from) : -1
-  const last = selection ? times.indexOf(drag!.to) : -1
   const center =
-    shape && shape.centers.length === rows.length && first >= 0
-      ? (shape.centers[first] + shape.centers[last]) / 2
+    shape && selection && shape.centers.length === rows.length
+      ? (shape.centers[selection.first] + shape.centers[selection.last]) / 2
       : Number.NaN
   // Centred over the band, but kept inside the card, which clips what sticks out.
   useLayoutEffect(() => {
@@ -276,12 +277,14 @@ function DragLabel({
   })
   if (!selection || !Number.isFinite(center)) return null
 
-  const hourly = granularity === "hourly"
   const span = selection.endMs - selection.startMs
-  const count = hourly ? Number((span / HOUR_MS).toFixed(1)) : Math.round(span / (24 * HOUR_MS))
-  const size = hourly ? (count === 1 ? "hour" : "hours") : count === 1 ? "day" : "days"
-  // Days read inclusive ("Nov 23 to Nov 25 · 3 days"); hours end on the hour after the last one.
-  const end = hourly ? selection.endMs : selection.endMs - 1
+  // Days read inclusive by their axis labels ("Nov 23 to Nov 25 · 3 days"). Hours, and a
+  // daily selection the range cuts to under a day, end on the hour after the last one.
+  const inHours = granularity === "hourly" || span < 24 * HOUR_MS
+  const count = inHours ? Number((span / HOUR_MS).toFixed(1)) : selection.buckets
+  const size = inHours ? (count === 1 ? "hour" : "hours") : count === 1 ? "day" : "days"
+  const format = inHours ? "hourly" : granularity
+  const end = inHours ? selection.endMs : times[selection.last]
   const fits = zoom?.fits(selection.startMs, selection.endMs) ?? true
   return (
     <span
@@ -289,7 +292,7 @@ function DragLabel({
       aria-hidden
       className="pointer-events-none absolute top-1.5 z-10 -translate-x-1/2 rounded-[7px] bg-popover px-[9px] py-[3px] text-xs font-medium whitespace-nowrap text-popover-foreground tabular-nums shadow-lg ring-1 ring-border"
     >
-      {formatTs(selection.startMs, granularity)} to {formatTs(end, granularity)}{" "}
+      {formatTs(selection.startMs, format)} to {formatTs(end, format)}{" "}
       <span className="font-normal text-muted-foreground">
         · {count} {size}
         {!fits && " · hourly data for these hours has expired"}
@@ -349,8 +352,8 @@ export function TimeChart({
     latestRows.current = rows
   })
   const zoom = useChartZoom()
-  /** The bucket a mouse drag started on, and the pointer it captured. */
-  const dragStart = useRef<{ bucket: number; pointerId: number } | null>(null)
+  /** The bucket a mouse drag started on, the pointer it captured, and where it went down. */
+  const dragStart = useRef<{ bucket: number; pointerId: number; x: number } | null>(null)
 
   const ticks = useMemo(
     () =>
@@ -400,7 +403,6 @@ export function TimeChart({
     if (
       selection &&
       zoom &&
-      selection.buckets >= 2 &&
       selection.endMs - selection.startMs >= MIN_ZOOM_HOURS * HOUR_MS &&
       zoom.fits(selection.startMs, selection.endMs)
     ) {
@@ -513,9 +515,11 @@ export function TimeChart({
           }
           // The button came up where no pointerup reached us, as after a context menu.
           if ((event.buttons & 1) === 0) return cancelDrag()
+          // A few pixels of movement start the drag, so one wide daily bucket can be picked.
+          if (!cursor.get().drag && Math.abs(event.clientX - started.x) < DRAG_START_PX) return
           const start = started.bucket
           const at = bucketAt(event.clientX, true)
-          if (at == null || (at === start && !cursor.get().drag)) return
+          if (at == null) return
           cursor.setDrag({ source: id, from: Math.min(start, at), to: Math.max(start, at) })
           return
         }
@@ -549,8 +553,13 @@ export function TimeChart({
           if (!zoom || event.button !== 0) return
           const start = bucketAt(event.clientX)
           if (start == null) return
-          dragStart.current = { bucket: start, pointerId: event.pointerId }
-          event.currentTarget.setPointerCapture(event.pointerId)
+          dragStart.current = { bucket: start, pointerId: event.pointerId, x: event.clientX }
+          try {
+            event.currentTarget.setPointerCapture(event.pointerId)
+          } catch {
+            // The pointer is already gone; no drag follows.
+            dragStart.current = null
+          }
           return
         }
         endTouch()

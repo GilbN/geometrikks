@@ -6,7 +6,6 @@ import { useMemo } from "react"
 import { JumpTarget } from "@/components/jump-bar"
 import { SectionHeader } from "@/components/section-header"
 import { useChartZoomStack, zoomFits, type ZoomStep } from "@/lib/chart-zoom"
-import { useTimeRange } from "@/lib/time-range-context"
 import { BytesChart } from "./bytes-chart"
 import { ChartCursorProvider, useChartCursor, type ChartZoom } from "./chart-cursor"
 import { LatencyChart } from "./latency-chart"
@@ -37,7 +36,13 @@ function TrafficHeader({
               zoomOut()
               // The button leaves with the last zoom; keep focus on the range it changed.
               if (last) {
-                document.querySelector<HTMLElement>('button[aria-label^="Time range"]')?.focus()
+                const ranges = document.querySelectorAll<HTMLElement>(
+                  'button[aria-label^="Time range"]',
+                )
+                // The phone and desktop toolbars both have one; only one is shown.
+                Array.from(ranges)
+                  .find((button) => button.offsetParent !== null)
+                  ?.focus()
               }
             }}
           />
@@ -50,15 +55,14 @@ function TrafficHeader({
 }
 
 export function TrafficSection() {
-  const { granularity } = useTimeRange()
   const { zoomTo, zoomOut, back, depth } = useChartZoomStack()
   const keptSinceMs = useKeptSinceMs()
   const zoom = useMemo<ChartZoom>(
     () => ({
-      fits: (startMs, endMs) => zoomFits(startMs, endMs, granularity, keptSinceMs),
+      fits: (startMs, endMs) => zoomFits(startMs, endMs, keptSinceMs),
       to: zoomTo,
     }),
-    [granularity, keptSinceMs, zoomTo],
+    [keptSinceMs, zoomTo],
   )
 
   return (

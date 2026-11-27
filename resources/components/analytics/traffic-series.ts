@@ -222,6 +222,9 @@ export type DragSelection = {
   endMs: number
   /** Buckets the drag covers. */
   buckets: number
+  /** Indexes of the first and last covered bucket. */
+  first: number
+  last: number
 }
 
 /**
@@ -255,12 +258,16 @@ export function dragSelection(
   granularity: string | undefined,
   range: { startMs: number; endMs: number },
 ): DragSelection | null {
-  const first = times.indexOf(fromMs)
-  const last = times.indexOf(toMs)
+  // By bounds, not exact times: a refetch mid-drag can drop the bucket the drag started on.
+  const first = times.findIndex((ms) => ms >= fromMs)
+  let last = times.length - 1
+  while (last >= 0 && times[last] > toMs) last--
   if (first < 0 || last < first) return null
   return {
-    startMs: Math.max(fromMs, range.startMs),
+    startMs: Math.max(times[first], range.startMs),
     endMs: Math.min(bucketEndMs(times, last, granularity), range.endMs),
     buckets: last - first + 1,
+    first,
+    last,
   }
 }

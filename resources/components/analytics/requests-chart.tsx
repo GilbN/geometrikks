@@ -131,7 +131,7 @@ function RequestsReadout({
       lead={lead}
       items={requestsItems(source, view, hasOther)}
       stamp={stamp}
-      note={ready && !row ? since : null}
+      note={ready && !row && !dragged ? since : null}
     />
   )
 }

@@ -6,8 +6,9 @@
  * other range change forgets it.
  */
 import { useCallback, useEffect, useSyncExternalStore } from "react"
-import type { ChartGranularity, CustomTimeRange, TimeRangeValue } from "@/lib/api"
-import { autoChartGranularity } from "@/lib/sparklines"
+import type { CustomTimeRange, TimeRangeValue } from "@/lib/api"
+
+const HOUR_MS = 3_600_000
 import { useTimeRange } from "@/lib/time-range-context"
 
 export type ZoomStep = {
@@ -60,18 +61,12 @@ export function liveSteps(
 }
 
 /**
- * Whether the charts can show a zoom to `startMs`..`endMs`. A short zoom draws
- * hourly buckets under Auto, and hours older than `keptSinceMs` are gone, so
- * zooming there would empty the charts.
+ * Whether the charts can show a zoom to `startMs`..`endMs`. A zoomed series
+ * reads hourly data, even for local days, and hours older than `keptSinceMs`
+ * are gone, so a zoom needs at least an hour inside the kept ones.
  */
-export function zoomFits(
-  startMs: number,
-  endMs: number,
-  granularity: ChartGranularity,
-  keptSinceMs: number,
-): boolean {
-  const buckets = granularity === "auto" ? autoChartGranularity(startMs, endMs) : granularity
-  return buckets === "daily" || startMs >= keptSinceMs
+export function zoomFits(startMs: number, endMs: number, keptSinceMs: number): boolean {
+  return endMs - Math.max(startMs, keptSinceMs) >= HOUR_MS
 }
 
 export function useChartZoomStack() {
