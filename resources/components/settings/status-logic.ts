@@ -609,14 +609,22 @@ export function boardOrder(signals: readonly BoardSignal[]): string[] {
 export interface BoardState {
   /** Row ids in display order. */
   order: string[]
+  /** The problem rows the order was sorted for. */
+  orderedFor: string[]
   open: string[]
-  /** Problem rows the board has already reacted to. */
+  /** Problem rows the board or the user has already acted on. */
   seen: string[]
   /** Rows the board opened itself and the user has not touched since. */
   autoOpened: string[]
 }
 
-export const EMPTY_BOARD: BoardState = { order: [], open: [], seen: [], autoOpened: [] }
+export const EMPTY_BOARD: BoardState = {
+  order: [],
+  orderedFor: [],
+  open: [],
+  seen: [],
+  autoOpened: [],
+}
 
 function sameSet(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((id) => b.includes(id))
@@ -624,41 +632,63 @@ function sameSet(a: readonly string[], b: readonly string[]): boolean {
 
 /** Folds the latest row states into the board. A row opens by itself only
  *  when it turns into a problem, so a user who closes it keeps it closed for
- *  as long as the problem lasts. A row the board opened closes again when it
- *  recovers. The order changes only when the set of problems or rows does,
- *  so an ordinary poll never moves anything. Returns the same object when
- *  nothing changed. */
+ *  as long as the problem lasts. A muted row, whose state could not be read,
+ *  has not recovered, so it keeps that memory. A row the board opened closes
+ *  again when it recovers. The order changes only when the set of problems
+ *  or rows does, so an ordinary poll never moves anything. Returns the same
+ *  object when nothing changed. */
 export function boardObserve(state: BoardState, signals: readonly BoardSignal[]): BoardState {
   const ids = signals.map((signal) => signal.id)
+  const toneOf = new Map(signals.map((signal) => [signal.id, signal.tone]))
   const problems = signals.filter((signal) => isProblemTone(signal.tone)).map((signal) => signal.id)
+  const unknown = signals.filter((signal) => signal.tone === "muted").map((signal) => signal.id)
   const appeared = problems.filter((id) => !state.seen.includes(id))
   const opening = appeared.filter(
     (id) => signals.find((signal) => signal.id === id)?.autoOpen !== false,
   )
-  const recovered = state.seen.filter((id) => !problems.includes(id))
+  const recovered = state.seen.filter(
+    (id) => toneOf.has(id) && !problems.includes(id) && !unknown.includes(id),
+  )
   const closeOnRecovery = recovered.filter((id) => state.autoOpened.includes(id))
   const open = [
     ...state.open.filter((id) => ids.includes(id) && !closeOnRecovery.includes(id)),
     ...opening.filter((id) => !state.open.includes(id)),
   ]
   const autoOpened = [
-    ...state.autoOpened.filter((id) => problems.includes(id)),
+    ...state.autoOpened.filter((id) => problems.includes(id) || unknown.includes(id)),
     ...opening.filter((id) => !state.open.includes(id)),
   ]
-  const reorder = !sameSet(state.seen, problems) || !sameSet(state.order, ids)
+  const seen = [
+    ...state.seen.filter((id) => problems.includes(id) || unknown.includes(id)),
+    ...appeared,
+  ]
+  const reorder = !sameSet(state.orderedFor, problems) || !sameSet(state.order, ids)
   const order = reorder ? boardOrder(signals) : state.order
-  if (!reorder && sameSet(open, state.open) && sameSet(autoOpened, state.autoOpened)) {
+  if (
+    !reorder &&
+    sameSet(open, state.open) &&
+    sameSet(autoOpened, state.autoOpened) &&
+    sameSet(seen, state.seen)
+  ) {
     return state
   }
-  return { order, open, seen: problems, autoOpened }
+  return { order, orderedFor: reorder ? problems : state.orderedFor, open, seen, autoOpened }
 }
 
-/** The user opens or closes a row; the board stops managing it. */
-export function boardToggle(state: BoardState, id: string): BoardState {
+/** The user opens or closes a row; the board stops managing it. Toggling a
+ *  problem row counts as having seen it, so it does not open again by itself
+ *  when a held update applies. */
+export function boardToggle(state: BoardState, id: string, isProblem = false): BoardState {
   const open = state.open.includes(id)
     ? state.open.filter((openId) => openId !== id)
     : [...state.open, id]
-  return { ...state, open, autoOpened: state.autoOpened.filter((autoId) => autoId !== id) }
+  const seen = isProblem && !state.seen.includes(id) ? [...state.seen, id] : state.seen
+  return {
+    ...state,
+    open,
+    seen,
+    autoOpened: state.autoOpened.filter((autoId) => autoId !== id),
+  }
 }
 
 export type VerdictIcon = "healthy" | "warning" | "down" | "loading"

@@ -206,12 +206,19 @@ function ingestionRow(data: StatusData): BoardRowSpec {
   const lokiSources = stats?.lokiSources ?? []
   const total = data.accessFiles.length + lokiSources.length
   const lastRecordAt = health?.ingestion.lastRecordAt
-  const fact = disabled ? (
+  const unavailable = unavailableSourceCount(health)
+  // The source count comes from the file list and stats, not /health, so it can lag
+  // behind the unavailable count while they load.
+  const sources = sourcesPhrase(
+    Math.max(total, unavailable),
+    unavailable,
+    unavailableSourcesWord(health),
+  )
+  const fact = !health ? null : disabled ? (
     "Log tailing is turned off"
   ) : (
     <>
-      {sourcesPhrase(total, unavailableSourceCount(health), unavailableSourcesWord(health))} · last
-      event <Ticking render={(nowMs) => relativeTime(lastRecordAt, nowMs)} />
+      {sources} · last event <Ticking render={(nowMs) => relativeTime(lastRecordAt, nowMs)} />
     </>
   )
   const running = health?.ingestion.running ?? false
@@ -250,7 +257,7 @@ function ingestionRow(data: StatusData): BoardRowSpec {
           {!data.filesError && stats !== undefined && total === 0 && (
             <p className="text-muted-foreground">No access logs configured.</p>
           )}
-          {total > 0 && (
+          {data.accessFiles.length > 0 && (
             <PanelTable
               columns={[
                 ["File", 2],
@@ -281,6 +288,17 @@ function ingestionRow(data: StatusData): BoardRowSpec {
                   </TableCell>
                 </TableRow>
               ))}
+            </PanelTable>
+          )}
+          {lokiSources.length > 0 && (
+            <PanelTable
+              columns={[
+                ["Loki query", 2],
+                ["State", 1],
+                ["Lines", 1],
+                ["Format", 2],
+              ]}
+            >
               {lokiSources.map((source) => (
                 <TableRow key={source.label} className={ROW}>
                   <TableCell className={CELL} title={source.query}>
@@ -296,9 +314,7 @@ function ingestionRow(data: StatusData): BoardRowSpec {
                       </ToneLabel>
                     )}
                   </TableCell>
-                  <TableCell className={CELL}>
-                    {source.parsedLines.toLocaleString()} lines
-                  </TableCell>
+                  <TableCell className={CELL}>{source.parsedLines.toLocaleString()}</TableCell>
                   <TableCell className={CELL}>{source.logFormat ?? "format pending"}</TableCell>
                 </TableRow>
               ))}
@@ -315,19 +331,21 @@ function databaseRow({ health, dbInfo }: StatusData): BoardRowSpec {
   const state = databaseState(health)
   const reachable = dbInfo?.reachable === true
   const postgres = dbInfo?.postgresVersion?.split(" ")[0]
-  const fact = !health?.database.reachable
-    ? "Running without a database"
-    : health.database.servicesActive === false
-      ? "Background jobs and ingestion are paused"
-      : reachable
-        ? [
-            dbInfo.sizeBytes !== null ? formatSize(dbInfo.sizeBytes) : null,
-            postgres && `PostgreSQL ${postgres}`,
-            dbInfo.timescaledbVersion && `TimescaleDB ${dbInfo.timescaledbVersion}`,
-          ]
-            .filter(Boolean)
-            .join(" · ")
-        : null
+  const fact = !health
+    ? null
+    : !health.database.reachable
+      ? "Running without a database"
+      : health.database.servicesActive === false
+        ? "Background jobs and ingestion are paused"
+        : reachable
+          ? [
+              dbInfo.sizeBytes !== null ? formatSize(dbInfo.sizeBytes) : null,
+              postgres && `PostgreSQL ${postgres}`,
+              dbInfo.timescaledbVersion && `TimescaleDB ${dbInfo.timescaledbVersion}`,
+            ]
+              .filter(Boolean)
+              .join(" · ")
+          : null
   const compression = compressionSummary(dbInfo?.hypertables)
   const panel = (
     <BoardPanel sentence={state.detail}>
@@ -394,12 +412,10 @@ function geoipRow({ health, jobs }: StatusData, now: number): BoardRowSpec {
     <BoardPanel sentence={state.detail}>
       <Cells action={<PanelLink to="/settings/scheduler">Open Scheduler</PanelLink>}>
         <Cell label="City database">
-          {geoip?.dbBuildDate ? `built ${relativeTime(geoip.dbBuildDate, now)}` : "Not loaded"}
+          {geoipDatabase(geoip?.available, geoip?.dbBuildDate, now)}
         </Cell>
         <Cell label="ASN database">
-          {geoip?.asnAvailable && geoip.asnDbBuildDate
-            ? `built ${relativeTime(geoip.asnDbBuildDate, now)}`
-            : "Not loaded"}
+          {geoipDatabase(geoip && (geoip.asnAvailable ?? false), geoip?.asnDbBuildDate, now)}
         </Cell>
         <Cell label="Next refresh">
           {refresh ? <Ticking render={(nowMs) => untilLabel(refresh, nowMs)} /> : "-"}
@@ -442,9 +458,11 @@ function crowdsecRow({ crowdsec, crowdsecError, crowdsecStats }: StatusData): Bo
         </Cells>
       ) : (
         <p className="text-muted-foreground">
-          {crowdsecError
-            ? "The CrowdSec status could not be read."
-            : "The CrowdSec integration is off."}
+          {crowdsec
+            ? "The CrowdSec integration is off."
+            : crowdsecError
+              ? "The CrowdSec status could not be read."
+              : "-"}
         </p>
       )}
     </BoardPanel>
@@ -759,7 +777,8 @@ function recentErrorsRow({ recentErrors, logsError }: StatusData): BoardRowSpec 
   }
 }
 
-const ROW = "border-t border-b-0 border-border/70 hover:bg-transparent"
+// border-t! beats TableBody's rule that clears the last row's borders.
+const ROW = "border-t! border-b-0 border-border/70 hover:bg-transparent"
 const CELL = "h-9 truncate py-0 pr-4 pl-0 tabular-nums"
 
 /** A table on the panel's six-column grid; each column spans some of the six. */
@@ -771,7 +790,8 @@ function PanelTable({
   children: React.ReactNode
 }) {
   return (
-    <Table className="table-fixed">
+    // On a narrow board the table scrolls sideways instead of squeezing its columns.
+    <Table className="min-w-[520px] table-fixed">
       <colgroup>
         {columns.map(([label, span], index) => (
           <col key={`${label}-${index}`} style={{ width: `${(span / 6) * 100}%` }} />
@@ -789,6 +809,18 @@ function PanelTable({
       <TableBody>{children}</TableBody>
     </Table>
   )
+}
+
+/** "built 21d ago", "Loaded" without a build date, "Not loaded", or "-"
+ *  while /health has not answered. */
+function geoipDatabase(
+  available: boolean | null | undefined,
+  buildDate: string | null | undefined,
+  now: number,
+): string {
+  if (available === undefined) return "-"
+  if (!available) return "Not loaded"
+  return buildDate ? `built ${relativeTime(buildDate, now)}` : "Loaded"
 }
 
 function count(value: number | undefined): string {

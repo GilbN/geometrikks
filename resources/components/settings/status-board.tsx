@@ -21,6 +21,7 @@ import { StatusLed, type LedTone } from "@/components/settings/status-led"
 import {
   boardObserve,
   boardToggle,
+  isProblemTone,
   type BoardSignal,
   type BoardVerdict,
   type CardState,
@@ -111,20 +112,34 @@ export function StatusBoard({
   const [pointerInside, setPointerInside] = useState(false)
   const [keyboardInside, setKeyboardInside] = useState(false)
   const held = pointerInside || keyboardInside
+  const cardRef = useRef<HTMLDivElement>(null)
   const [applyTick, setApplyTick] = useState(0)
   const appliedTick = useRef(0)
   useEffect(() => {
     const forced = applyTick !== appliedTick.current
     appliedTick.current = applyTick
-    if (held && !forced) return
+    if (held && !forced) {
+      // A focused node that is removed, or a dialog overlay that unmounts
+      // under the pointer, fires no leave event, so check the flags here.
+      const card = cardRef.current
+      const pointerStale = pointerInside && !card?.matches(":hover")
+      const focusStale = keyboardInside && !card?.contains(document.activeElement)
+      if (pointerStale) setPointerInside(false)
+      if (focusStale) setKeyboardInside(false)
+      return
+    }
     setBoard((state) => boardObserve(state, signalsRef.current))
-  }, [signalsKey, held, applyTick])
+  }, [signalsKey, held, applyTick, pointerInside, keyboardInside])
 
   const [checking, setChecking] = useState(false)
   const checkNow = useCallback(async () => {
     setChecking(true)
     try {
       await onCheckNow()
+      // TanStack Query hands fresh data to React on a zero-delay timer, which
+      // fires after the refetch promise resolves. Wait for it, so the forced
+      // update below sorts the new states and not the old ones.
+      await new Promise((resolve) => setTimeout(resolve, 0))
     } finally {
       setChecking(false)
       setApplyTick((tick) => tick + 1)
@@ -140,10 +155,13 @@ export function StatusBoard({
 
   return (
     <Card
+      ref={cardRef}
       data-testid="status-board"
-      className="gap-0 py-0 text-[13px]"
+      className="@container gap-0 py-0 text-[13px]"
       onPointerEnter={() => setPointerInside(true)}
       onPointerLeave={() => setPointerInside(false)}
+      // A click inside takes over from the keyboard; the pointer hold covers it.
+      onPointerDown={() => setKeyboardInside(false)}
       onFocus={(event) => {
         if (event.target.matches(":focus-visible")) setKeyboardInside(true)
       }}
@@ -153,7 +171,7 @@ export function StatusBoard({
         }
       }}
     >
-      <div className="flex items-center gap-3 px-[18px] py-4">
+      <div className="flex flex-wrap items-center gap-3 px-[18px] py-4">
         <span
           className={cn(
             "grid size-9 shrink-0 place-items-center rounded-[10px]",
@@ -161,7 +179,10 @@ export function StatusBoard({
           )}
         >
           <VerdictIcon
-            className={cn("size-[18px]", verdict.icon === "loading" && "animate-spin")}
+            className={cn(
+              "size-[18px]",
+              verdict.icon === "loading" && "animate-spin motion-reduce:animate-none",
+            )}
           />
         </span>
         <div className="min-w-0">
@@ -179,8 +200,11 @@ export function StatusBoard({
           variant="outline"
           size="sm"
           className="h-7 px-2 text-xs"
-          disabled={checking}
-          onClick={() => void checkNow()}
+          // aria-disabled, not disabled: a disabled button drops keyboard focus.
+          aria-disabled={checking}
+          onClick={() => {
+            if (!checking) void checkNow()
+          }}
         >
           <RotateCw className={cn(checking && "animate-spin motion-reduce:animate-none")} />
           Check now
@@ -192,7 +216,11 @@ export function StatusBoard({
             key={row.id}
             row={row}
             open={board.open.includes(row.id)}
-            onToggle={() => setBoard((state) => boardToggle(state, row.id))}
+            onToggle={() =>
+              setBoard((state) =>
+                boardToggle(state, row.id, isProblemTone(row.signalTone ?? row.state.tone)),
+              )
+            }
           />
         ))}
       </ul>
@@ -217,16 +245,16 @@ function BoardRow({
         <CollapsibleTrigger asChild>
           <button
             type="button"
-            className="grid min-h-12 w-full grid-cols-[20px_140px_184px_minmax(0,1fr)_auto_16px] items-center gap-x-3.5 px-[18px] text-left outline-none transition-colors hover:bg-muted/40 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset"
+            className="grid min-h-12 w-full grid-cols-[20px_minmax(0,1fr)_minmax(0,auto)_16px] items-center gap-x-3.5 px-[18px] text-left outline-none @2xl:grid-cols-[20px_140px_184px_minmax(0,1fr)_auto_16px] transition-colors hover:bg-muted/40 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset"
           >
             <Icon aria-hidden className={cn("size-4", PROBLEM_ICON[tone] ?? "text-primary")} />
-            <span className="text-sm font-medium">{row.name}</span>
+            <span className="min-w-0 truncate text-sm font-medium">{row.name}</span>
             <span className="flex min-w-0 items-center gap-2">
               <StatusLed tone={tone} />
               <span className="truncate">{row.state.label}</span>
             </span>
-            <span className="truncate text-muted-foreground">{row.fact}</span>
-            <span className="text-xs whitespace-nowrap text-muted-foreground tabular-nums">
+            <span className="hidden truncate text-muted-foreground @2xl:block">{row.fact}</span>
+            <span className="hidden text-xs whitespace-nowrap text-muted-foreground tabular-nums @2xl:block">
               {row.end}
             </span>
             <ChevronRight
@@ -238,7 +266,7 @@ function BoardRow({
             />
           </button>
         </CollapsibleTrigger>
-        <CollapsibleContent className="pt-0.5 pr-[18px] pb-[18px] pl-[52px]">
+        <CollapsibleContent className="pt-0.5 pr-[18px] pb-[18px] pl-[18px] @2xl:pl-[52px]">
           {row.panel}
         </CollapsibleContent>
       </Collapsible>
@@ -281,14 +309,16 @@ export function Cells({
   action?: React.ReactNode
 }) {
   const count = Children.toArray(children).filter(Boolean).length
+  // The action fills the rest of the last line of six; on a narrow board,
+  // where the cells wrap, it takes a line of its own.
   const rest = 6 - (count % 6)
   return (
-    <div className="grid grid-cols-6 gap-y-3">
+    <div className="grid grid-cols-2 gap-y-3 @md:grid-cols-3 @2xl:grid-cols-6">
       {children}
       {action && (
         <div
-          className="flex items-end justify-end"
-          style={{ gridColumn: `span ${rest === 0 ? 6 : rest} / span ${rest === 0 ? 6 : rest}` }}
+          className="col-span-full flex items-end justify-end @2xl:[grid-column:span_var(--rest)/span_var(--rest)]"
+          style={{ "--rest": rest } as React.CSSProperties}
         >
           {action}
         </div>

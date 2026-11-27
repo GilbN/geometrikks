@@ -1060,6 +1060,7 @@ describe("the status board", () => {
     it("starts in the given order with nothing open", () => {
       expect(boardObserve(EMPTY_BOARD, healthy)).toEqual({
         order: ["ingestion", "database", "crowdsec", "errors"],
+        orderedFor: [],
         open: [],
         seen: [],
         autoOpened: [],
@@ -1129,6 +1130,38 @@ describe("the status board", () => {
       const first = boardToggle(boardObserve(EMPTY_BOARD, [signal("crowdsec", "red")]), "crowdsec")
       const cleared = boardObserve(first, [signal("crowdsec")])
       expect(boardObserve(cleared, [signal("crowdsec", "red")]).open).toEqual(["crowdsec"])
+    })
+
+    it("keeps a closed row closed when its state could not be read for a poll", () => {
+      const failing = [signal("ingestion", "amber"), signal("crowdsec")]
+      const closed = boardToggle(boardObserve(EMPTY_BOARD, failing), "ingestion", true)
+      const unread = boardObserve(closed, [signal("ingestion", "muted"), signal("crowdsec")])
+      expect(boardObserve(unread, failing).open).toEqual([])
+    })
+
+    it("keeps a row the board opened open while its state could not be read", () => {
+      const failing = [signal("ingestion", "amber")]
+      const opened = boardObserve(EMPTY_BOARD, failing)
+      const unread = boardObserve(opened, [signal("ingestion", "muted")])
+      expect(unread.open).toEqual(["ingestion"])
+      expect(boardObserve(unread, [signal("ingestion")]).open).toEqual([])
+    })
+
+    it("does not reopen a problem row the user opened and closed before the board saw it", () => {
+      // The board was held while CrowdSec failed, so it has not observed it yet.
+      const held = boardObserve(EMPTY_BOARD, [signal("crowdsec")])
+      const toggled = boardToggle(boardToggle(held, "crowdsec", true), "crowdsec", true)
+      const applied = boardObserve(toggled, [signal("crowdsec", "red")])
+      expect(applied.open).toEqual([])
+      expect(applied.order).toEqual(["crowdsec"])
+    })
+
+    it("still moves a problem row the user toggled to the top when the hold ends", () => {
+      const held = boardObserve(EMPTY_BOARD, [signal("ingestion"), signal("crowdsec")])
+      const toggled = boardToggle(held, "crowdsec", true)
+      const applied = boardObserve(toggled, [signal("ingestion"), signal("crowdsec", "red")])
+      expect(applied.order).toEqual(["crowdsec", "ingestion"])
+      expect(applied.open).toEqual(["crowdsec"])
     })
 
     it("moves a row that does not open by itself up, and leaves it closed", () => {

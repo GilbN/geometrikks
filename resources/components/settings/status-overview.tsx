@@ -38,7 +38,6 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { MonoChip, StateLine, StatusLed } from "@/components/settings/status-led"
 import { StatusPhone, type StatusTile } from "@/components/settings/status-phone"
 import { DesktopStatus } from "@/components/settings/status-board-rows"
-import { RemoveLocationAlert } from "@/components/settings/status-remove-location"
 import { useIsMobile } from "@/hooks/use-mobile"
 import {
   agentAdvisoryCards,
@@ -105,7 +104,6 @@ function ServerLocationLine({ row }: { row: ServerLocationRow }) {
   // On a phone this line sits in a vaul drawer, whose bundled Radix copy
   // keeps focus out of a nested AlertDialog, so the confirmation is inline.
   const isMobile = useIsMobile()
-  const removeLocation = () => remove.mutate(row.server, { onSettled: () => setConfirming(false) })
   // The inline confirmation stays open on a failed removal, so it can say so,
   // and puts focus on Keep, since disabling Remove while it ran dropped it.
   // A 404 means the location is already gone, which is what was asked for.
@@ -177,13 +175,6 @@ function ServerLocationLine({ row }: { row: ServerLocationRow }) {
           >
             <Trash2 />
           </Button>
-          <RemoveLocationAlert
-            server={row.server}
-            open={!isMobile && confirming}
-            onOpenChange={setConfirming}
-            pending={remove.isPending}
-            onRemove={removeLocation}
-          />
         </>
       )}
       {/* Outside the auto/override branch: a 409 refetch turns the row into an
@@ -274,7 +265,7 @@ export function StatusOverview() {
     instancesError ? 0 : agentsNeedingAttention(instances).length,
   )
 
-  // Card bodies, shared by the desktop cards and the phone tiles' drawers.
+  // Card bodies for the phone tiles' drawers.
   const authBody = (
     <>
       <StateLine state={authState(me, meError)} />

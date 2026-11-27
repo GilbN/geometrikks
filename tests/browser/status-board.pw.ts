@@ -11,7 +11,7 @@ type CrowdsecStatus = {
 
 /** Logs in and answers the CrowdSec status with `crowdsec`, which a test can
  *  change between polls. */
-async function open(page: Page, crowdsec: { status: CrowdsecStatus }) {
+async function open(page: Page, crowdsec: { status: CrowdsecStatus; delayMs?: number }) {
   const password = process.env.SMOKE_ADMIN_PASSWORD ?? process.env.APP_ADMIN_PASSWORD
   if (!password) throw new Error("Administrator credentials are required")
   const username = process.env.SMOKE_ADMIN_USER ?? process.env.APP_ADMIN_USER ?? "admin"
@@ -33,13 +33,23 @@ async function open(page: Page, crowdsec: { status: CrowdsecStatus }) {
     }
     return route.fulfill({ json: health })
   })
-  await page.route("**/api/v1/crowdsec/status", (route) => route.fulfill({ json: crowdsec.status }))
+  await page.route("**/api/v1/crowdsec/status", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, crowdsec.delayMs ?? 0))
+    return route.fulfill({ json: crowdsec.status })
+  })
   await page.route("**/api/v1/instances", (route) =>
     route.fulfill({
       json: { checkedAt: new Date().toISOString(), head: null, instances: [] },
     }),
   )
   await page.route("**/api/v1/logs/tail**", (route) => route.fulfill({ json: { records: [] } }))
+  await page.route("**/api/v1/system/scheduler/jobs", async (route) => {
+    const body = await (await route.fetch()).json()
+    for (const job of body.jobs) {
+      if (job.lastStatus === "error" || job.lastStatus === "missed") job.lastStatus = "success"
+    }
+    return route.fulfill({ json: body })
+  })
   await page.goto("/settings/status")
   await expect(page.getByTestId("status-board")).toBeVisible()
 }
@@ -102,8 +112,13 @@ test("a closed problem row stays closed when the page checks again", async ({ pa
   await expect(crowdsec).toHaveAttribute("aria-expanded", "true")
   await crowdsec.click()
   await expect(crowdsec).toHaveAttribute("aria-expanded", "false")
+  const reread = page.waitForResponse("**/api/v1/crowdsec/status")
   await page.getByRole("button", { name: "Check now" }).click()
-  await expect(page.getByRole("button", { name: "Check now" })).toBeEnabled()
+  await reread
+  await expect(page.getByRole("button", { name: "Check now" })).not.toHaveAttribute(
+    "aria-disabled",
+    "true",
+  )
   await expect(crowdsec).toHaveAttribute("aria-expanded", "false")
   await expect(page.locator("[data-row]").first()).toHaveAttribute("data-row", "crowdsec")
 })
@@ -111,11 +126,14 @@ test("a closed problem row stays closed when the page checks again", async ({ pa
 test("Check now reads the state again and the recovered row goes back in place", async ({
   page,
 }) => {
-  const crowdsec = { status: unreachable }
+  // The pointer stays on Check now, so only the forced update can move the row.
+  const crowdsec: { status: CrowdsecStatus; delayMs?: number } = { status: unreachable }
   await open(page, crowdsec)
   await expect(page.locator("[data-row]").first()).toHaveAttribute("data-row", "crowdsec")
 
   crowdsec.status = reachable
+  // The slowest answer is the one that changed, as with a LAPI that takes its time.
+  crowdsec.delayMs = 1500
   const reread = page.waitForResponse("**/api/v1/crowdsec/status")
   await page.getByRole("button", { name: "Check now" }).click()
   await reread
