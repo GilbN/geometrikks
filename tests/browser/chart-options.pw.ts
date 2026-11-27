@@ -244,6 +244,16 @@ test.describe("requests chart", () => {
     await expect(card.locator('rect[fill="var(--card)"]')).toHaveCount(0)
     await expect(spoken).toHaveText("")
 
+    // A click does not take keyboard focus; End stays with the page.
+    await chart.blur()
+    await hoverBar(page, card, 30, BUCKETS)
+    await page.mouse.down()
+    await page.mouse.up()
+    await page.mouse.move(0, 0)
+    await page.keyboard.press("End")
+    await expect(card.locator('rect[fill="var(--card)"]')).toHaveCount(0)
+    await chart.focus()
+
     // Home goes to the first bucket even as the first key press.
     await page.keyboard.press("Home")
     await expect(card.locator("header b").first()).toHaveText(

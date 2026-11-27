@@ -330,7 +330,13 @@ export function TimeChart({
       className="touch-pan-y touch-pinch-zoom rounded-md outline-none select-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
       onKeyDown={step}
       // A click would focus the chart and take Home, End and the arrows from the page.
-      onMouseDown={(event) => event.preventDefault()}
+      // Whatever had focus still loses it, as on any click outside a control.
+      onMouseDown={(event) => {
+        if (event.button !== 0) return
+        event.preventDefault()
+        const focused = document.activeElement
+        if (focused instanceof HTMLElement && focused !== event.currentTarget) focused.blur()
+      }}
       onBlur={() => {
         cursor.set(null)
         speak("")

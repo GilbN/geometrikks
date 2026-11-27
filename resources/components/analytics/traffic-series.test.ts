@@ -177,6 +177,14 @@ describe("hourlyTicks", () => {
     ])
   })
 
+  it("dates the first hour of a day whose midnight daylight saving skips", () => {
+    process.env.TZ = "America/Santiago"
+    // Clocks jump from 00:00 to 01:00 on 2026-09-06 in Santiago.
+    const week = hours("2026-09-03T04:00:00Z", 169)
+    const ticks = hourlyTicks(week, "hourly", 1060)!
+    expect(ticks.ticks.map(ticks.format)).toContain("Sep 6")
+  })
+
   it("shows minutes on buckets that start at half past in the browser's timezone", () => {
     process.env.TZ = "Asia/Kolkata"
     const ticks = hourlyTicks(hours("2026-11-23T00:00:00Z", 12), "hourly", 1060)!

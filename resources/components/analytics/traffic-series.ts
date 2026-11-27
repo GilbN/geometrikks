@@ -123,7 +123,11 @@ export function hourlyTicks(
     minute: "2-digit",
   })
   const dates = timestamps.map((timestamp) => new Date(timestamp))
-  const midnight = (date: Date) => date.getHours() === 0
+  // The first bucket of each local date. Usually midnight, but daylight saving can skip
+  // midnight, and in a half-hour timezone the day starts at the 00:30 bucket.
+  const dayStart = (index: number) =>
+    index === 0 ? dates[0].getHours() === 0 : dates[index].getDate() !== dates[index - 1].getDate()
+  const dayStarts = new Set(timestamps.filter((_, index) => dayStart(index)))
   // When daylight saving ends, the repeated hour gets one label.
   const repeat = (index: number) =>
     index > 0 &&
@@ -137,13 +141,13 @@ export function hourlyTicks(
 
   // Two days of hours span 49 buckets, or 50 across the end of daylight saving.
   if (timestamps.length > 50) {
-    const days = dates.filter(midnight).length
+    const days = dayStarts.size
     const every =
       [1, 2, 3, 7, 14, 30].find((step) => fits(Math.ceil(days / step), DAY_LABEL_PX)) ??
       Math.ceil((days * DAY_LABEL_PX) / Math.max(plotWidth, DAY_LABEL_PX))
     let day = 0
     const ticks = timestamps.filter(
-      (_, index) => midnight(dates[index]) && !repeat(index) && day++ % every === 0 && clear(index),
+      (_, index) => dayStart(index) && day++ % every === 0 && clear(index),
     )
     return { ticks, format: (timestamp) => DAY_LABEL.format(new Date(timestamp)) }
   }
@@ -152,7 +156,8 @@ export function hourlyTicks(
   const step =
     steps.find((hours) => fits(Math.ceil(timestamps.length / hours), HOUR_LABEL_PX)) ?? 12
   const marked = timestamps.filter(
-    (_, index) => dates[index].getHours() % step === 0 && !repeat(index) && clear(index),
+    (_, index) =>
+      (dayStart(index) || (dates[index].getHours() % step === 0 && !repeat(index))) && clear(index),
   )
   // A range of a few minutes can sit inside one odd hour, which no step marks.
   const ticks = marked.length > 0 ? marked : timestamps.slice(0, 1)
@@ -160,7 +165,7 @@ export function hourlyTicks(
     ticks,
     format: (timestamp) => {
       const date = new Date(timestamp)
-      if (midnight(date)) return DAY_LABEL.format(date)
+      if (dayStarts.has(timestamp)) return DAY_LABEL.format(date)
       // Buckets in a half-hour timezone start at :30 local time.
       return (date.getMinutes() === 0 ? HOUR_LABEL : HOUR_MINUTE_LABEL).format(date)
     },
