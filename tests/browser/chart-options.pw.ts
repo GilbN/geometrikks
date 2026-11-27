@@ -5,7 +5,8 @@ import type {
 } from "../../resources/generated/api/types.gen"
 
 const HOUR = 3_600_000
-const START = Date.parse("2026-08-14T00:00:00Z")
+// A few days back, so the hours are inside the server's hourly retention and before now.
+const START = Math.floor(Date.now() / 3_600_000) * 3_600_000 - 100 * 3_600_000
 const BUCKETS = 72 // above 48, so the bars drop their card-colored spacers
 const EMPTY = new Set([10, 11]) // no requests at all
 
@@ -43,18 +44,28 @@ function timeSeriesPoint(index: number, total = requestsAt(index)): TimeSeriesDa
   }
 }
 
+/** Answers like the endpoint: the points in the requested window, with its dates echoed. */
 async function mockTimeSeries(page: Page, points: TimeSeriesDataPoint[]) {
   await page.route(
     (url) => url.pathname.replace(/\/$/, "") === "/api/v1/analytics/time-series",
-    (route) =>
-      route.fulfill({
+    (route) => {
+      const query = new URL(route.request().url()).searchParams
+      const startDate = query.get("startDate") ?? points[0].timestamp
+      const endDate = query.get("endDate") ?? points.at(-1)!.timestamp
+      const from = Date.parse(startDate)
+      const to = Date.parse(endDate)
+      return route.fulfill({
         json: {
-          data: points,
+          data: points.filter((point) => {
+            const ms = Date.parse(point.timestamp)
+            return ms >= Math.floor(from / HOUR) * HOUR && ms < to
+          }),
           granularity: "hourly",
-          startDate: points[0].timestamp,
-          endDate: points.at(-1)!.timestamp,
+          startDate,
+          endDate,
         },
-      }),
+      })
+    },
   )
 }
 
@@ -405,6 +416,19 @@ test.describe("shared cursor and zoom", () => {
       `Bytes sent${(points[30].totalBytesSent / 1024 ** 2).toFixed(1)} MB`,
     )
     await expectReadout(panel(page, "Request latency"), "p991.10s")
+    const stamp = await page.evaluate(
+      (timestamp) =>
+        new Intl.DateTimeFormat(undefined, {
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        }).format(new Date(timestamp)),
+      points[30].timestamp,
+    )
+    for (const title of ["Requests", "Bandwidth", "Request latency"]) {
+      await expectReadout(panel(page, title), stamp)
+    }
     await expect(panel(page, "Bandwidth").locator(".recharts-surface circle")).toHaveCount(1)
   })
 
@@ -419,19 +443,72 @@ test.describe("shared cursor and zoom", () => {
     await expect(card.getByText(/ to .* · 10 hours$/)).toBeVisible()
     const dragged = points.slice(20, 30).reduce((total, point) => total + point.totalRequests, 0)
     await expectReadout(card, `${dragged.toLocaleString("en-US")} requests`)
-    await page.mouse.up()
-
-    await expect
-      .poll(async () => (await storedRange(page)).customRange)
-      .toEqual({
-        from: new Date(START + 20 * HOUR).toISOString(),
-        to: new Date(START + 30 * HOUR).toISOString(),
+    const from = new Date(START + 20 * HOUR).toISOString()
+    const to = new Date(START + 30 * HOUR).toISOString()
+    const zoomed = (path: string) =>
+      page.waitForRequest((request) => {
+        const url = new URL(request.url())
+        return (
+          url.pathname.includes(path) &&
+          url.searchParams.get("startDate") === from &&
+          url.searchParams.get("endDate") === to
+        )
       })
+    const series = zoomed("/analytics/time-series")
+    const topIps = zoomed("/analytics/top-ips")
+    await page.mouse.up()
+    await Promise.all([series, topIps])
+
+    expect((await storedRange(page)).customRange).toEqual({ from, to })
+    // The zoomed charts draw the ten hours.
+    await expect(
+      card.locator(".recharts-bar").first().locator(".recharts-bar-rectangle path"),
+    ).toHaveCount(10)
     const zoomOut = page.getByRole("button", { name: /^Zoom out to / })
     await expect(zoomOut).toBeVisible()
     await zoomOut.click()
     await expect.poll(async () => (await storedRange(page)).customRange).toEqual(before.customRange)
     await expect(zoomOut).toHaveCount(0)
+  })
+
+  test("zooms stack and Zoom out steps back to a preset range", async ({ page }) => {
+    // A week of hours ending an hour ago, for Last 7 days.
+    const week = Array.from({ length: 170 }, (_, i) => timeSeriesPoint(i - 70))
+    await page.addInitScript(() =>
+      localStorage.setItem(
+        "geometrikks-time-range",
+        JSON.stringify({ range: "7d", pollInterval: 0, granularity: "auto" }),
+      ),
+    )
+    await mockTimeSeries(page, week)
+    await page.goto("/analytics")
+    const card = panel(page, "Requests")
+    await expect(card.locator(".recharts-bar")).toHaveCount(4)
+    const across = async (from: number, to: number) => {
+      await card.scrollIntoViewIfNeeded()
+      const grid = (await card.locator(".recharts-cartesian-grid").boundingBox())!
+      const y = grid.y + grid.height / 2
+      await page.mouse.move(grid.x + grid.width * from, y)
+      await page.mouse.down()
+      await page.mouse.move(grid.x + grid.width * to, y, { steps: 5 })
+      await page.mouse.up()
+    }
+
+    await across(0.3, 0.6)
+    const zoomOut = page.getByRole("button", { name: "Zoom out to Last 7 days" })
+    await expect(zoomOut).toBeVisible()
+    const first = (await storedRange(page)).customRange
+    await expect(card.locator(".recharts-bar")).toHaveCount(4)
+    await across(0.2, 0.8)
+    await expect(page.getByRole("button", { name: /^Zoom out to (?!Last)/ })).toBeVisible()
+    expect((await storedRange(page)).customRange).not.toEqual(first)
+
+    await page.getByRole("button", { name: /^Zoom out to / }).click()
+    await expect.poll(async () => (await storedRange(page)).customRange).toEqual(first)
+    await zoomOut.click()
+    await expect.poll(async () => (await storedRange(page)).range).toBe("7d")
+    await expect(page.getByRole("button", { name: /^Zoom out/ })).toHaveCount(0)
+    await expect(page.getByRole("button", { name: /^Time range/ })).toBeFocused()
   })
 
   test("a drag under three hours or cancelled with Escape does nothing", async ({ page }) => {
@@ -445,10 +522,13 @@ test.describe("shared cursor and zoom", () => {
     await expect(card.getByText(/· 2 hours$/)).toBeVisible()
     await page.mouse.up()
     await dragBars(page, card, 20, 40)
+    await expect(card.getByText(/· 21 hours$/)).toBeVisible()
     await page.keyboard.press("Escape")
     await expect(card.getByText(/· 21 hours$/)).toHaveCount(0)
     await page.mouse.up()
 
+    // Give a zoom that should not happen time to write the range.
+    await page.waitForTimeout(300)
     expect(await storedRange(page)).toEqual(before)
     await expect(page.getByRole("button", { name: /^Zoom out/ })).toHaveCount(0)
   })

@@ -26,15 +26,17 @@ export function keptHourDays(
     : (settings?.hourlyRetentionDays ?? DEFAULT_HOURLY_RETENTION_DAYS)
 }
 
-/** The time-series rows with the hours the endpoint leaves out put back as empty buckets. */
-export function useTrafficBuckets(data: TimeSeriesResponse | undefined): TimeSeriesDataPoint[] {
+/** Where the kept hours begin, on the hour. */
+export function useKeptSinceMs(): number {
   const settings = useRuntimeSettings().data?.analytics
   const { filters, muted } = useAnalyticsFilters()
   const retentionDays = keptHourDays(hasActiveAnalyticsFilters(filters), muted.flag, settings)
   // The clamp to now moves on with the hour at the next render.
-  const hour = Math.floor(Date.now() / HOUR_MS)
-  return useMemo(
-    () => (data ? fillHourlyGaps(data, hour * HOUR_MS - retentionDays * DAY_MS) : []),
-    [data, retentionDays, hour],
-  )
+  return Math.floor(Date.now() / HOUR_MS) * HOUR_MS - retentionDays * DAY_MS
+}
+
+/** The time-series rows with the hours the endpoint leaves out put back as empty buckets. */
+export function useTrafficBuckets(data: TimeSeriesResponse | undefined): TimeSeriesDataPoint[] {
+  const keptSinceMs = useKeptSinceMs()
+  return useMemo(() => (data ? fillHourlyGaps(data, keptSinceMs) : []), [data, keptSinceMs])
 }

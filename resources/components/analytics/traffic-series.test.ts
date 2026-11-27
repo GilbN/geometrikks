@@ -1,6 +1,14 @@
 import { afterEach, describe, expect, it } from "vite-plus/test"
 import type { TimeSeriesDataPoint } from "@/generated/api/types.gen"
-import { byteTicks, fillHourlyGaps, hourlyTicks, hoursSince, trafficTotals } from "./traffic-series"
+import {
+  bucketEndMs,
+  byteTicks,
+  dragSelection,
+  fillHourlyGaps,
+  hourlyTicks,
+  hoursSince,
+  trafficTotals,
+} from "./traffic-series"
 
 const HOUR = 3_600_000
 const START = Date.parse("2026-11-19T22:00:00Z")
@@ -225,5 +233,42 @@ describe("hoursSince", () => {
     expect(hoursSince(rows, "2026-08-01T00:00:00Z", "hourly")).toMatch(/^since Sep 2[78]$/)
     expect(hoursSince(rows, "2026-09-28T04:30:00Z", "hourly")).toBeNull()
     expect(hoursSince(rows, "2026-08-01T00:00:00Z", "daily")).toBeNull()
+  })
+})
+
+describe("bucketEndMs and dragSelection", () => {
+  const tz = process.env.TZ
+  afterEach(() => {
+    process.env.TZ = tz
+  })
+  const day = (iso: string) => Date.parse(iso)
+
+  it("ends a daily bucket at the next day, not at the next row after a quiet gap", () => {
+    process.env.TZ = "UTC"
+    const times = [
+      day("2026-11-01T00:00:00Z"),
+      day("2026-11-02T00:00:00Z"),
+      day("2026-11-10T00:00:00Z"),
+    ]
+    expect(bucketEndMs(times, 0, "daily")).toBe(day("2026-11-02T00:00:00Z"))
+    expect(bucketEndMs(times, 1, "daily")).toBe(day("2026-11-03T00:00:00Z"))
+  })
+
+  it("ends a local day at the next local midnight across daylight saving", () => {
+    process.env.TZ = "Europe/Oslo"
+    // 2026-10-25 has 25 hours in Oslo; local midnight is 22:00Z the day before.
+    const times = [day("2026-10-24T22:00:00Z")]
+    expect(bucketEndMs(times, 0, "daily")).toBe(day("2026-10-25T23:00:00Z"))
+  })
+
+  it("keeps a selection inside the page's range", () => {
+    const times = [0, 1, 2, 3].map((hour) => START + hour * HOUR)
+    const range = { startMs: START + 15 * 60_000, endMs: START + 3 * HOUR + 30 * 60_000 }
+    expect(dragSelection(times, times[0], times[3], "hourly", range)).toEqual({
+      startMs: range.startMs,
+      endMs: range.endMs,
+      buckets: 4,
+    })
+    expect(dragSelection(times, times[1], times[0], "hourly", range)).toBeNull()
   })
 })

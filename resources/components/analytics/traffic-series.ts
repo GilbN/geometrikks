@@ -214,3 +214,53 @@ export function byteTicks(top: number): { ticks: number[]; domain: [number, numb
   const ticks = Array.from({ length: count + 1 }, (_, index) => index * step)
   return { ticks, domain: [0, ticks[ticks.length - 1]] }
 }
+
+export type DragSelection = {
+  /** Start of the first selected bucket, or of the page's range when that starts later. */
+  startMs: number
+  /** Exclusive end of the last selected bucket, or of the page's range when that ends sooner. */
+  endMs: number
+  /** Buckets the drag covers. */
+  buckets: number
+}
+
+/**
+ * Where a bucket ends. Hourly buckets last an hour. A daily bucket ends at the
+ * next row when that is the next day (23 to 25 hours on, for daylight saving);
+ * otherwise, with a quiet day after it, at the next local midnight for local
+ * days, or a day on for UTC days.
+ */
+export function bucketEndMs(
+  times: readonly number[],
+  index: number,
+  granularity: string | undefined,
+): number {
+  const start = times[index]
+  if (granularity === "hourly") return start + HOUR_MS
+  const next = times[index + 1]
+  if (next != null && next - start >= 23 * HOUR_MS && next - start <= 25 * HOUR_MS) return next
+  const date = new Date(start)
+  if (date.getHours() === 0 && date.getMinutes() === 0) {
+    date.setDate(date.getDate() + 1)
+    return date.getTime()
+  }
+  return start + 24 * HOUR_MS
+}
+
+/** The time a drag from bucket `fromMs` to bucket `toMs` selects, inside the page's range. */
+export function dragSelection(
+  times: readonly number[],
+  fromMs: number,
+  toMs: number,
+  granularity: string | undefined,
+  range: { startMs: number; endMs: number },
+): DragSelection | null {
+  const first = times.indexOf(fromMs)
+  const last = times.indexOf(toMs)
+  if (first < 0 || last < first) return null
+  return {
+    startMs: Math.max(fromMs, range.startMs),
+    endMs: Math.min(bucketEndMs(times, last, granularity), range.endMs),
+    buckets: last - first + 1,
+  }
+}

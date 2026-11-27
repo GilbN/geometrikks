@@ -13,9 +13,6 @@ import { z } from "zod"
 import { PageHeader } from "@/components/page-header"
 import { SectionHeader } from "@/components/section-header"
 import { JumpBar, JumpTarget, type JumpSection } from "@/components/jump-bar"
-import { RequestsChart } from "@/components/analytics/requests-chart"
-import { BytesChart } from "@/components/analytics/bytes-chart"
-import { LatencyChart } from "@/components/analytics/latency-chart"
 import { TopUrlsTable } from "@/components/analytics/top-urls-table"
 import { TopUserAgentsTable } from "@/components/analytics/top-user-agents-table"
 import { TopAsnsTable } from "@/components/analytics/top-asns-table"
@@ -24,10 +21,7 @@ import { TopIpsTable } from "@/components/analytics/top-ips-table"
 import { TopCountriesCities } from "@/components/analytics/top-countries-cities"
 import { AnalyticsMutedNote } from "@/components/analytics/analytics-muted-note"
 import { AnalyticsFilterBar } from "@/components/analytics/analytics-filter-bar"
-import { ChartCursorProvider } from "@/components/analytics/chart-cursor"
-import { ZoomOutButton } from "@/components/analytics/zoom-out-button"
-import { useChartZoomStack } from "@/lib/chart-zoom"
-import { useIsMobile } from "@/hooks/use-mobile"
+import { TrafficSection } from "@/components/analytics/traffic-section"
 import {
   AnalyticsFiltersProvider,
   type AnalyticsFilterState,
@@ -105,9 +99,6 @@ function AnalyticsPage() {
   const { filters, setFilters } = useUrlFilters({ search, navigate, decode, encode })
 
   const { muted, toggleMuted } = useMutedPage(filters.ips.length > 0)
-  const { zoomTo, zoomOut, back } = useChartZoomStack()
-  // Phones read the hours with a sideways drag, so they have no drag to zoom.
-  const phone = useIsMobile()
 
   return (
     <AnalyticsFiltersProvider
@@ -121,22 +112,7 @@ function AnalyticsPage() {
         <JumpBar sections={SECTIONS} />
         <AnalyticsFilterBar />
         <AnalyticsMutedNote scope={muted} />
-        <SectionHeader actions={back && <ZoomOutButton back={back} onClick={zoomOut} />}>
-          Traffic
-        </SectionHeader>
-        <ChartCursorProvider zoom={phone ? undefined : zoomTo}>
-          <div className="grid gap-4 lg:grid-cols-2">
-            <JumpTarget id="requests">
-              <RequestsChart className="lg:col-span-2" />
-            </JumpTarget>
-            <JumpTarget id="bandwidth">
-              <BytesChart />
-            </JumpTarget>
-            <JumpTarget id="latency">
-              <LatencyChart />
-            </JumpTarget>
-          </div>
-        </ChartCursorProvider>
+        <TrafficSection />
         <SectionHeader>Top Lists</SectionHeader>
         <div className="grid gap-4 lg:grid-cols-2">
           <JumpTarget id="top-ips">

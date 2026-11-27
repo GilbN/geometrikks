@@ -301,6 +301,7 @@ export function RequestsChart({ className }: { className?: string }) {
           config={config}
           rows={rows}
           granularity={data.granularity}
+          range={{ startMs: Date.parse(data.startDate), endMs: Date.parse(data.endDate) }}
           cursor={cursor}
           marks={marks}
           yAxis={{ width: 48, ...yAxis }}

@@ -141,6 +141,7 @@ export function LatencyChart() {
           config={config}
           rows={series.rows}
           granularity={data.granularity}
+          range={{ startMs: Date.parse(data.startDate), endMs: Date.parse(data.endDate) }}
           cursor={cursor}
           marks={{
             kind: "line",

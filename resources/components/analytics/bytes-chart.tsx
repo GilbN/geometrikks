@@ -137,6 +137,7 @@ export function BytesChart() {
           config={bytesChartConfig}
           rows={series.rows}
           granularity={data.granularity}
+          range={{ startMs: Date.parse(data.startDate), endMs: Date.parse(data.endDate) }}
           cursor={cursor}
           marks={
             bars

@@ -4,7 +4,8 @@
  * charts. Times are bucket starts in ms, so charts with the same buckets
  * agree. The Analytics page shares one cursor across its charts.
  */
-import { createContext, useContext, useState, useSyncExternalStore } from "react"
+import { createContext, useContext, useMemo, useState, useSyncExternalStore } from "react"
+import { usePollingHold } from "@/lib/time-range-context"
 
 /** Buckets from `from` to `to`, both starts, picked by a drag on chart `source`. */
 export type CursorDrag = { source: string; from: number; to: number }
@@ -22,8 +23,11 @@ export type ChartCursor = {
 export function createChartCursor(): ChartCursor {
   let state: CursorState = { bucket: null, drag: null }
   const listeners = new Set<() => void>()
+  const sameDrag = (a: CursorDrag | null, b: CursorDrag | null) =>
+    a === b ||
+    (a != null && b != null && a.source === b.source && a.from === b.from && a.to === b.to)
   const update = (next: CursorState) => {
-    if (next.bucket === state.bucket && next.drag === state.drag) return
+    if (next.bucket === state.bucket && sameDrag(next.drag, state.drag)) return
     state = next
     for (const listener of listeners) listener()
   }
@@ -40,10 +44,19 @@ export function createChartCursor(): ChartCursor {
   }
 }
 
-/** Zooms the page to the buckets from `fromMs` up to, not including, `toMs`. */
-export type ChartZoom = (fromMs: number, toMs: number) => void
+/** Drag to zoom: `fits` says whether a selection can be zoomed to, `to` zooms. */
+export type ChartZoom = {
+  fits: (startMs: number, endMs: number) => boolean
+  to: (startMs: number, endMs: number) => void
+}
 
 const SharedCursor = createContext<{ cursor: ChartCursor; zoom?: ChartZoom } | null>(null)
+
+/** Auto refresh would move the buckets under a running drag. */
+function HoldPollingWhileDragging({ cursor }: { cursor: ChartCursor }) {
+  usePollingHold(useCursorDrag(cursor) != null)
+  return null
+}
 
 /** One cursor for every traffic chart inside, and drag to zoom when `zoom` is given. */
 export function ChartCursorProvider({
@@ -54,14 +67,20 @@ export function ChartCursorProvider({
   children: React.ReactNode
 }) {
   const [cursor] = useState(createChartCursor)
-  return <SharedCursor.Provider value={{ cursor, zoom }}>{children}</SharedCursor.Provider>
+  const value = useMemo(() => ({ cursor, zoom }), [cursor, zoom])
+  return (
+    <SharedCursor.Provider value={value}>
+      <HoldPollingWhileDragging cursor={cursor} />
+      {children}
+    </SharedCursor.Provider>
+  )
 }
 
 /** The page's shared cursor, or one of the chart's own outside a provider. */
 export function useChartCursor(): ChartCursor {
   const shared = useContext(SharedCursor)
-  const [own] = useState(createChartCursor)
-  return shared?.cursor ?? own
+  const [own] = useState(() => (shared ? null : createChartCursor()))
+  return shared?.cursor ?? own ?? createChartCursor()
 }
 
 export function useChartZoom(): ChartZoom | undefined {

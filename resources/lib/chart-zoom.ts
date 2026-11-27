@@ -5,8 +5,9 @@
  * only counts while the page still shows the range the last zoom set: any
  * other range change forgets it.
  */
-import { useCallback, useSyncExternalStore } from "react"
-import type { CustomTimeRange, TimeRangeValue } from "@/lib/api"
+import { useCallback, useEffect, useSyncExternalStore } from "react"
+import type { ChartGranularity, CustomTimeRange, TimeRangeValue } from "@/lib/api"
+import { autoChartGranularity } from "@/lib/sparklines"
 import { useTimeRange } from "@/lib/time-range-context"
 
 export type ZoomStep = {
@@ -58,6 +59,21 @@ export function liveSteps(
   return top && range === "custom" && sameRange(top.to, customRange) ? stack : []
 }
 
+/**
+ * Whether the charts can show a zoom to `startMs`..`endMs`. A short zoom draws
+ * hourly buckets under Auto, and hours older than `keptSinceMs` are gone, so
+ * zooming there would empty the charts.
+ */
+export function zoomFits(
+  startMs: number,
+  endMs: number,
+  granularity: ChartGranularity,
+  keptSinceMs: number,
+): boolean {
+  const buckets = granularity === "auto" ? autoChartGranularity(startMs, endMs) : granularity
+  return buckets === "daily" || startMs >= keptSinceMs
+}
+
 export function useChartZoomStack() {
   const { range, customRange, setRange, setCustomRange } = useTimeRange()
   const stack = useSyncExternalStore(
@@ -66,10 +82,16 @@ export function useChartZoomStack() {
     () => steps,
   )
   const live = liveSteps(stack, range, customRange)
+  // Any other range change ends the zoom history, so typing the same range later does not revive it.
+  const dead = stack.length > 0 && live.length === 0
+  useEffect(() => {
+    if (dead) write([])
+  }, [dead])
 
   const zoomTo = useCallback(
     (fromMs: number, toMs: number) => {
       const to = { from: new Date(fromMs).toISOString(), to: new Date(toMs).toISOString() }
+      if (range === "custom" && sameRange(customRange, to)) return
       write([...liveSteps(steps, range, customRange), { from: { range, customRange }, to }])
       setCustomRange(to)
     },
@@ -84,5 +106,5 @@ export function useChartZoomStack() {
     else setRange(last.from.range)
   }, [live, setRange, setCustomRange])
 
-  return { zoomTo, zoomOut, back: live[live.length - 1]?.from ?? null }
+  return { zoomTo, zoomOut, back: live[live.length - 1]?.from ?? null, depth: live.length }
 }
