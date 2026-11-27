@@ -682,6 +682,19 @@ export function boardObserve(state: BoardState, signals: readonly BoardSignal[])
   return { order, orderedFor: reorder ? stillProblems : state.orderedFor, open, seen, autoOpened }
 }
 
+/** The board on page load: `defaultOpen` rows start open as if the user had
+ *  opened them, so a recovery never closes them. */
+export function initialBoard(
+  signals: readonly BoardSignal[],
+  defaultOpen: readonly string[],
+): BoardState {
+  const ids = signals.map((signal) => signal.id)
+  return boardObserve(
+    { ...EMPTY_BOARD, open: defaultOpen.filter((id) => ids.includes(id)) },
+    signals,
+  )
+}
+
 /** The user opens or closes a row; the board stops managing it. Toggling a
  *  problem row counts as having seen it, so it does not open again by itself
  *  when a held update applies. */

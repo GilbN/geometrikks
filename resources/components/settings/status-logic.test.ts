@@ -44,6 +44,7 @@ import {
   boardOrder,
   boardToggle,
   boardVerdict,
+  initialBoard,
   type BoardSignal,
   EMPTY_BOARD,
   locationsFact,
@@ -1199,6 +1200,15 @@ describe("the status board", () => {
       ])
       expect(state.order).toEqual(["errors", "ingestion"])
       expect(state.open).toEqual([])
+    })
+
+    it("starts with default-open rows open, and keeps them open through a recovery", () => {
+      const state = initialBoard([signal("ingestion"), signal("database")], ["ingestion", "gone"])
+      expect(state.open).toEqual(["ingestion"])
+      const failing = boardObserve(state, [signal("ingestion", "amber"), signal("database")])
+      expect(boardObserve(failing, [signal("ingestion"), signal("database")]).open).toEqual([
+        "ingestion",
+      ])
     })
 
     it("reorders when a row appears or goes", () => {

@@ -72,13 +72,14 @@ function toggle(page: Page, id: string) {
 
 test("each row is a disclosure that opens from a click and from the keyboard", async ({ page }) => {
   await open(page, { status: reachable })
+  // Ingestion starts open.
   const ingestion = toggle(page, "ingestion")
-  await expect(ingestion).toHaveAttribute("aria-expanded", "false")
-  await ingestion.click()
   await expect(ingestion).toHaveAttribute("aria-expanded", "true")
   await expect(row(page, "ingestion").getByText("Parsed lines")).toBeVisible()
   await ingestion.click()
   await expect(ingestion).toHaveAttribute("aria-expanded", "false")
+  await ingestion.click()
+  await expect(ingestion).toHaveAttribute("aria-expanded", "true")
 
   const database = toggle(page, "database")
   await database.focus()

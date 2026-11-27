@@ -21,11 +21,11 @@ import { StatusLed, type LedTone } from "@/components/settings/status-led"
 import {
   boardObserve,
   boardToggle,
+  initialBoard,
   isProblemTone,
   type BoardSignal,
   type BoardVerdict,
   type CardState,
-  EMPTY_BOARD,
   type VerdictIcon,
 } from "@/components/settings/status-logic"
 import { cn } from "@/lib/utils"
@@ -43,6 +43,8 @@ export interface BoardRowSpec {
   counts: boolean
   /** False keeps the row closed when it turns into a problem. */
   autoOpen?: boolean
+  /** Open when the page loads. */
+  defaultOpen?: boolean
   panel: React.ReactNode
 }
 
@@ -103,7 +105,12 @@ export function StatusBoard({
   const signalsRef = useRef(signals)
   signalsRef.current = signals
 
-  const [board, setBoard] = useState(() => boardObserve(EMPTY_BOARD, signals))
+  const [board, setBoard] = useState(() =>
+    initialBoard(
+      signals,
+      rows.filter((row) => row.defaultOpen).map((row) => row.id),
+    ),
+  )
   // While the pointer is over the board, or keyboard focus is in it, the rows
   // stay where they are; the latest state applies once it leaves.
   const [pointerInside, setPointerInside] = useState(false)

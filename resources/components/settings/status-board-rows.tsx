@@ -327,7 +327,16 @@ function ingestionRow(data: StatusData): BoardRowSpec {
       )}
     </BoardPanel>
   )
-  return { id: "ingestion", icon: Activity, name: "Ingestion", state, fact, counts: true, panel }
+  return {
+    id: "ingestion",
+    icon: Activity,
+    name: "Ingestion",
+    state,
+    fact,
+    counts: true,
+    defaultOpen: true,
+    panel,
+  }
 }
 
 function databaseRow({ health, dbInfo }: StatusData): BoardRowSpec {
