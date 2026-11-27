@@ -394,10 +394,12 @@ function databaseRow({ health, dbInfo }: StatusData): BoardRowSpec {
   return { id: "database", icon: Database, name: "Database", state, fact, counts: true, panel }
 }
 
-function geoipRow({ health, jobs }: StatusData, now: number): BoardRowSpec {
+function geoipRow({ health, jobs, jobsError }: StatusData, now: number): BoardRowSpec {
   const state = geoipState(health)
   const geoip = health?.geoip
-  const refresh = jobs?.find((job) => job.id === "geoip-refresh")?.nextRunTime
+  const refresh = jobsError
+    ? undefined
+    : jobs?.find((job) => job.id === "geoip-refresh")?.nextRunTime
   const fact = !geoip?.available
     ? geoip
       ? "Requests cannot be geolocated"
@@ -600,13 +602,18 @@ function authRow({ me, meError, oidc, oidcError }: StatusData): BoardRowSpec {
   // A failed discovery is the worse news, so it takes the row.
   const state = oidcLine?.tone === "red" ? oidcLine : auth
   let fact: React.ReactNode = null
-  if (me?.mode === "session") {
+  if (meError) fact = "The session could not be read"
+  else if (me?.mode === "session") {
     fact = `Signed in as ${me.username}${me.provider === "oidc" && oidc?.providerName ? ` with ${oidc.providerName}` : ""}`
   } else if (me) fact = "Anyone who can reach this app has full access"
-  const stale =
+  const stale = [
+    meError && me ? "The session could not be read. These values are from the last read." : "",
     oidcError && oidc?.configured
       ? "The identity provider status could not be read. These values are from the last read."
-      : undefined
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" ")
   const sentence = [auth.detail, oidcLine?.detail, stale].filter(Boolean).join(" ") || undefined
   const panel = (
     <BoardPanel sentence={sentence}>
