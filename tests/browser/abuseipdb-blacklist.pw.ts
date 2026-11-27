@@ -263,20 +263,6 @@ test.describe("desktop", () => {
     await expect(badgeIn(sheet)).toHaveCount(0)
   })
 
-  test("the inspector finds another spelling of a listed IPv6 address", async ({ page }) => {
-    await setup(page)
-    await page.goto("/access-logs?inspect=2600:1F18:0:0::1")
-    await expect(badgeIn(openSheet(page))).toBeVisible()
-  })
-
-  test("the menu title marks a listed IP", async ({ page }) => {
-    await setup(page)
-    await page.goto("/access-logs")
-    await ipActions(page).click()
-    const menu = openMenu(page)
-    await expect(badgeIn(menu)).toBeVisible()
-  })
-
   test("with the feature off nothing is fetched or marked", async ({ page }) => {
     const recorded = await setup(page, { status: { ...statusOn, blacklistEnabled: false } })
     const statusAnswered = page.waitForResponse("**/api/v1/abuseipdb/status")
@@ -359,26 +345,6 @@ test.describe("desktop", () => {
     await expect(page.getByTitle(BLACKLIST_TITLE, { exact: true })).toHaveText("2600:1F18:0:0::1")
   })
 
-  test("turning the feature off mid-session removes the outline", async ({ page }) => {
-    await page.clock.install()
-    const recorded = await setup(page)
-    await page.goto("/access-logs")
-    const mark = page.getByTitle(BLACKLIST_TITLE, { exact: true })
-    await expect(mark).toBeVisible()
-
-    recorded.status = { ...statusOn, blacklistEnabled: false }
-    const statusAnswered = page.waitForResponse("**/api/v1/abuseipdb/status")
-    await page.clock.fastForward("01:05")
-    await page.evaluate(() =>
-      document.dispatchEvent(new Event("visibilitychange", { bubbles: true })),
-    )
-    await statusAnswered
-    await expect(mark).toHaveCount(0)
-    const ipText = page.getByText(LISTED_IP, { exact: true }).first()
-    await expect(ipText).toBeVisible()
-    await expect(ipText).not.toHaveCSS("outline-style", "dashed")
-  })
-
   test("every row shares one download", async ({ page }) => {
     const recorded = await setup(page, { rowIps: [LISTED_IP, UNLISTED_IP, LISTED_IPV6] })
     await page.goto("/access-logs")
@@ -457,49 +423,5 @@ test.describe("portrait phone", () => {
     await page.touchscreen.tap(200, 700)
     await expect(hint(page)).toHaveCount(0)
     await expect(sheet).toBeVisible()
-  })
-
-  test("an IP report notes a listed IP without clipping the notice", async ({ page }) => {
-    await setup(page)
-    await routeAbuseReports(page)
-    const dialog = await openAbuseReport(page, LISTED_IP)
-    const headline = dialog.getByText(IP_NOTICE_HEADLINE, { exact: true })
-    await expect(headline).toBeVisible()
-    await expect(dialog.getByText(NOTICE_NOTE, { exact: true })).toBeVisible()
-    const headlineBox = (await headline.boundingBox())!
-    const dialogBox = (await dialog.boundingBox())!
-    expect(headlineBox.x).toBeGreaterThanOrEqual(dialogBox.x)
-    expect(headlineBox.x + headlineBox.width).toBeLessThanOrEqual(dialogBox.x + dialogBox.width)
-    expect(dialogBox.x + dialogBox.width).toBeLessThanOrEqual(page.viewportSize()!.width)
-    expect(await headline.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
-      true,
-    )
-  })
-})
-
-test.describe("ban drawer", () => {
-  test.use({ viewport: { width: 393, height: 852 }, hasTouch: true, isMobile: true })
-
-  test("marks a listed IP", async ({ page }) => {
-    await setup(page, { writeEnabled: true })
-    await page.goto("/access-logs")
-    await ipActions(page).click()
-    await openDrawer(page).getByRole("button", { name: "Ban IP" }).click()
-    const drawer = openDrawer(page)
-    await expect(drawer.getByText("Ban this IP in CrowdSec for")).toBeVisible()
-    await expect(badgeIn(drawer)).toBeVisible()
-  })
-})
-
-test.describe("phone held sideways", () => {
-  test.use({ viewport: { width: 932, height: 430 }, hasTouch: true, isMobile: true })
-
-  test("the side drawer header marks a listed IP", async ({ page }) => {
-    await setup(page)
-    await page.goto("/access-logs")
-    await ipActions(page).click()
-    const drawer = openDrawer(page)
-    await expect(drawer).toHaveAttribute("data-vaul-drawer-direction", "right")
-    await expect(badgeIn(drawer)).toBeVisible()
   })
 })

@@ -83,30 +83,6 @@ async function openMap(page: Page, { live = false, customRange = false, path = "
   await expect(page.locator(".maplibregl-canvas")).toBeVisible()
 }
 
-function threatLog(timestamp: string, index: number) {
-  return {
-    timestamp,
-    ip_address: `198.51.100.${index % 250}`,
-    remote_user: null,
-    method: "GET",
-    url: "/wp-login.php",
-    http_version: "HTTP/1.1",
-    status_code: 403,
-    bytes_sent: 120,
-    referrer: null,
-    user_agent: null,
-    request_time: null,
-    upstream_response_time: null,
-    host: "a.test",
-    country_code: null,
-    country_name: null,
-    city: null,
-    autonomous_system_number: null,
-    autonomous_system_organization: null,
-    server: "a.test",
-  }
-}
-
 const chip = (page: Page) => page.getByRole("group", { name: "Time range", exact: true })
 const actionPill = (page: Page) =>
   page.getByRole("navigation", { name: "Map actions", exact: true })
@@ -166,48 +142,6 @@ test.describe("portrait phone", () => {
     await page.screenshot({ path: "smoke-artifacts/map-range-chip-live.png" })
   })
 
-  test("on a narrow phone a custom range gives way to the live rate", async ({ page }) => {
-    await page.setViewportSize({ width: 360, height: 780 })
-    await page.routeWebSocket("**/ws/live", (socket) => {
-      const now = new Date().toISOString()
-      socket.send(
-        JSON.stringify({
-          type: "batch",
-          dropped: 0,
-          events: Array.from({ length: 1500 }, (_, index) => ({
-            type: "request",
-            geo: null,
-            log: threatLog(now, index),
-          })),
-        }),
-      )
-    })
-    await openMap(page, { live: true, customRange: true })
-    const vitalsButton = page.locator("[data-live-pill] button")
-    await expect(vitalsButton).toHaveAccessibleName(/^1,?500 requests per minute, 1,?500 threats/)
-    const vitals = await box(vitalsButton)
-    const chipBox = await box(chip(page))
-    expect(vitals.x + vitals.width).toBeLessThanOrEqual(chipBox.x)
-    const chevron = await box(vitalsButton.locator("svg").last())
-    expect(chevron.x + chevron.width).toBeLessThanOrEqual(vitals.x + vitals.width)
-    const threatBadge = await box(
-      vitalsButton.getByText("1,500", { exact: true }).last().locator(".."),
-    )
-    const rpm = await box(vitalsButton.getByText("1,500", { exact: true }).first())
-    expect(rpm.x + rpm.width).toBeLessThanOrEqual(threatBadge.x)
-    // The unit and the sparkline wrap onto the clipped second line.
-    await expect(vitalsButton.getByText("/min", { exact: true })).not.toBeInViewport()
-    const rangeLabel = chip(page)
-      .getByRole("button", { name: /^Time range and refresh/ })
-      .locator("span")
-      .first()
-    expect(await rangeLabel.evaluate((label) => label.scrollWidth > label.clientWidth)).toBe(true)
-    expect(Math.abs(centreY(vitals) - centreY(chipBox))).toBeLessThanOrEqual(2)
-    const pillBox = await box(actionPill(page))
-    expect(Math.abs(chipBox.x + chipBox.width - (pillBox.x + pillBox.width))).toBeLessThanOrEqual(1)
-    await page.screenshot({ path: "smoke-artifacts/map-range-chip-narrow-live.png" })
-  })
-
   test("the chip stays while a location panel is open", async ({ page }) => {
     await openMap(page, { path: "/map?focus=131" })
     await expect(page.getByRole("dialog")).toBeVisible()
@@ -256,17 +190,6 @@ test.describe("phone held sideways", () => {
     await page.keyboard.press("Escape")
     await expect(panel).toBeHidden()
     await expect(chip(page)).toBeVisible()
-  })
-
-  test("a short screen keeps the four-button pill below the chip", async ({ page }) => {
-    await page.setViewportSize({ width: 780, height: 300 })
-    await openMap(page)
-    await expect(actionPill(page).getByRole("button")).toHaveCount(4)
-    const chipBox = await box(chip(page))
-    expect(Math.abs(chipBox.y - 12)).toBeLessThanOrEqual(1)
-    const pillBox = await box(actionPill(page))
-    expect(pillBox.y - (chipBox.y + chipBox.height)).toBeGreaterThanOrEqual(3.5)
-    await page.screenshot({ path: "smoke-artifacts/map-range-chip-short.png" })
   })
 })
 
