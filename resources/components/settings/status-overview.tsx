@@ -37,7 +37,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { MonoChip, StateLine, StatusLed } from "@/components/settings/status-led"
 import { StatusPhone, type StatusTile } from "@/components/settings/status-phone"
-import { DesktopStatus } from "@/components/settings/status-board-rows"
+import { DesktopStatus, useLiveFeedSettled } from "@/components/settings/status-board-rows"
 import { useIsMobile } from "@/hooks/use-mobile"
 import {
   agentAdvisoryCards,
@@ -228,35 +228,37 @@ function ServerLocationLine({ row }: { row: ServerLocationRow }) {
 
 export function StatusOverview() {
   const { data: health, isError: healthError, isLoading: healthLoading } = useHealth()
-  const { data: stats, isError: statsError, isLoading: statsLoading } = useStats()
+  const { data: stats, isError: statsError } = useStats()
   const { data: crowdsec, isError: crowdsecError, isLoading: crowdsecLoading } = useCrowdsecStatus()
   const { data: me, isError: meError, isLoading: meLoading } = useMe()
   const { data: oidc, isError: oidcError, isLoading: oidcLoading } = useOidcStatus()
-  const { data: crowdsecStats, isLoading: crowdsecStatsLoading } = useCrowdsecStats()
-  const { data: files, isError: filesError, isLoading: filesLoading } = useLogFiles()
+  const { data: crowdsecStats } = useCrowdsecStats()
+  const { data: files, isError: filesError } = useLogFiles()
   const { data: schedulerData, isError: jobsError, isLoading: jobsLoading } = useSchedulerJobs()
   const jobs = schedulerData?.jobs
-  const { data: dbInfo, isLoading: dbLoading } = useDatabaseInfo()
+  const { data: dbInfo } = useDatabaseInfo()
   const { data: logRecords, isError: logsError, isLoading: logsLoading } = useRecentErrors()
-  const { data: serverLocations, isLoading: locationsLoading } = useServerLocations()
+  const { data: serverLocations } = useServerLocations()
   const { data: instances, isError: instancesError, isLoading: instancesLoading } = useInstances()
   // The desktop board decides which rows start open from its first look, so
-  // it waits for every query's first answer instead of opening Ingestion and
-  // closing it again when a slower one reports a problem.
+  // it waits for the first answer of every query that can turn a row amber or
+  // red, instead of opening Ingestion and closing it when a slower one does.
   const boardLoading =
     healthLoading ||
-    statsLoading ||
     crowdsecLoading ||
     meLoading ||
     oidcLoading ||
-    crowdsecStatsLoading ||
-    filesLoading ||
     jobsLoading ||
-    dbLoading ||
     logsLoading ||
-    locationsLoading ||
     instancesLoading
+  // Once shown, the board stays. A retry after a failed first read sets
+  // isLoading again, and unmounting would drop focus and the open rows.
+  const boardShown = useRef(false)
+  if (!boardLoading) boardShown.current = true
   const feedStatus = useLiveFeedStatus()
+  // Started here, not in the board, so the grace period runs while the
+  // queries load.
+  const liveFeedSettled = useLiveFeedSettled(feedStatus)
   const isMobile = useIsMobile()
   // Probe the live WebSocket while this page is open: the client is
   // per-tab and lazy, so without our own subscription the card could
@@ -537,7 +539,7 @@ export function StatusOverview() {
     </>
   )
 
-  if (boardLoading && !isMobile) return <Skeleton className="h-[476px] w-full rounded-xl" />
+  if (!boardShown.current && !isMobile) return <Skeleton className="h-[476px] w-full rounded-xl" />
   if (healthLoading) {
     return (
       <div className="space-y-4">
@@ -776,6 +778,7 @@ export function StatusOverview() {
           agentOverview,
           instancesError,
           feedStatus,
+          liveFeedSettled,
           overall,
         }}
       />

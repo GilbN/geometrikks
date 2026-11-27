@@ -118,6 +118,8 @@ export interface StatusData {
   agentOverview: AgentSummary | null
   instancesError: boolean
   feedStatus: LiveFeedStatus
+  /** The feed has been down long enough to count as a problem. */
+  liveFeedSettled: boolean
   overall: CardState
 }
 
@@ -141,7 +143,7 @@ const LIVE_FEED_GRACE_MS = 5_000
 
 /** The live feed starts disconnected on every visit and drops for a moment on
  *  a reconnect, so it counts as a problem only after a few seconds of it. */
-function useLiveFeedSettled(status: LiveFeedStatus): boolean {
+export function useLiveFeedSettled(status: LiveFeedStatus): boolean {
   const down = status !== "connected"
   const [settled, setSettled] = useState(false)
   useEffect(() => {
@@ -157,7 +159,6 @@ const dash = <span className="text-muted-foreground">-</span>
 
 export function DesktopStatus({ data }: { data: StatusData }) {
   const queryClient = useQueryClient()
-  const liveFeedSettled = useLiveFeedSettled(data.feedStatus)
   const now = Date.now()
   const { health } = data
 
@@ -167,7 +168,7 @@ export function DesktopStatus({ data }: { data: StatusData }) {
     geoipRow(data, now),
     crowdsecRow(data),
     schedulerRow(data, now),
-    liveFeedRow(data, liveFeedSettled),
+    liveFeedRow(data, data.liveFeedSettled),
     authRow(data),
     ...(data.agentOverview ? [agentsRow(data, data.agentOverview)] : []),
     ...(data.locationRows.length > 0 ? [locationsRow(data.locationRows)] : []),
@@ -240,7 +241,7 @@ function ingestionRow(data: StatusData): BoardRowSpec {
           <Cell label="Ignored">{count(stats?.totalIgnoredLines)}</Cell>
           <Cell label="Pending">{count(stats?.totalPendingRecords)}</Cell>
           <Cell label="Last event">
-            <Ticking render={(nowMs) => lastEventState(lastRecordAt, running, nowMs).label} />
+            <Ticking render={(nowMs) => sinceLabel(lastRecordAt, nowMs)} />
           </Cell>
           {failedBatches > 0 && <Cell label="Failed batches">{count(failedBatches)}</Cell>}
           {failedRecords > 0 && <Cell label="Dropped records">{count(failedRecords)}</Cell>}
@@ -670,6 +671,7 @@ function authRow({ me, meError, oidc, oidcError }: StatusData): BoardRowSpec {
     // moves up amber so it is noticed, but the app is not broken.
     counts: authOff ? false : true,
     autoOpen: !authOff,
+    closesDefault: !authOff,
     panel,
   }
 }

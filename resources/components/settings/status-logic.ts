@@ -388,7 +388,7 @@ export function lastEventState(
   running: boolean,
   nowMs: number,
 ): CardState {
-  const label = sinceLabel(lastRecordAt, nowMs)
+  const label = relativeTime(lastRecordAt, nowMs)
   if (!lastRecordAt || !running) return { tone: "muted", label }
   if (nowMs - Date.parse(lastRecordAt) > STALE_EVENT_MS) {
     return {
@@ -591,6 +591,9 @@ export interface BoardSignal {
   /** False for Recent errors, which moves up with the problems but stays
    *  closed. Its errors usually repeat another row's problem. */
   autoOpen?: boolean
+  /** False for a problem that is a setting, such as login turned off. It
+   *  does not close the rows the page opens on load. */
+  closesDefault?: boolean
 }
 
 export function isProblemTone(tone: LedTone): tone is "red" | "amber" {
@@ -660,7 +663,13 @@ export function boardObserve(state: BoardState, signals: readonly BoardSignal[])
   const closeOnRecovery = recovered.filter((id) => state.autoOpened.includes(id))
   // A new problem makes room for itself. Rows that are open only because the
   // page opened them on load close, unless they are problems themselves.
-  const newProblem = problems.some((id) => !state.orderedFor.includes(id))
+  const closesDefault = new Set(
+    signals.filter((signal) => signal.closesDefault !== false).map((signal) => signal.id),
+  )
+  // Any problem on another row, new or still there, makes room for itself.
+  const newProblem = problems.some(
+    (id) => closesDefault.has(id) && !state.defaultOpened.includes(id),
+  )
   const closeForProblem = newProblem
     ? state.defaultOpened.filter((id) => !problems.includes(id))
     : []
@@ -833,7 +842,7 @@ export function compressionRatio(table: HypertableStatsView): string {
 /** "3s ago" for a time in the past, never "in 0s" when a poll brings a time
  *  newer than the last tick. */
 export function sinceLabel(iso: string | null | undefined, nowMs: number): string {
-  if (iso && Date.parse(iso) > nowMs - 1000) return "0s ago"
+  if (iso && Math.abs(Date.parse(iso) - nowMs) < 1000) return "0s ago"
   return relativeTime(iso, nowMs)
 }
 

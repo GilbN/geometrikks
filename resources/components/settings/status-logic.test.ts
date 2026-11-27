@@ -1258,6 +1258,28 @@ describe("the status board", () => {
       expect(errors.open).toEqual([])
     })
 
+    it("closes a default-open row that recovers while another problem lasts", () => {
+      const atLoad = initialBoard(
+        [signal("ingestion", "amber"), signal("crowdsec", "red")],
+        ["ingestion"],
+      )
+      expect(atLoad.open).toEqual(["ingestion", "crowdsec"])
+      const recovered = boardObserve(atLoad, [signal("ingestion"), signal("crowdsec", "red")])
+      expect(recovered.open).toEqual(["crowdsec"])
+    })
+
+    it("keeps a default-open row open for a problem that is a setting", () => {
+      const state = initialBoard(
+        [
+          signal("ingestion"),
+          { ...signal("auth", "amber", false), autoOpen: false, closesDefault: false },
+        ],
+        ["ingestion"],
+      )
+      expect(state.open).toEqual(["ingestion"])
+      expect(state.order).toEqual(["auth", "ingestion"])
+    })
+
     it("leaves a default-open row the user reopened alone when a problem appears", () => {
       const state = initialBoard([signal("ingestion"), signal("crowdsec")], ["ingestion"])
       const touched = boardToggle(boardToggle(state, "ingestion"), "ingestion")
@@ -1430,6 +1452,7 @@ describe("the status board", () => {
     const now = Date.parse("2026-11-27T10:00:00Z")
     expect(sinceLabel("2026-11-27T09:59:57Z", now)).toBe("3s ago")
     expect(sinceLabel("2026-11-27T10:00:00.400Z", now)).toBe("0s ago")
+    expect(sinceLabel("2026-11-27T10:02:00Z", now)).toBe("in 2m")
     expect(sinceLabel(null, now)).toBe("never")
   })
 
