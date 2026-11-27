@@ -154,5 +154,10 @@ test("a check that never answers does not hide the board", async ({ page }) => {
   // Never answered: the board must still show after its wait.
   await page.route("**/api/v1/instances", () => {})
   await page.goto("/settings/status")
-  await expect(page.getByTestId("status-board")).toBeVisible({ timeout: 6_000 })
+  await expect(page.getByTestId("status-board")).toBeVisible({ timeout: 10_000 })
+  // Check now stops waiting on the hung request and becomes usable again.
+  const checkNow = page.getByRole("button", { name: "Check now" })
+  await checkNow.click()
+  await expect(checkNow).toHaveAttribute("aria-disabled", "true")
+  await expect(checkNow).not.toHaveAttribute("aria-disabled", "true", { timeout: 15_000 })
 })

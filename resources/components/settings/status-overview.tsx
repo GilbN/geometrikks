@@ -228,6 +228,13 @@ function ServerLocationLine({ row }: { row: ServerLocationRow }) {
 
 const BOARD_WAIT_MS = 3_000
 
+/** Failed, or retrying after failing with nothing read yet. A retry with no
+ *  data resets the query to pending, which would flip its row between
+ *  Unavailable and Loading on every poll. */
+function failedSoFar(query: { isError: boolean; data: unknown; errorUpdateCount: number }) {
+  return query.isError || (query.data === undefined && query.errorUpdateCount > 0)
+}
+
 export function StatusOverview() {
   const {
     data: health,
@@ -239,15 +246,18 @@ export function StatusOverview() {
   // verdict from Unreachable to Loading and back on every poll.
   const healthError = healthQueryError || (health === undefined && healthErrorCount > 0)
   const { data: stats, isError: statsError } = useStats()
-  const { data: crowdsec, isError: crowdsecError, isLoading: crowdsecLoading } = useCrowdsecStatus()
+  const crowdsecQuery = useCrowdsecStatus()
+  const { data: crowdsec, isError: crowdsecError, isLoading: crowdsecLoading } = crowdsecQuery
   const { data: me, isError: meError, isLoading: meLoading } = useMe()
   const { data: oidc, isError: oidcError, isLoading: oidcLoading } = useOidcStatus()
   const { data: crowdsecStats } = useCrowdsecStats()
   const { data: files, isError: filesError } = useLogFiles()
-  const { data: schedulerData, isError: jobsError, isLoading: jobsLoading } = useSchedulerJobs()
+  const jobsQuery = useSchedulerJobs()
+  const { data: schedulerData, isError: jobsError, isLoading: jobsLoading } = jobsQuery
   const jobs = schedulerData?.jobs
   const { data: dbInfo } = useDatabaseInfo()
-  const { data: logRecords, isError: logsError, isLoading: logsLoading } = useRecentErrors()
+  const logsQuery = useRecentErrors()
+  const { data: logRecords, isError: logsError, isLoading: logsLoading } = logsQuery
   const { data: serverLocations } = useServerLocations()
   const { data: instances, isError: instancesError, isLoading: instancesLoading } = useInstances()
   // The desktop board decides which rows start open from its first look, so
@@ -777,7 +787,7 @@ export function StatusOverview() {
           stats,
           statsError,
           crowdsec,
-          crowdsecError,
+          crowdsecError: failedSoFar(crowdsecQuery),
           crowdsecStats,
           me,
           meError,
@@ -787,11 +797,11 @@ export function StatusOverview() {
           filesLoaded: files !== undefined,
           filesError,
           jobs,
-          jobsError,
+          jobsError: failedSoFar(jobsQuery),
           dbInfo,
           recentErrors,
           logsLoaded: logRecords !== undefined,
-          logsError,
+          logsError: failedSoFar(logsQuery),
           locationRows,
           agentOverview,
           instancesError,

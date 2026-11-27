@@ -190,15 +190,19 @@ export function DesktopStatus({ data }: { data: StatusData }) {
   )
   // A first request that hangs is reused by a refetch, not replaced, so
   // Check now stops waiting after a while instead of staying busy with it.
-  const checkNow = () =>
-    Promise.race([
+  const checkNow = () => {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    return Promise.race([
       Promise.all(
         STATUS_QUERY_KEYS.map((queryKey) =>
           queryClient.refetchQueries({ queryKey, type: "active" }),
         ),
       ),
-      new Promise((resolve) => setTimeout(resolve, CHECK_NOW_WAIT_MS)),
-    ])
+      new Promise((resolve) => {
+        timer = setTimeout(resolve, CHECK_NOW_WAIT_MS)
+      }),
+    ]).finally(() => clearTimeout(timer))
+  }
   return <StatusBoard verdict={verdict} meta={meta} rows={rows} onCheckNow={checkNow} />
 }
 
