@@ -58,7 +58,7 @@ export function ChartBucketsMenu() {
 }
 
 const BADGE =
-  "rounded-md border border-border/60 px-2 py-0.5 text-xs font-medium text-muted-foreground"
+  "shrink-0 whitespace-nowrap rounded-md border border-border/60 px-2 py-0.5 text-xs font-medium text-muted-foreground"
 
 function bucketLabel(granularity: string): string {
   return granularity === "hourly" ? "Hourly" : granularity === "daily" ? "Daily" : granularity

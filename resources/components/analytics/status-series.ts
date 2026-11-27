@@ -1,4 +1,4 @@
-/** Row and axis helpers for the status chart's Share and Error rate views. */
+/** Row and axis helpers for the Requests chart's status classes and its Share and Error rate views. */
 import type { TimeSeriesDataPoint } from "@/generated/api/types.gen"
 import type { ChartScale } from "@/lib/chart-options"
 import { clampedYMax, type YAxisScaleProps } from "@/lib/chart-scale"
@@ -18,16 +18,16 @@ export function statusTotal(row: StatusCounts): number {
 
 /** Requests outside the four classes. The chart draws them only on ranges that have some. */
 export const otherChartConfig = {
-  // Neutral, not a fifth chart color: on a WebSocket host this segment can be most of the stack.
-  statusOther: { label: "1xx and no response", color: "var(--muted-foreground)" },
+  statusOther: { label: "Other statuses", color: "var(--muted-foreground)" },
 } satisfies ChartConfig
 
 export type CountRow = TimeSeriesDataPoint & { statusOther: number }
 
 /**
- * Adds the requests totalRequests counts and no class holds: 1xx, and status
- * 0 for a connection that closed before any response. On a WebSocket host the
- * 101 upgrades can be most of an hour's requests.
+ * Adds the requests totalRequests counts and no class holds: 1xx, status 0
+ * for a connection that closed before any response, and any other code an
+ * imported log carried. On a WebSocket host the 101 upgrades can be most of
+ * an hour's requests.
  */
 export function withOther(points: readonly TimeSeriesDataPoint[]): CountRow[] {
   return points.map((point) => ({

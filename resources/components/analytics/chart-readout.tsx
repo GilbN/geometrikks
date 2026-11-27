@@ -71,7 +71,7 @@ export function CursorStamp({
   const row = useCursorRow(cursor, rows)
   if (!row) return null
   return (
-    <span className="text-xs font-medium whitespace-nowrap text-foreground tabular-nums max-xl:hidden">
+    <span className="shrink-0 text-xs font-medium whitespace-nowrap text-foreground tabular-nums max-xl:hidden">
       {formatTs(row.timestamp, granularity)}
     </span>
   )
@@ -81,12 +81,15 @@ export function ChartReadout({
   lead,
   items,
   stamp,
+  note,
 }: {
   /** Text before the legend, such as "39,144 requests". */
   lead?: React.ReactNode
   items: readonly ReadoutItem[]
   /** The cursor bucket's time; below 1280px it ends the readout's first line. */
   stamp?: string | null
+  /** Muted text after the first entry, such as "since Sep 28". */
+  note?: string | null
 }) {
   const [first, ...rest] = lead == null ? items : [null, ...items]
   return (
@@ -96,6 +99,7 @@ export function ChartReadout({
       ) : (
         first && <Item item={first} />
       )}
+      {note && <span className="whitespace-nowrap">{note}</span>}
       {stamp && (
         <span className="ml-auto text-xs font-medium whitespace-nowrap text-foreground xl:hidden">
           {stamp}

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vite-plus/test"
 import type { TimeSeriesDataPoint } from "@/generated/api/types.gen"
-import { byteTicks, fillHourlyGaps, hourlyTicks, trafficTotals } from "./traffic-series"
+import { byteTicks, fillHourlyGaps, hourlyTicks, hoursSince, trafficTotals } from "./traffic-series"
 
 const HOUR = 3_600_000
 const START = Date.parse("2026-11-19T22:00:00Z")
@@ -150,6 +150,12 @@ describe("hourlyTicks", () => {
     expect(ticks.ticks.map(ticks.format)).toEqual(["Nov 23", "2 AM", "4 AM", "6 AM", "8 AM"])
   })
 
+  it("spaces date labels by width on a long range", () => {
+    process.env.TZ = "UTC"
+    const ticks = hourlyTicks(hours("2025-11-27T00:00:00Z", 365 * 24), "hourly", 240)!
+    expect(ticks.ticks.length * 56).toBeLessThanOrEqual(240)
+  })
+
   it("marks hours, not dates, on a two-day range of 49 buckets", () => {
     process.env.TZ = "UTC"
     const ticks = hourlyTicks(hours("2026-11-23T10:00:00Z", 49), "hourly", 1060)!
@@ -202,5 +208,14 @@ describe("byteTicks", () => {
 
   it("draws an empty axis to 1 KB", () => {
     expect(byteTicks(0)).toEqual({ ticks: [0, 1024], domain: [0, 1024] })
+  })
+})
+
+describe("hoursSince", () => {
+  it("names the first drawn day when the hours before it have expired", () => {
+    const rows = [{ timestamp: "2026-09-28T05:00:00Z" }]
+    expect(hoursSince(rows, "2026-08-01T00:00:00Z", "hourly")).toMatch(/^since Sep 2[78]$/)
+    expect(hoursSince(rows, "2026-09-28T04:30:00Z", "hourly")).toBeNull()
+    expect(hoursSince(rows, "2026-08-01T00:00:00Z", "daily")).toBeNull()
   })
 })

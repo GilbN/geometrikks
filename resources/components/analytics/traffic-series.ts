@@ -139,7 +139,8 @@ export function hourlyTicks(
   if (timestamps.length > 50) {
     const days = dates.filter(midnight).length
     const every =
-      [1, 2, 3, 7, 14, 30].find((step) => fits(Math.ceil(days / step), DAY_LABEL_PX)) ?? 30
+      [1, 2, 3, 7, 14, 30].find((step) => fits(Math.ceil(days / step), DAY_LABEL_PX)) ??
+      Math.ceil((days * DAY_LABEL_PX) / Math.max(plotWidth, DAY_LABEL_PX))
     let day = 0
     const ticks = timestamps.filter(
       (_, index) => midnight(dates[index]) && !repeat(index) && day++ % every === 0 && clear(index),
@@ -164,6 +165,20 @@ export function hourlyTicks(
       return (date.getMinutes() === 0 ? HOUR_LABEL : HOUR_MINUTE_LABEL).format(date)
     },
   }
+}
+
+/**
+ * "since Sep 28" when an hourly series starts later than the range, because
+ * the older hours have expired; the totals then cover only what is drawn.
+ */
+export function hoursSince(
+  rows: readonly { timestamp: string }[],
+  startDate: string | undefined,
+  granularity: string | undefined,
+): string | null {
+  if (granularity !== "hourly" || rows.length === 0 || !startDate) return null
+  const first = Date.parse(rows[0].timestamp)
+  return first - Date.parse(startDate) > HOUR_MS ? `since ${formatTs(first, "daily")}` : null
 }
 
 /** "hourly from Nov 19, 11:00 PM to Nov 26, 10:00 PM", for a chart's screen reader summary. */

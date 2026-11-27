@@ -199,11 +199,11 @@ test.describe("requests chart", () => {
     await page.goto("/analytics")
     const card = panel(page, "Requests")
     await expect(card.locator(".recharts-bar")).toHaveCount(5)
-    await expectReadout(card, "1xx and no response 40")
+    await expectReadout(card, "Other statuses 40")
     await hoverBar(page, card, 30, BUCKETS)
-    await expectReadout(card, "1xx and no response 40")
+    await expectReadout(card, "Other statuses 40")
     await hoverBar(page, card, 29, BUCKETS)
-    await expectReadout(card, "1xx and no response 0")
+    await expectReadout(card, "Other statuses 0")
 
     // Share of responses counts 2xx to 5xx only.
     await choose(page, card, "Requests", "Share of responses")
@@ -221,7 +221,7 @@ test.describe("requests chart", () => {
     await page.goto("/analytics")
     const card = panel(page, "Requests")
     await expect(card.locator(".recharts-bar")).toHaveCount(4)
-    const chart = card.getByRole("group", { name: /^Requests\. Arrow keys/ })
+    const chart = card.getByRole("application", { name: /^Requests\. Arrow keys/ })
     const spoken = card.locator('[aria-live="polite"]')
 
     await hoverBar(page, card, 30, BUCKETS)
@@ -243,6 +243,12 @@ test.describe("requests chart", () => {
     await page.keyboard.press("Escape")
     await expect(card.locator('rect[fill="var(--card)"]')).toHaveCount(0)
     await expect(spoken).toHaveText("")
+
+    // Home goes to the first bucket even as the first key press.
+    await page.keyboard.press("Home")
+    await expect(card.locator("header b").first()).toHaveText(
+      points[0].totalRequests.toLocaleString("en-US"),
+    )
   })
 
   test("at 1024px the header keeps its controls inside the card and the time in the readout", async ({
@@ -252,12 +258,23 @@ test.describe("requests chart", () => {
     await mockTimeSeries(page, points)
     await page.goto("/analytics")
     const card = panel(page, "Request latency")
-    await choose(page, card, "Request latency", "Lines")
     await card.scrollIntoViewIfNeeded()
     const grid = (await card.locator(".recharts-cartesian-grid").boundingBox())!
     const top = grid.y
     await page.mouse.move(grid.x + (30.5 / BUCKETS) * grid.width, grid.y + grid.height / 2)
     await expectReadout(card, "p99 1.10s")
+    const stamp = await page.evaluate(
+      (timestamp) =>
+        new Intl.DateTimeFormat(undefined, {
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        }).format(new Date(timestamp)),
+      points[30].timestamp,
+    )
+    // Below 1280px the time sits in the readout, not in the title row.
+    await expect(card.locator("header > div").last().getByText(stamp)).toBeVisible()
 
     const box = (await card.boundingBox())!
     const options = (await card.getByRole("button", { name: /^Chart options/ }).boundingBox())!

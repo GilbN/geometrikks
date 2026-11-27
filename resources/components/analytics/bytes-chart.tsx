@@ -15,7 +15,7 @@ import { createChartCursor, type ChartCursor } from "./chart-cursor"
 import { barSpacer, BYTES_OPTIONS, bytesChartConfig } from "./chart-utils"
 import { useTrafficBuckets } from "./use-traffic-buckets"
 import { TimeChart } from "./time-chart"
-import { byteTicks, chartRangeText } from "./traffic-series"
+import { byteTicks, chartRangeText, hoursSince } from "./traffic-series"
 
 const TITLE = "Bandwidth"
 const SERIES = ["totalBytesSent"] as const
@@ -24,11 +24,14 @@ function BytesReadout({
   cursor,
   buckets,
   granularity,
+  since,
   ready,
 }: {
   cursor: ChartCursor
   buckets: readonly TimeSeriesDataPoint[]
   granularity?: string
+  /** "since Sep 28" when the hours before it have expired. */
+  since: string | null
   ready: boolean
 }) {
   const total = useMemo(
@@ -47,6 +50,7 @@ function BytesReadout({
         },
       ]}
       stamp={row ? formatTs(row.timestamp, granularity) : null}
+      note={row ? null : since}
     />
   )
 }
@@ -103,17 +107,16 @@ export function BytesChart() {
           cursor={cursor}
           buckets={buckets}
           granularity={data?.granularity}
+          since={hoursSince(buckets, data?.startDate, data?.granularity)}
           ready={state === "ready"}
         />
       }
     >
       {data && (
         <>
-          <p className="sr-only">
-            {`${options.view.label} of response bytes sent, ${chartRangeText(buckets, data.granularity)}.`}
-          </p>
           <TimeChart
             label={TITLE}
+            summary={`${options.view.label} of response bytes sent, ${chartRangeText(buckets, data.granularity)}.`}
             describe={(bucket) =>
               spokenReadout(formatTs(bucket, data.granularity), [
                 {

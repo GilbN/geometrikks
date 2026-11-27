@@ -26,8 +26,10 @@ import { chartRangeText } from "./traffic-series"
 
 const TITLE = "Request latency"
 
-/** At rest the legend shows labels alone: a range has no single percentile to show. */
-/** The legend entries for one bucket, or labels alone with no bucket. */
+/**
+ * The legend entries for one bucket, or labels alone with no bucket: a range
+ * has no single percentile to show.
+ */
 function latencyItems(row: TimeSeriesDataPoint | null, band: boolean): ReadoutItem[] {
   const time = (value: number | null | undefined) =>
     row ? formatDurationOrNa(value ?? null) : null
@@ -129,11 +131,9 @@ export function LatencyChart() {
     >
       {data && (
         <>
-          <p className="sr-only">
-            {`${band ? "Average, p99, and a p50 to p95 band" : "Average, p50, p95 and p99"} of response time, ${chartRangeText(buckets, data.granularity)}.`}
-          </p>
           <TimeChart
             label={TITLE}
+            summary={`${band ? "Average, p99, and a p50 to p95 band" : "Average, p50, p95 and p99"} of response time, ${chartRangeText(buckets, data.granularity)}.`}
             describe={(bucket) => {
               const row = bucketsByTime.get(bucket) ?? null
               return spokenReadout(formatTs(bucket, data.granularity), latencyItems(row, band))

@@ -4,7 +4,7 @@
  * With a mouse the cursor follows hover. On a touch screen it follows a
  * sideways drag or a held finger, and a vertical swipe still scrolls the page.
  */
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react"
 import {
   CartesianGrid,
   ComposedChart,
@@ -186,15 +186,17 @@ type Touch = {
   timer: number
 }
 
+/** The next bucket for a key; with none marked, an arrow marks the latest. */
 const STEP_KEYS: Record<string, (index: number, last: number) => number> = {
-  ArrowLeft: (index) => Math.max(0, index - 1),
-  ArrowRight: (index, last) => Math.min(last, index + 1),
+  ArrowLeft: (index, last) => (index < 0 ? last : Math.max(0, index - 1)),
+  ArrowRight: (index, last) => (index < 0 ? last : Math.min(last, index + 1)),
   Home: () => 0,
   End: (_, last) => last,
 }
 
 export function TimeChart({
   label,
+  summary,
   describe,
   config,
   rows,
@@ -208,6 +210,8 @@ export function TimeChart({
 }: {
   /** The chart's accessible name, such as "Requests". */
   label: string
+  /** What the chart draws and over which time, for a screen reader. */
+  summary: string
   /** What a screen reader hears for a bucket picked with the keyboard. */
   describe: (bucketMs: number) => string
   config: ChartConfig
@@ -223,7 +227,12 @@ export function TimeChart({
   const [frameRef, width] = useElementWidth<HTMLDivElement>()
   const geometry = useRef<Geometry | null>(null)
   const touch = useRef<Touch | null>(null)
-  const [announcement, setAnnouncement] = useState("")
+  // Written straight to the node: state here would redraw the whole chart on every key press.
+  const spoken = useRef<HTMLSpanElement>(null)
+  const speak = (text: string) => {
+    if (spoken.current) spoken.current.textContent = text
+  }
+  const summaryId = useId()
   // A held finger reads its bucket after HOLD_MS, from the rows of that moment.
   const latestRows = useRef(rows)
   useLayoutEffect(() => {
@@ -246,8 +255,7 @@ export function TimeChart({
     const shape = geometry.current
     if (!frame || !shape || shape.centers.length !== rows.length || rows.length === 0) return null
     const x = clientX - frame.getBoundingClientRect().left
-    const half = shape.plotWidth / rows.length / 2
-    if (x < shape.plotX - half || x > shape.plotX + shape.plotWidth + half) return null
+    if (x < shape.plotX || x > shape.plotX + shape.plotWidth) return null
     return Date.parse(rows[nearestIndex(shape.centers, x)].timestamp)
   }
 
@@ -286,9 +294,11 @@ export function TimeChart({
   }, [frameRef, cursor])
 
   const step = (event: React.KeyboardEvent) => {
+    // Alt+Left and Cmd+Left are the browser's Back; modified keys are not ours.
+    if (event.altKey || event.ctrlKey || event.metaKey) return
     if (event.key === "Escape") {
       cursor.set(null)
-      setAnnouncement("")
+      speak("")
       return
     }
     const move = STEP_KEYS[event.key]
@@ -296,11 +306,9 @@ export function TimeChart({
     event.preventDefault()
     const current = cursor.get()
     const index = rows.findIndex((row) => Date.parse(row.timestamp) === current)
-    // With no bucket marked, the first key press marks the latest one.
-    const next = index < 0 ? rows.length - 1 : move(index, rows.length - 1)
-    const bucket = Date.parse(rows[next].timestamp)
+    const bucket = Date.parse(rows[move(index, rows.length - 1)].timestamp)
     cursor.set(bucket)
-    setAnnouncement(describe(bucket))
+    speak(describe(bucket))
   }
   // A chart that unmounts under the pointer, such as on a range change, sends no pointerleave.
   useEffect(
@@ -315,14 +323,16 @@ export function TimeChart({
     <div
       ref={frameRef}
       tabIndex={0}
-      role="group"
+      // The application role keeps screen readers out of browse mode, so the arrow keys reach the chart.
+      role="application"
       aria-roledescription="chart"
+      aria-describedby={summaryId}
       aria-label={`${label}. Arrow keys read one bucket at a time.`}
       className="touch-pan-y touch-pinch-zoom rounded-md outline-none select-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
       onKeyDown={step}
       onBlur={() => {
         cursor.set(null)
-        setAnnouncement("")
+        speak("")
       }}
       onPointerMove={(event) => {
         if (event.pointerType === "mouse") {
@@ -410,9 +420,10 @@ export function TimeChart({
         </ComposedChart>
       </ChartContainer>
       {/* Only keyboard steps speak; hover and touch stay silent. */}
-      <span className="sr-only" aria-live="polite">
-        {announcement}
-      </span>
+      <p id={summaryId} className="sr-only">
+        {summary}
+      </p>
+      <span ref={spoken} className="sr-only" aria-live="polite" />
     </div>
   )
 }

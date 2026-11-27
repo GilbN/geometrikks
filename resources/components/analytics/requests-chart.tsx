@@ -43,7 +43,7 @@ import {
 } from "./status-series"
 import { useTrafficBuckets } from "./use-traffic-buckets"
 import { isolatedDot, TimeChart, type CursorMarks } from "./time-chart"
-import { chartRangeText, trafficTotals, type TrafficTotals } from "./traffic-series"
+import { chartRangeText, hoursSince, trafficTotals, type TrafficTotals } from "./traffic-series"
 
 const TITLE = "Requests"
 const COUNT_CONFIG = { ...statusChartConfig, ...otherChartConfig }
@@ -97,6 +97,7 @@ function RequestsReadout({
   buckets,
   view,
   granularity,
+  since,
   ready,
   hasOther,
 }: {
@@ -104,6 +105,8 @@ function RequestsReadout({
   buckets: readonly CountRow[]
   view: string
   granularity?: string
+  /** "since Sep 28" when the hours before it have expired. */
+  since: string | null
   /** Before the data arrives the legend shows its labels alone. */
   ready: boolean
   /** Adds the requests outside 2xx to 5xx to the count views' legend. */
@@ -121,7 +124,14 @@ function RequestsReadout({
     </>
   ) : undefined
   const stamp = row ? formatTs(row.timestamp, granularity) : null
-  return <ChartReadout lead={lead} items={requestsItems(source, view, hasOther)} stamp={stamp} />
+  return (
+    <ChartReadout
+      lead={lead}
+      items={requestsItems(source, view, hasOther)}
+      stamp={stamp}
+      note={row ? null : since}
+    />
+  )
 }
 
 export function RequestsChart({ className }: { className?: string }) {
@@ -266,17 +276,16 @@ export function RequestsChart({ className }: { className?: string }) {
           hasOther={hasOther}
           view={view}
           granularity={data?.granularity}
+          since={hoursSince(buckets, data?.startDate, data?.granularity)}
           ready={state === "ready"}
         />
       }
     >
       {data && (
         <>
-          <p className="sr-only">
-            {`${SUMMARIES[view] ?? options.view.label}, ${chartRangeText(buckets, data.granularity)}.`}
-          </p>
           <TimeChart
             label={TITLE}
+            summary={`${lines ? "Log lines of requests by status class" : (SUMMARIES[view] ?? options.view.label)}, ${chartRangeText(buckets, data.granularity)}.`}
             describe={(bucket) => {
               const row = countedByTime.get(bucket)
               return row
