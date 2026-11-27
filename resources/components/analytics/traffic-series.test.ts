@@ -254,6 +254,12 @@ describe("bucketEndMs and dragSelection", () => {
     expect(bucketEndMs(times, 1, "daily")).toBe(day("2026-11-03T00:00:00Z"))
   })
 
+  it("ends a UTC day a day on, even on a local daylight saving date", () => {
+    process.env.TZ = "Europe/London"
+    const times = [day("2026-03-29T00:00:00Z")]
+    expect(bucketEndMs(times, 0, "daily", true)).toBe(day("2026-03-30T00:00:00Z"))
+  })
+
   it("ends a local day at the next local midnight across daylight saving", () => {
     process.env.TZ = "Europe/Oslo"
     // 2026-10-25 has 25 hours in Oslo; local midnight is 22:00Z the day before.
@@ -270,6 +276,7 @@ describe("bucketEndMs and dragSelection", () => {
       buckets: 4,
       first: 0,
       last: 3,
+      clipped: true,
     })
     expect(dragSelection(times, times[1], times[0], "hourly", range)).toBeNull()
     // A bucket gone from the rows mid-drag still leaves the rest selected.

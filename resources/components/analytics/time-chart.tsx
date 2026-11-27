@@ -16,11 +16,12 @@ import {
   ZIndexLayer,
 } from "recharts"
 import { ChartContainer, type ChartConfig } from "@/components/ui/chart"
-import { formatTs } from "@/lib/datetime"
+import { BROWSER_TZ, formatTs } from "@/lib/datetime"
 import { cn } from "@/lib/utils"
 import { useChartZoom, useCursorBucket, useCursorDrag, type ChartCursor } from "./chart-cursor"
 import { isIsolated } from "./status-series"
 import { dragSelection, hourlyTicks } from "./traffic-series"
+import { useReadsRawRows } from "./use-traffic-buckets"
 
 type Row = { timestamp: string }
 type TimeRange = { startMs: number; endMs: number }
@@ -239,6 +240,16 @@ const STEP_KEYS: Record<string, (index: number, last: number) => number> = {
   End: (_, last) => last,
 }
 
+/** Whether this series' daily buckets are the rollup's UTC days rather than local days. */
+function useUtcDays(granularity: string | undefined, range: TimeRange): boolean {
+  const readsRaw = useReadsRawRows()
+  return (
+    granularity === "daily" &&
+    !readsRaw &&
+    (BROWSER_TZ === "UTC" || range.endMs - range.startMs > 30 * 24 * HOUR_MS)
+  )
+}
+
 /** "Nov 23, 12:00 AM to Nov 23, 10:00 AM · 10 hours" over the chart being dragged. */
 function DragLabel({
   id,
@@ -262,8 +273,11 @@ function DragLabel({
   const label = useRef<HTMLSpanElement>(null)
   const times = useMemo(() => rows.map((row) => Date.parse(row.timestamp)), [rows])
   const shape = geometry.current
+  const utcDays = useUtcDays(granularity, range)
   const selection =
-    drag && drag.source === id ? dragSelection(times, drag.from, drag.to, granularity, range) : null
+    drag && drag.source === id
+      ? dragSelection(times, drag.from, drag.to, granularity, range, utcDays)
+      : null
   const center =
     shape && selection && shape.centers.length === rows.length
       ? (shape.centers[selection.first] + shape.centers[selection.last]) / 2
@@ -278,10 +292,13 @@ function DragLabel({
   if (!selection || !Number.isFinite(center)) return null
 
   const span = selection.endMs - selection.startMs
-  // Days read inclusive by their axis labels ("Nov 23 to Nov 25 · 3 days"). Hours, and a
-  // daily selection the range cuts to under a day, end on the hour after the last one.
-  const inHours = granularity === "hourly" || span < 24 * HOUR_MS
-  const count = inHours ? Number((span / HOUR_MS).toFixed(1)) : selection.buckets
+  // Days read inclusive by their axis labels ("Nov 23 to Nov 25 · 3 days"), counting the
+  // quiet days that have no row. Hours, and days the page's range cuts into, read as
+  // times: the start of the selection to its exclusive end.
+  const inHours = granularity === "hourly" || selection.clipped
+  const count = inHours
+    ? Number((span / HOUR_MS).toFixed(1))
+    : Math.round((times[selection.last] - times[selection.first]) / (24 * HOUR_MS)) + 1
   const size = inHours ? (count === 1 ? "hour" : "hours") : count === 1 ? "day" : "days"
   const format = inHours ? "hourly" : granularity
   const end = inHours ? selection.endMs : times[selection.last]
@@ -290,12 +307,12 @@ function DragLabel({
     <span
       ref={label}
       aria-hidden
-      className="pointer-events-none absolute top-1.5 z-10 -translate-x-1/2 rounded-[7px] bg-popover px-[9px] py-[3px] text-xs font-medium whitespace-nowrap text-popover-foreground tabular-nums shadow-lg ring-1 ring-border"
+      className="pointer-events-none absolute top-1.5 z-10 -translate-x-1/2 rounded-[7px] bg-popover px-[9px] py-[3px] text-center text-xs font-medium whitespace-nowrap text-popover-foreground tabular-nums shadow-lg ring-1 ring-border"
     >
       {formatTs(selection.startMs, format)} to {formatTs(end, format)}{" "}
       <span className="font-normal text-muted-foreground">
         · {count} {size}
-        {!fits && " · hourly data for these hours has expired"}
+        {!fits && <span className="block">Hourly data for these hours has expired</span>}
       </span>
     </span>
   )
@@ -352,6 +369,7 @@ export function TimeChart({
     latestRows.current = rows
   })
   const zoom = useChartZoom()
+  const utcDays = useUtcDays(granularity, range)
   /** The bucket a mouse drag started on, the pointer it captured, and where it went down. */
   const dragStart = useRef<{ bucket: number; pointerId: number; x: number } | null>(null)
 
@@ -399,7 +417,9 @@ export function TimeChart({
     cancelDrag()
     const times = rows.map((row) => Date.parse(row.timestamp))
     const selection =
-      drag?.source === id ? dragSelection(times, drag.from, drag.to, granularity, range) : null
+      drag?.source === id
+        ? dragSelection(times, drag.from, drag.to, granularity, range, utcDays)
+        : null
     if (
       selection &&
       zoom &&
@@ -515,11 +535,17 @@ export function TimeChart({
           }
           // The button came up where no pointerup reached us, as after a context menu.
           if ((event.buttons & 1) === 0) return cancelDrag()
-          // A few pixels of movement start the drag, so one wide daily bucket can be picked.
-          if (!cursor.get().drag && Math.abs(event.clientX - started.x) < DRAG_START_PX) return
           const start = started.bucket
           const at = bucketAt(event.clientX, true)
           if (at == null) return
+          if (!cursor.get().drag) {
+            // Across buckets a few pixels start a drag. Inside one, a wide daily bar,
+            // it takes half the bar, so a click that slips does not zoom to that day.
+            const shape = geometry.current
+            const half = shape ? shape.plotWidth / Math.max(1, rows.length) / 2 : 0
+            const moved = Math.abs(event.clientX - started.x)
+            if (moved < (at === start ? Math.max(DRAG_START_PX, half) : DRAG_START_PX)) return
+          }
           cursor.setDrag({ source: id, from: Math.min(start, at), to: Math.max(start, at) })
           return
         }

@@ -10,7 +10,9 @@ import { BytesChart } from "./bytes-chart"
 import { ChartCursorProvider, useChartCursor, type ChartZoom } from "./chart-cursor"
 import { LatencyChart } from "./latency-chart"
 import { RequestsChart } from "./requests-chart"
-import { useKeptSinceMs } from "./use-traffic-buckets"
+import { useKeptSinceMs, useReadsRawRows } from "./use-traffic-buckets"
+import { BROWSER_TZ } from "@/lib/datetime"
+import { useTimeRange } from "@/lib/time-range-context"
 import { ZoomOutButton } from "./zoom-out-button"
 
 function TrafficHeader({
@@ -57,12 +59,15 @@ function TrafficHeader({
 export function TrafficSection() {
   const { zoomTo, zoomOut, back, depth } = useChartZoomStack()
   const keptSinceMs = useKeptSinceMs()
+  const readsRaw = useReadsRawRows()
+  const { granularity } = useTimeRange()
   const zoom = useMemo<ChartZoom>(
     () => ({
-      fits: (startMs, endMs) => zoomFits(startMs, endMs, keptSinceMs),
+      fits: (startMs, endMs) =>
+        zoomFits(startMs, endMs, keptSinceMs, { readsRaw, granularity, utc: BROWSER_TZ === "UTC" }),
       to: zoomTo,
     }),
-    [keptSinceMs, zoomTo],
+    [keptSinceMs, readsRaw, granularity, zoomTo],
   )
 
   return (

@@ -6,10 +6,12 @@
  * other range change forgets it.
  */
 import { useCallback, useEffect, useSyncExternalStore } from "react"
-import type { CustomTimeRange, TimeRangeValue } from "@/lib/api"
+import type { ChartGranularity, CustomTimeRange, TimeRangeValue } from "@/lib/api"
+import { autoChartGranularity } from "@/lib/sparklines"
+import { useTimeRange } from "@/lib/time-range-context"
 
 const HOUR_MS = 3_600_000
-import { useTimeRange } from "@/lib/time-range-context"
+const DAY_MS = 24 * HOUR_MS
 
 export type ZoomStep = {
   /** The range the page showed before this zoom. */
@@ -60,12 +62,33 @@ export function liveSteps(
   return top && range === "custom" && sameRange(top.to, customRange) ? stack : []
 }
 
+/** Where a series reads its buckets from, as the server routes it. */
+export type ZoomSource = { readsRaw: boolean; granularity: ChartGranularity; utc: boolean }
+
 /**
- * Whether the charts can show a zoom to `startMs`..`endMs`. A zoomed series
- * reads hourly data, even for local days, and hours older than `keptSinceMs`
- * are gone, so a zoom needs at least an hour inside the kept ones.
+ * Whether the server sends UTC days from the permanent daily rollup for
+ * `startMs`..`endMs`: unfiltered daily ranges over 30 days, or any unfiltered
+ * daily range in UTC. Everything else is built from hourly data.
  */
-export function zoomFits(startMs: number, endMs: number, keptSinceMs: number): boolean {
+export function readsDailyRollup(startMs: number, endMs: number, source: ZoomSource): boolean {
+  if (source.readsRaw) return false
+  const buckets =
+    source.granularity === "auto" ? autoChartGranularity(startMs, endMs) : source.granularity
+  return buckets === "daily" && (source.utc || endMs - startMs > 30 * DAY_MS)
+}
+
+/**
+ * Whether the charts can show a zoom to `startMs`..`endMs`. The daily rollup
+ * is kept forever; hourly data, raw rows included, only back to `keptSinceMs`,
+ * so a zoom read from them needs at least an hour inside that.
+ */
+export function zoomFits(
+  startMs: number,
+  endMs: number,
+  keptSinceMs: number,
+  source: ZoomSource,
+): boolean {
+  if (readsDailyRollup(startMs, endMs, source)) return true
   return endMs - Math.max(startMs, keptSinceMs) >= HOUR_MS
 }
 
@@ -97,8 +120,13 @@ export function useChartZoomStack() {
     const last = live[live.length - 1]
     if (!last) return
     write(live.slice(0, -1))
-    if (last.from.range === "custom" && last.from.customRange) setCustomRange(last.from.customRange)
-    else setRange(last.from.range)
+    if (last.from.range === "custom" && last.from.customRange) {
+      setCustomRange(last.from.customRange)
+    } else {
+      // A preset keeps the custom dates it had beside it, for the range picker.
+      if (last.from.customRange) setCustomRange(last.from.customRange)
+      setRange(last.from.range)
+    }
   }, [live, setRange, setCustomRange])
 
   return { zoomTo, zoomOut, back: live[live.length - 1]?.from ?? null, depth: live.length }

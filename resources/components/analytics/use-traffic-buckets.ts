@@ -26,11 +26,16 @@ export function keptHourDays(
     : (settings?.hourlyRetentionDays ?? DEFAULT_HOURLY_RETENTION_DAYS)
 }
 
+/** True when the page's series read raw rows: any filter, or muted IPs hidden. */
+export function useReadsRawRows(): boolean {
+  const { filters, muted } = useAnalyticsFilters()
+  return hasActiveAnalyticsFilters(filters) || muted.flag
+}
+
 /** Where the kept hours begin, on the hour. */
 export function useKeptSinceMs(): number {
   const settings = useRuntimeSettings().data?.analytics
-  const { filters, muted } = useAnalyticsFilters()
-  const retentionDays = keptHourDays(hasActiveAnalyticsFilters(filters), muted.flag, settings)
+  const retentionDays = keptHourDays(useReadsRawRows(), false, settings)
   // The clamp to now moves on with the hour at the next render.
   return Math.floor(Date.now() / HOUR_MS) * HOUR_MS - retentionDays * DAY_MS
 }

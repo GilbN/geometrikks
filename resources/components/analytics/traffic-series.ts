@@ -225,21 +225,25 @@ export type DragSelection = {
   /** Indexes of the first and last covered bucket. */
   first: number
   last: number
+  /** True when the page's range cuts into the first or last bucket. */
+  clipped: boolean
 }
 
 /**
- * Where a bucket ends. Hourly buckets last an hour. A daily bucket ends at the
- * next row when that is the next day (23 to 25 hours on, for daylight saving);
- * otherwise, with a quiet day after it, at the next local midnight for local
- * days, or a day on for UTC days.
+ * Where a bucket ends. Hourly buckets last an hour and UTC days a day.
+ * A local day ends at the next row when that is the next day (23 to 25 hours
+ * on, for daylight saving), otherwise, with a quiet day after it, at the next
+ * local midnight.
  */
 export function bucketEndMs(
   times: readonly number[],
   index: number,
   granularity: string | undefined,
+  utcDays = false,
 ): number {
   const start = times[index]
   if (granularity === "hourly") return start + HOUR_MS
+  if (utcDays) return start + 24 * HOUR_MS
   const next = times[index + 1]
   if (next != null && next - start >= 23 * HOUR_MS && next - start <= 25 * HOUR_MS) return next
   const date = new Date(start)
@@ -250,24 +254,33 @@ export function bucketEndMs(
   return start + 24 * HOUR_MS
 }
 
-/** The time a drag from bucket `fromMs` to bucket `toMs` selects, inside the page's range. */
+/**
+ * The time a drag from bucket `fromMs` to bucket `toMs` selects, inside the
+ * page's range. `utcDays` says the daily buckets are UTC days, as the server
+ * sends for unfiltered ranges over 30 days.
+ */
 export function dragSelection(
   times: readonly number[],
   fromMs: number,
   toMs: number,
   granularity: string | undefined,
   range: { startMs: number; endMs: number },
+  utcDays = false,
 ): DragSelection | null {
   // By bounds, not exact times: a refetch mid-drag can drop the bucket the drag started on.
   const first = times.findIndex((ms) => ms >= fromMs)
   let last = times.length - 1
   while (last >= 0 && times[last] > toMs) last--
   if (first < 0 || last < first) return null
+  const bucketEnd = bucketEndMs(times, last, granularity, utcDays)
+  const startMs = Math.max(times[first], range.startMs)
+  const endMs = Math.min(bucketEnd, range.endMs)
   return {
-    startMs: Math.max(times[first], range.startMs),
-    endMs: Math.min(bucketEndMs(times, last, granularity), range.endMs),
+    startMs,
+    endMs,
     buckets: last - first + 1,
     first,
     last,
+    clipped: startMs > times[first] || endMs < bucketEnd,
   }
 }

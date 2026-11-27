@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test"
-import { liveSteps, zoomFits, type ZoomStep } from "./chart-zoom"
+import { liveSteps, zoomFits, type ZoomSource, type ZoomStep } from "./chart-zoom"
 
 const week: ZoomStep = {
   from: { range: "7d", customRange: null },
@@ -12,18 +12,27 @@ const hours: ZoomStep = {
 
 describe("zoomFits", () => {
   const HOUR = 3_600_000
+  const DAY = 24 * HOUR
   const kept = Date.parse("2026-10-01T00:00:00Z")
-  const old = Date.parse("2026-08-01T00:00:00Z")
+  const old = Date.parse("2026-05-01T00:00:00Z")
+  const auto: ZoomSource = { readsRaw: false, granularity: "auto", utc: false }
 
   it("refuses a zoom with no kept hours in it", () => {
-    expect(zoomFits(old, old + 10 * HOUR, kept)).toBe(false)
-    expect(zoomFits(old, old + 10 * 24 * HOUR, kept)).toBe(false)
-    expect(zoomFits(kept - 5 * HOUR, kept + 30 * 60_000, kept)).toBe(false)
+    expect(zoomFits(old, old + 10 * HOUR, kept, auto)).toBe(false)
+    expect(zoomFits(old, old + 10 * DAY, kept, auto)).toBe(false)
+    expect(zoomFits(kept - 5 * HOUR, kept + 30 * 60_000, kept, auto)).toBe(false)
   })
 
   it("allows a zoom that reaches at least an hour into the kept hours", () => {
-    expect(zoomFits(kept, kept + 10 * HOUR, kept)).toBe(true)
-    expect(zoomFits(kept - 24 * HOUR, kept + 4 * 24 * HOUR, kept)).toBe(true)
+    expect(zoomFits(kept, kept + 10 * HOUR, kept, auto)).toBe(true)
+    expect(zoomFits(kept - DAY, kept + 4 * DAY, kept, auto)).toBe(true)
+  })
+
+  it("allows old zooms the daily rollup answers, unless filters send them to raw rows", () => {
+    expect(zoomFits(old, old + 40 * DAY, kept, auto)).toBe(true)
+    expect(zoomFits(old, old + 10 * DAY, kept, { ...auto, utc: true })).toBe(true)
+    expect(zoomFits(old, old + 40 * DAY, kept, { ...auto, readsRaw: true })).toBe(false)
+    expect(zoomFits(old, old + 40 * DAY, kept, { ...auto, granularity: "hourly" })).toBe(false)
   })
 })
 
