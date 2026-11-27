@@ -2,7 +2,7 @@
  * Requests over the range, stacked by status class. Views: stacked bars
  * (default), stacked area, share of responses and error rate.
  */
-import { useMemo, useState } from "react"
+import { useMemo } from "react"
 import { Area, Bar, Line } from "recharts"
 import { SignalPanel } from "@/components/data/signal-panel"
 import { dataState } from "@/components/data/types"
@@ -20,9 +20,10 @@ import {
   CursorStamp,
   spokenReadout,
   useCursorRow,
+  useDraggedRows,
   type ReadoutItem,
 } from "./chart-readout"
-import { createChartCursor, type ChartCursor } from "./chart-cursor"
+import { useChartCursor, type ChartCursor } from "./chart-cursor"
 import {
   barSpacer,
   formatLogCount,
@@ -112,10 +113,11 @@ function RequestsReadout({
   /** Adds the requests outside 2xx to 5xx to the count views' legend. */
   hasOther: boolean
 }) {
+  const dragged = useDraggedRows(cursor, buckets)
   const totals = useMemo(() => {
-    const sums = trafficTotals(buckets)
+    const sums = trafficTotals(dragged ?? buckets)
     return { ...sums, statusOther: Math.max(0, sums.totalRequests - statusTotal(sums)) }
-  }, [buckets])
+  }, [dragged, buckets])
   const row = useCursorRow(cursor, buckets)
   const source = ready ? (row ?? totals) : null
   const lead = source ? (
@@ -129,7 +131,7 @@ function RequestsReadout({
       lead={lead}
       items={requestsItems(source, view, hasOther)}
       stamp={stamp}
-      note={ready && !row ? since : null}
+      note={ready && !row && !dragged ? since : null}
     />
   )
 }
@@ -138,7 +140,7 @@ export function RequestsChart({ className }: { className?: string }) {
   const { data, error, isLoading, isError, refetch } = useTimeSeries()
   // The Status classes chart's key: its view ids carry over, the old Requests chart's do not.
   const options = useChartOptions("status", REQUESTS_OPTIONS)
-  const [cursor] = useState(createChartCursor)
+  const cursor = useChartCursor()
   const buckets = useTrafficBuckets(data)
   const view = options.view.id
   const lines = (view === "stacked" || view === "area") && options.scale === "log"
@@ -283,6 +285,7 @@ export function RequestsChart({ className }: { className?: string }) {
     >
       {data && (
         <TimeChart
+          id="requests"
           label={TITLE}
           summary={`${lines ? "Log lines of requests by status class" : (SUMMARIES[view] ?? options.view.label)}, ${chartRangeText(buckets, data.granularity)}.`}
           describe={(bucket) => {
@@ -298,6 +301,7 @@ export function RequestsChart({ className }: { className?: string }) {
           config={config}
           rows={rows}
           granularity={data.granularity}
+          range={{ startMs: Date.parse(data.startDate), endMs: Date.parse(data.endDate) }}
           cursor={cursor}
           marks={marks}
           yAxis={{ width: 48, ...yAxis }}

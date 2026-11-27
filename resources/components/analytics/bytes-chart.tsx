@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useMemo } from "react"
 import { Area, Bar } from "recharts"
 import { SignalPanel } from "@/components/data/signal-panel"
 import { dataState } from "@/components/data/types"
@@ -10,8 +10,14 @@ import { formatTs } from "@/lib/datetime"
 import { useTimeSeries } from "@/lib/queries"
 import { GranularityBadge } from "@/components/chart-buckets-menu"
 import { ChartOptionsMenu, ScaleNotes } from "./chart-options-menu"
-import { ChartReadout, CursorStamp, spokenReadout, useCursorRow } from "./chart-readout"
-import { createChartCursor, type ChartCursor } from "./chart-cursor"
+import {
+  ChartReadout,
+  CursorStamp,
+  spokenReadout,
+  useCursorRow,
+  useDraggedRows,
+} from "./chart-readout"
+import { useChartCursor, type ChartCursor } from "./chart-cursor"
 import { barSpacer, BYTES_OPTIONS, bytesChartConfig } from "./chart-utils"
 import { useTrafficBuckets } from "./use-traffic-buckets"
 import { TimeChart } from "./time-chart"
@@ -34,9 +40,10 @@ function BytesReadout({
   since: string | null
   ready: boolean
 }) {
+  const dragged = useDraggedRows(cursor, buckets)
   const total = useMemo(
-    () => buckets.reduce((sum, bucket) => sum + bucket.totalBytesSent, 0),
-    [buckets],
+    () => (dragged ?? buckets).reduce((sum, bucket) => sum + bucket.totalBytesSent, 0),
+    [dragged, buckets],
   )
   const row = useCursorRow(cursor, buckets)
   return (
@@ -50,7 +57,7 @@ function BytesReadout({
         },
       ]}
       stamp={row ? formatTs(row.timestamp, granularity) : null}
-      note={ready && !row ? since : null}
+      note={ready && !row && !dragged ? since : null}
     />
   )
 }
@@ -58,7 +65,7 @@ function BytesReadout({
 export function BytesChart() {
   const { data, error, isLoading, isError, refetch } = useTimeSeries()
   const options = useChartOptions("bytes", BYTES_OPTIONS)
-  const [cursor] = useState(createChartCursor)
+  const cursor = useChartCursor()
   const buckets = useTrafficBuckets(data)
   const bytesByTime = useMemo(
     () => new Map(buckets.map((row) => [Date.parse(row.timestamp), row.totalBytesSent])),
@@ -114,6 +121,7 @@ export function BytesChart() {
     >
       {data && (
         <TimeChart
+          id="bandwidth"
           label={TITLE}
           summary={`${options.view.label} of response bytes sent, ${chartRangeText(buckets, data.granularity)}.`}
           describe={(bucket) =>
@@ -129,6 +137,7 @@ export function BytesChart() {
           config={bytesChartConfig}
           rows={series.rows}
           granularity={data.granularity}
+          range={{ startMs: Date.parse(data.startDate), endMs: Date.parse(data.endDate) }}
           cursor={cursor}
           marks={
             bars

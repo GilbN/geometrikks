@@ -1,6 +1,14 @@
 import { afterEach, describe, expect, it } from "vite-plus/test"
 import type { TimeSeriesDataPoint } from "@/generated/api/types.gen"
-import { byteTicks, fillHourlyGaps, hourlyTicks, hoursSince, trafficTotals } from "./traffic-series"
+import {
+  bucketEndMs,
+  byteTicks,
+  dragSelection,
+  fillHourlyGaps,
+  hourlyTicks,
+  hoursSince,
+  trafficTotals,
+} from "./traffic-series"
 
 const HOUR = 3_600_000
 const START = Date.parse("2026-11-19T22:00:00Z")
@@ -225,5 +233,73 @@ describe("hoursSince", () => {
     expect(hoursSince(rows, "2026-08-01T00:00:00Z", "hourly")).toMatch(/^since Sep 2[78]$/)
     expect(hoursSince(rows, "2026-09-28T04:30:00Z", "hourly")).toBeNull()
     expect(hoursSince(rows, "2026-08-01T00:00:00Z", "daily")).toBeNull()
+  })
+})
+
+describe("bucketEndMs and dragSelection", () => {
+  const tz = process.env.TZ
+  afterEach(() => {
+    process.env.TZ = tz
+  })
+  const day = (iso: string) => Date.parse(iso)
+
+  it("ends a daily bucket at the next day, not at the next row after a quiet gap", () => {
+    process.env.TZ = "UTC"
+    const times = [
+      day("2026-11-01T00:00:00Z"),
+      day("2026-11-02T00:00:00Z"),
+      day("2026-11-10T00:00:00Z"),
+    ]
+    expect(bucketEndMs(times, 0, "daily")).toBe(day("2026-11-02T00:00:00Z"))
+    expect(bucketEndMs(times, 1, "daily")).toBe(day("2026-11-03T00:00:00Z"))
+  })
+
+  it("ends a local day that daylight saving starts at 01:00 at the next midnight", () => {
+    process.env.TZ = "America/Santiago"
+    // 2026-09-06 starts at 01:00 local (04:00Z); the next local midnight is 03:00Z on Sep 7.
+    const times = [day("2026-09-06T04:00:00Z")]
+    expect(bucketEndMs(times, 0, "daily")).toBe(day("2026-09-07T03:00:00Z"))
+  })
+
+  it("counts a range that ends a millisecond before a bucket's end as the whole bucket", () => {
+    const times = [0, 1, 2].map((hour) => START + hour * HOUR)
+    const range = { startMs: START, endMs: START + 3 * HOUR - 1 }
+    expect(dragSelection(times, times[0], times[2], "hourly", range)).toMatchObject({
+      endMs: START + 3 * HOUR,
+      clipped: false,
+    })
+  })
+
+  it("ends a UTC day a day on, even on a local daylight saving date", () => {
+    process.env.TZ = "Europe/London"
+    const times = [day("2026-03-29T00:00:00Z")]
+    expect(bucketEndMs(times, 0, "daily", true)).toBe(day("2026-03-30T00:00:00Z"))
+  })
+
+  it("ends a local day at the next local midnight across daylight saving", () => {
+    process.env.TZ = "Europe/Oslo"
+    // 2026-10-25 has 25 hours in Oslo; local midnight is 22:00Z the day before.
+    const times = [day("2026-10-24T22:00:00Z")]
+    expect(bucketEndMs(times, 0, "daily")).toBe(day("2026-10-25T23:00:00Z"))
+  })
+
+  it("keeps a selection inside the page's range", () => {
+    const times = [0, 1, 2, 3].map((hour) => START + hour * HOUR)
+    const range = { startMs: START + 15 * 60_000, endMs: START + 3 * HOUR + 30 * 60_000 }
+    expect(dragSelection(times, times[0], times[3], "hourly", range)).toEqual({
+      startMs: range.startMs,
+      endMs: range.endMs,
+      buckets: 4,
+      first: 0,
+      last: 3,
+      clipped: true,
+    })
+    expect(dragSelection(times, times[1], times[0], "hourly", range)).toBeNull()
+    // A bucket gone from the rows mid-drag still leaves the rest selected.
+    expect(dragSelection(times.slice(1), times[0], times[2], "hourly", range)).toMatchObject({
+      first: 0,
+      last: 1,
+      buckets: 2,
+    })
   })
 })

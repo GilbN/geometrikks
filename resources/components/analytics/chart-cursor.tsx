@@ -1,0 +1,106 @@
+/**
+ * Where the traffic charts' cursor sits, kept outside React state so a
+ * pointer move re-renders the cursor marks and the header readouts, not the
+ * charts. Times are bucket starts in ms, so charts with the same buckets
+ * agree. The Analytics page shares one cursor across its charts.
+ */
+import { createContext, useContext, useMemo, useState, useSyncExternalStore } from "react"
+import { usePollingHold, useTimeRange } from "@/lib/time-range-context"
+
+/** Buckets from `from` to `to`, both starts, picked by a drag on chart `source`. */
+export type CursorDrag = { source: string; from: number; to: number }
+
+type CursorState = { bucket: number | null; drag: CursorDrag | null }
+
+export type ChartCursor = {
+  get: () => CursorState
+  /** The hovered bucket. Ignored while a drag runs. */
+  set: (bucket: number | null) => void
+  setDrag: (drag: CursorDrag | null) => void
+  subscribe: (listener: () => void) => () => void
+}
+
+export function createChartCursor(): ChartCursor {
+  let state: CursorState = { bucket: null, drag: null }
+  const listeners = new Set<() => void>()
+  const sameDrag = (a: CursorDrag | null, b: CursorDrag | null) =>
+    a === b ||
+    (a != null && b != null && a.source === b.source && a.from === b.from && a.to === b.to)
+  const update = (next: CursorState) => {
+    if (next.bucket === state.bucket && sameDrag(next.drag, state.drag)) return
+    state = next
+    for (const listener of listeners) listener()
+  }
+  return {
+    get: () => state,
+    set: (bucket) => {
+      if (!state.drag) update({ ...state, bucket })
+    },
+    setDrag: (drag) => update({ bucket: null, drag }),
+    subscribe: (listener) => {
+      listeners.add(listener)
+      return () => listeners.delete(listener)
+    },
+  }
+}
+
+/** Drag to zoom: `fits` says whether a selection can be zoomed to, `to` zooms. */
+export type ChartZoom = {
+  fits: (startMs: number, endMs: number) => boolean
+  to: (startMs: number, endMs: number) => void
+}
+
+const SharedCursor = createContext<{ cursor: ChartCursor; zoom?: ChartZoom } | null>(null)
+
+/** Auto refresh would move the buckets under a running drag. */
+function HoldPollingWhileDragging({ cursor }: { cursor: ChartCursor }) {
+  const { pollInterval } = useTimeRange()
+  // Only with auto refresh on: a hold's release refetches whatever went stale.
+  usePollingHold(useCursorDrag(cursor) != null && pollInterval > 0)
+  return null
+}
+
+/** One cursor for every traffic chart inside, and drag to zoom when `zoom` is given. */
+export function ChartCursorProvider({
+  zoom,
+  children,
+}: {
+  zoom?: ChartZoom
+  children: React.ReactNode
+}) {
+  const [cursor] = useState(createChartCursor)
+  const value = useMemo(() => ({ cursor, zoom }), [cursor, zoom])
+  return (
+    <SharedCursor.Provider value={value}>
+      <HoldPollingWhileDragging cursor={cursor} />
+      {children}
+    </SharedCursor.Provider>
+  )
+}
+
+/** The page's shared cursor, or one of the chart's own outside a provider. */
+export function useChartCursor(): ChartCursor {
+  const shared = useContext(SharedCursor)
+  const [own] = useState(createChartCursor)
+  return shared?.cursor ?? own
+}
+
+export function useChartZoom(): ChartZoom | undefined {
+  return useContext(SharedCursor)?.zoom
+}
+
+export function useCursorBucket(cursor: ChartCursor): number | null {
+  return useSyncExternalStore(
+    cursor.subscribe,
+    () => cursor.get().bucket,
+    () => cursor.get().bucket,
+  )
+}
+
+export function useCursorDrag(cursor: ChartCursor): CursorDrag | null {
+  return useSyncExternalStore(
+    cursor.subscribe,
+    () => cursor.get().drag,
+    () => cursor.get().drag,
+  )
+}

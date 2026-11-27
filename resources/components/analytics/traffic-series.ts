@@ -214,3 +214,72 @@ export function byteTicks(top: number): { ticks: number[]; domain: [number, numb
   const ticks = Array.from({ length: count + 1 }, (_, index) => index * step)
   return { ticks, domain: [0, ticks[ticks.length - 1]] }
 }
+
+export type DragSelection = {
+  /** Start of the first selected bucket, or of the page's range when that starts later. */
+  startMs: number
+  /** Exclusive end of the last selected bucket, or of the page's range when that ends sooner. */
+  endMs: number
+  /** Buckets the drag covers. */
+  buckets: number
+  /** Indexes of the first and last covered bucket. */
+  first: number
+  last: number
+  /** True when the page's range cuts into the first or last bucket. */
+  clipped: boolean
+}
+
+/**
+ * Where a bucket ends. Hourly buckets last an hour and UTC days a day.
+ * A local day ends at the next row when that is the next day (23 to 25 hours
+ * on, for daylight saving), otherwise, with a quiet day after it, at the next
+ * local midnight.
+ */
+export function bucketEndMs(
+  times: readonly number[],
+  index: number,
+  granularity: string | undefined,
+  utcDays = false,
+): number {
+  const start = times[index]
+  if (granularity === "hourly") return start + HOUR_MS
+  if (utcDays) return start + 24 * HOUR_MS
+  const next = times[index + 1]
+  if (next != null && next - start >= 23 * HOUR_MS && next - start <= 25 * HOUR_MS) return next
+  // The next local day's first moment, even when daylight saving starts a day at 01:00.
+  const date = new Date(start)
+  date.setHours(24, 0, 0, 0)
+  return date.getTime()
+}
+
+/**
+ * The time a drag from bucket `fromMs` to bucket `toMs` selects, inside the
+ * page's range. `utcDays` says the daily buckets are UTC days, as the server
+ * sends for unfiltered ranges over 30 days.
+ */
+export function dragSelection(
+  times: readonly number[],
+  fromMs: number,
+  toMs: number,
+  granularity: string | undefined,
+  range: { startMs: number; endMs: number },
+  utcDays = false,
+): DragSelection | null {
+  // By bounds, not exact times: a refetch mid-drag can drop the bucket the drag started on.
+  const first = times.findIndex((ms) => ms >= fromMs)
+  let last = times.length - 1
+  while (last >= 0 && times[last] > toMs) last--
+  if (first < 0 || last < first) return null
+  const bucketEnd = bucketEndMs(times, last, granularity, utcDays)
+  const startMs = Math.max(times[first], range.startMs)
+  // Calendar presets such as Yesterday end at 23:59:59.999; that is the whole bucket.
+  const endMs = range.endMs >= bucketEnd - 1000 ? bucketEnd : range.endMs
+  return {
+    startMs,
+    endMs,
+    buckets: last - first + 1,
+    first,
+    last,
+    clipped: startMs > times[first] || endMs < bucketEnd,
+  }
+}
