@@ -120,7 +120,10 @@ export function StatusBoard({
       // under the pointer, fires no leave event, so check the flags here.
       const card = cardRef.current
       const pointerStale = pointerInside && !card?.matches(":hover")
-      const focusStale = keyboardInside && !card?.contains(document.activeElement)
+      // The remove-location dialog renders outside the card but belongs to it.
+      const active = document.activeElement
+      const focusStale =
+        keyboardInside && !card?.contains(active) && !active?.closest('[role="alertdialog"]')
       if (pointerStale) setPointerInside(false)
       if (focusStale) setKeyboardInside(false)
       return

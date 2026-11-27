@@ -256,7 +256,7 @@ function ingestionRow(data: StatusData): BoardRowSpec {
           <PanelSeparator />
           <PanelCaption>Access log sources</PanelCaption>
           {data.filesError && <p className="text-muted-foreground">File list unavailable.</p>}
-          {!data.filesError && sourcesKnown && total === 0 && (
+          {!data.filesError && !data.statsError && sourcesKnown && total === 0 && (
             <p className="text-muted-foreground">No access logs configured.</p>
           )}
           {data.accessFiles.length > 0 && (
@@ -486,14 +486,22 @@ function schedulerRow({ jobs, jobsError }: StatusData, now: number): BoardRowSpe
   const next = nextSchedulerJob(jobs)
   const nextAt = next?.nextRunTime
   let fact: React.ReactNode = null
-  if (failed.length > 0) fact = `Last run failed: ${failed.map((job) => job.name).join(", ")}`
-  else if (next) fact = `Next: ${next.name}`
-  const end = nextAt && failed.length === 0 && (
+  if (jobsError) fact = "The job list could not be read"
+  else if (failed.length > 0) {
+    fact = `Last run failed: ${failed.map((job) => job.name).join(", ")}`
+  } else if (next) fact = `Next: ${next.name}`
+  const end = nextAt && !jobsError && failed.length === 0 && (
     <Ticking render={(nowMs) => untilLabel(nextAt, nowMs)} />
   )
   const panel = (
     <BoardPanel>
-      {jobsError && <p className="text-muted-foreground">Job list unavailable.</p>}
+      {jobsError && (
+        <p className="mb-3 text-muted-foreground">
+          {jobs
+            ? "The job list could not be read. These jobs are from the last read."
+            : "Job list unavailable."}
+        </p>
+      )}
       {jobs && (
         <PanelTable
           columns={[
@@ -577,7 +585,7 @@ function liveFeedRow({ feedStatus }: StatusData, settled: boolean): BoardRowSpec
     icon: Radio,
     name: "Live feed",
     state,
-    fact: LIVE_FEED_FACTS[feedStatus],
+    fact: LIVE_FEED_FACTS[state.tone === "muted" ? "connected" : feedStatus],
     counts: true,
     panel,
   }
@@ -588,6 +596,7 @@ function authRow({ me, meError, oidc, oidcError }: StatusData): BoardRowSpec {
   // A failed status poll keeps the cached answer, so a failing discovery does
   // not read as a recovery for one poll.
   const oidcLine = oidcState(oidc, oidcError && !oidc)
+  const authOff = me?.mode !== undefined && me.mode !== "session"
   // A failed discovery is the worse news, so it takes the row.
   const state = oidcLine?.tone === "red" ? oidcLine : auth
   let fact: React.ReactNode = null
@@ -595,7 +604,7 @@ function authRow({ me, meError, oidc, oidcError }: StatusData): BoardRowSpec {
     fact = `Signed in as ${me.username}${me.provider === "oidc" && oidc?.providerName ? ` with ${oidc.providerName}` : ""}`
   } else if (me) fact = "Anyone who can reach this app has full access"
   const stale =
-    oidcError && oidc
+    oidcError && oidc?.configured
       ? "The identity provider status could not be read. These values are from the last read."
       : undefined
   const sentence = [auth.detail, oidcLine?.detail, stale].filter(Boolean).join(" ") || undefined
@@ -630,7 +639,10 @@ function authRow({ me, meError, oidc, oidcError }: StatusData): BoardRowSpec {
     name: "Authentication",
     state,
     fact,
-    counts: true,
+    // Login turned off is a choice, often made behind an auth proxy. The row
+    // moves up amber so it is noticed, but the app is not broken.
+    counts: authOff ? false : true,
+    autoOpen: !authOff,
     panel,
   }
 }
