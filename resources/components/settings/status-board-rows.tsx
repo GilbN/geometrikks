@@ -105,6 +105,8 @@ export interface StatusData {
   oidc: OidcStatus | undefined
   oidcError: boolean
   accessFiles: LogFileView[]
+  /** False until the file list has answered once. */
+  filesLoaded: boolean
   filesError: boolean
   jobs: SchedulerJobView[] | undefined
   jobsError: boolean
@@ -209,16 +211,16 @@ function ingestionRow(data: StatusData): BoardRowSpec {
   const unavailable = unavailableSourceCount(health)
   // The source count comes from the file list and stats, not /health, so it can lag
   // behind the unavailable count while they load.
-  const sources = sourcesPhrase(
-    Math.max(total, unavailable),
-    unavailable,
-    unavailableSourcesWord(health),
-  )
+  const sourcesKnown = data.filesLoaded && stats !== undefined
+  const sources = sourcesKnown
+    ? `${sourcesPhrase(Math.max(total, unavailable), unavailable, unavailableSourcesWord(health))} · `
+    : ""
   const fact = !health ? null : disabled ? (
     "Log tailing is turned off"
   ) : (
     <>
-      {sources} · last event <Ticking render={(nowMs) => relativeTime(lastRecordAt, nowMs)} />
+      {sources ? `${sources}last event` : "Last event"}{" "}
+      <Ticking render={(nowMs) => relativeTime(lastRecordAt, nowMs)} />
     </>
   )
   const running = health?.ingestion.running ?? false
@@ -254,7 +256,7 @@ function ingestionRow(data: StatusData): BoardRowSpec {
           <PanelSeparator />
           <PanelCaption>Access log sources</PanelCaption>
           {data.filesError && <p className="text-muted-foreground">File list unavailable.</p>}
-          {!data.filesError && stats !== undefined && total === 0 && (
+          {!data.filesError && sourcesKnown && total === 0 && (
             <p className="text-muted-foreground">No access logs configured.</p>
           )}
           {data.accessFiles.length > 0 && (

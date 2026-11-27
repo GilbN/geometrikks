@@ -749,6 +749,7 @@ export function StatusOverview() {
           oidc,
           oidcError,
           accessFiles: access,
+          filesLoaded: files !== undefined,
           filesError,
           jobs,
           jobsError,

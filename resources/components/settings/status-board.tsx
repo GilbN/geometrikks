@@ -251,7 +251,7 @@ function BoardRow({
               </span>
             </span>
             {/* Hidden on a narrow board, but still part of the row's name. */}
-            <span className="sr-only truncate text-muted-foreground @2xl:not-sr-only @2xl:block">
+            <span className="sr-only truncate text-muted-foreground @2xl:not-sr-only @2xl:block @2xl:truncate">
               {row.fact}
             </span>
             <span className="hidden text-xs whitespace-nowrap text-muted-foreground tabular-nums @2xl:block">
