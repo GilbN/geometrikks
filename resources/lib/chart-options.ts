@@ -1,7 +1,7 @@
 /**
  * Per-chart view and scale choice, persisted in localStorage. The stored
- * scale is the user's last explicit pick; a view that does not allow it
- * shows its own default instead, and the pick returns with a view that does.
+ * scale is the user's last explicit pick, if any; a view that does not allow
+ * it shows its own default instead, and the pick returns with a view that does.
  */
 import { useState } from "react"
 
@@ -37,7 +37,15 @@ export type ChartViewSpec = {
 /** First view is the chart's default view. */
 export type ChartOptionsSpec = { views: readonly ChartViewSpec[] }
 
-export type ChartOptions = { view: string; scale: ChartScale }
+/** `scale` is absent until the user picks one, so the view's default applies. */
+export type ChartOptions = { view: string; scale?: ChartScale }
+
+/**
+ * Before version 2 a view pick saved the default scale of the day too, which
+ * was Log, so a saved Log may never have been picked. Version 1 records drop
+ * a saved Log once; the next pick saves a version 2 record.
+ */
+const STORAGE_VERSION = 2
 
 export type ChartOptionsState = {
   view: ChartViewSpec
@@ -89,9 +97,10 @@ export function saveChartOptions(
   options: ChartOptions,
   storage: StorageLike | undefined = browserStorage(),
 ): void {
-  memory.set(chartId, options)
+  const record = { ...options, v: STORAGE_VERSION }
+  memory.set(chartId, record)
   try {
-    storage?.setItem(chartOptionsStorageKey(chartId), JSON.stringify(options))
+    storage?.setItem(chartOptionsStorageKey(chartId), JSON.stringify(record))
     unsaved.delete(chartId)
   } catch {
     // Storage may be blocked or full; the in-memory copy keeps the choice.
@@ -103,24 +112,22 @@ function findView(spec: ChartOptionsSpec, id: unknown): ChartViewSpec {
   return spec.views.find((view) => view.id === id) ?? spec.views[0]
 }
 
-/** Valid view and valid scale; the scale may not be allowed by the view. */
+/** Valid view and the picked scale, if any; the scale may not be allowed by the view. */
 export function parseChartOptions(spec: ChartOptionsSpec, stored: unknown): ChartOptions {
   const record =
     typeof stored === "object" && stored !== null ? (stored as Record<string, unknown>) : {}
   const view = findView(spec, record.view)
-  const scale = SCALES.includes(record.scale as ChartScale)
-    ? (record.scale as ChartScale)
-    : view.scales[0]
-  return { view: view.id, scale }
+  const scale = record.scale as ChartScale
+  const picked = SCALES.includes(scale) && !(scale === "log" && record.v !== STORAGE_VERSION)
+  return picked ? { view: view.id, scale } : { view: view.id }
 }
 
 /** What the chart renders: the scale is always one the view allows. */
-export function resolveChartOptions(spec: ChartOptionsSpec, stored: unknown): ChartOptions {
-  const parsed = parseChartOptions(spec, stored)
+export function resolveChartOptions(spec: ChartOptionsSpec, parsed: ChartOptions): ChartOptions {
   const view = findView(spec, parsed.view)
   return {
     view: view.id,
-    scale: view.scales.includes(parsed.scale) ? parsed.scale : view.scales[0],
+    scale: parsed.scale && view.scales.includes(parsed.scale) ? parsed.scale : view.scales[0],
   }
 }
 
@@ -143,14 +150,15 @@ export function useChartOptions(chartId: string, spec: ChartOptionsSpec): ChartO
   )
   const resolved = resolveChartOptions(spec, stored)
   const view = findView(spec, resolved.view)
+  const scale = resolved.scale ?? view.scales[0]
   const update = (next: ChartOptions) => {
     setStored(next)
     saveChartOptions(chartId, next)
   }
   return {
     view,
-    scale: resolved.scale,
-    isDefault: { view: view.id === spec.views[0].id, scale: resolved.scale === view.scales[0] },
+    scale,
+    isDefault: { view: view.id === spec.views[0].id, scale: scale === view.scales[0] },
     setView: (id) => update({ ...stored, view: id }),
     setScale: (scale) => update({ ...stored, scale }),
   }

@@ -3,7 +3,7 @@ import type { MutedScope } from "@/lib/muted-ips"
 import { useMutedRetention } from "@/lib/use-muted-retention"
 
 const ITEMS = [
-  "the request, status, bandwidth and latency charts",
+  "the request, bandwidth and latency charts",
   "Top URLs",
   "user agents",
   "Top ASNs",

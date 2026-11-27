@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vite-plus/test"
 import type { TimeSeriesDataPoint } from "@/generated/api/types.gen"
-import { formatNumber } from "@/lib/api"
-import { errorRateSeries, isIsolated, shareLabel, shareRows, statusTotal } from "./status-series"
+import { errorRateSeries, isIsolated, shareRows, statusTotal, withOther } from "./status-series"
 
 function point(overrides: Partial<TimeSeriesDataPoint>): TimeSeriesDataPoint {
   return {
@@ -40,17 +39,22 @@ describe("shareRows", () => {
   })
 })
 
-describe("shareLabel", () => {
-  it("shows count and share of the four classes", () => {
-    const row = { status2xx: 1234, status3xx: 0, status4xx: 266, status5xx: 0 }
-    expect(statusTotal(row)).toBe(1500)
-    expect(shareLabel(1234, row)).toBe(`${formatNumber(1234)} (82.3%)`)
+describe("statusTotal", () => {
+  it("adds the four classes and counts a missing class as 0", () => {
+    expect(statusTotal({ status2xx: 1234, status3xx: null, status4xx: 266, status5xx: 0 })).toBe(
+      1500,
+    )
   })
+})
 
-  it("returns n/a for null values and empty buckets", () => {
-    expect(
-      shareLabel(null, { status2xx: null, status3xx: null, status4xx: null, status5xx: null }),
-    ).toBe("n/a")
+describe("withOther", () => {
+  it("counts the requests no class holds, such as 1xx", () => {
+    const [ws, plain] = withOther([
+      point({ totalRequests: 50, status2xx: 8, status4xx: 2 }),
+      point({ totalRequests: 10, status2xx: 10 }),
+    ])
+    expect(ws.statusOther).toBe(40)
+    expect(plain.statusOther).toBe(0)
   })
 })
 

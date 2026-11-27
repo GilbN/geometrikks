@@ -5,20 +5,11 @@ import {
   fillGaps,
   geoLogSparklinesFromSeries,
   hasSparklines,
-  sparklineGranularity,
 } from "./sparklines"
 import type { TimeSeriesResponse } from "./api"
 
 const HOUR = 3_600_000
 const at = (iso: string) => Date.parse(iso)
-
-describe("sparklineGranularity", () => {
-  it("uses hours up to a week and days above", () => {
-    expect(sparklineGranularity(0, 24 * HOUR)).toBe("hourly")
-    expect(sparklineGranularity(0, 7 * 24 * HOUR)).toBe("hourly")
-    expect(sparklineGranularity(0, 14 * 24 * HOUR)).toBe("daily")
-  })
-})
 
 describe("hasSparklines", () => {
   it("skips ranges too short to draw a shape", () => {

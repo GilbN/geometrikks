@@ -104,7 +104,7 @@ SCENES: tuple[Scene, ...] = (
     Scene(
         id="analytics",
         title="Analytics",
-        alt="The Analytics page with charts of requests and status classes over time.",
+        alt="The Analytics page with hourly requests stacked by status class, and bandwidth and request latency charts below.",
         path="/analytics",
         viewports=("desktop", "phone"),
     ),

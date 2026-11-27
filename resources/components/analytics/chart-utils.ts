@@ -6,10 +6,6 @@
 import type { ChartConfig } from "@/components/ui/chart"
 import type { ChartOptionsSpec } from "@/lib/chart-options"
 
-export const requestsChartConfig = {
-  totalRequests: { label: "Requests", color: "var(--chart-1)" },
-} satisfies ChartConfig
-
 // Slot order matches the stack order: adjacent-pair CVD separation of the
 // palette is only guaranteed for slots used in sequence.
 export const statusChartConfig = {
@@ -32,10 +28,9 @@ export const latencyChartConfig = {
 
 /**
  * Above this many buckets the card-colored bar spacers are wider than the
- * bars (they erase the fill on 7d+ hourly views), so bar views drop them and
- * the status stack switches to areas.
+ * bars (they erase the fill on 7d+ hourly views), so bar views drop them.
  */
-export const DENSE_BUCKETS = 48
+const DENSE_BUCKETS = 48
 
 export function barSpacer(buckets: number): { stroke?: string; strokeWidth?: number } {
   return buckets > DENSE_BUCKETS ? {} : { stroke: "var(--card)", strokeWidth: 1 }
@@ -72,12 +67,27 @@ export const AREA_BARS_OPTIONS = {
   ],
 } satisfies ChartOptionsSpec
 
-export const STATUS_OPTIONS = {
+export const BYTES_OPTIONS = {
+  views: [
+    { id: "area", label: "Area", scales: ["clip", "full", "log"] },
+    { id: "bars", label: "Bars", scales: ["clip", "full", "log"] },
+  ],
+} satisfies ChartOptionsSpec
+
+/** The Requests chart. "stacked" keeps the old Status classes id, so its saved picks carry over. */
+export const REQUESTS_OPTIONS = {
   views: [
     {
       id: "stacked",
-      label: "Stacked counts",
-      scales: ["log", "clip", "full"],
+      label: "Stacked bars",
+      scales: ["clip", "full", "log"],
+      scaleHints: { log: "Shows as lines" },
+    },
+    {
+      id: "area",
+      label: "Stacked area",
+      chip: "Area",
+      scales: ["clip", "full", "log"],
       scaleHints: { log: "Shows as lines" },
     },
     {
@@ -93,8 +103,8 @@ export const STATUS_OPTIONS = {
 
 export const LATENCY_OPTIONS = {
   views: [
-    { id: "band", label: "Percentile band", scales: ["log", "clip", "full"] },
-    { id: "lines", label: "Lines", scales: ["log", "clip", "full"] },
+    { id: "band", label: "Percentile band", scales: ["clip", "full", "log"] },
+    { id: "lines", label: "Lines", scales: ["clip", "full", "log"] },
   ],
 } satisfies ChartOptionsSpec
 

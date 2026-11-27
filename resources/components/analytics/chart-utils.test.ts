@@ -4,8 +4,9 @@ import {
   barSpacer,
   formatLogCount,
   formatRate,
+  BYTES_OPTIONS,
   LATENCY_OPTIONS,
-  STATUS_OPTIONS,
+  REQUESTS_OPTIONS,
 } from "./chart-utils"
 
 describe("formatRate", () => {
@@ -40,10 +41,18 @@ describe("formatLogCount", () => {
 })
 
 describe("default chart options", () => {
-  it("opens every chart in log where the view allows it", () => {
+  it("opens the Analytics charts linear with spikes clipped", () => {
+    expect(REQUESTS_OPTIONS.views.map((v) => v.scales[0])).toEqual(["clip", "clip", "full", "clip"])
+    expect(BYTES_OPTIONS.views.map((v) => v.scales[0])).toEqual(["clip", "clip"])
+    expect(LATENCY_OPTIONS.views.map((v) => v.scales[0])).toEqual(["clip", "clip"])
+  })
+
+  it("opens the Requests chart as stacked bars", () => {
+    expect(REQUESTS_OPTIONS.views[0]).toMatchObject({ id: "stacked", label: "Stacked bars" })
+  })
+
+  it("keeps the Geo Logs chart in log", () => {
     expect(AREA_BARS_OPTIONS.views.map((v) => v.scales[0])).toEqual(["log", "log"])
-    expect(STATUS_OPTIONS.views.map((v) => v.scales[0])).toEqual(["log", "full", "clip"])
-    expect(LATENCY_OPTIONS.views.map((v) => v.scales[0])).toEqual(["log", "log"])
   })
 
   it("opens request latency as the percentile band", () => {

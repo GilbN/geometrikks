@@ -6,7 +6,7 @@ import type {
 
 const HOUR = 3_600_000
 const START = Date.parse("2026-08-14T00:00:00Z")
-const BUCKETS = 72 // above 48, so stacked status views render as areas
+const BUCKETS = 72 // above 48, so the bars drop their card-colored spacers
 const EMPTY = new Set([10, 11]) // no requests at all
 
 function requestsAt(index: number): number {
@@ -71,23 +71,24 @@ async function choose(page: Page, card: Locator, title: string, item: string) {
   await page.getByRole("menuitemradio", { name: new RegExp(`^${item}`) }).click()
 }
 
-/** Hovers bucket `index` and returns the tooltip. */
-async function hoverBucket(
-  page: Page,
-  card: Locator,
-  index: number,
-  count: number,
-): Promise<Locator> {
+/** Moves the mouse over bucket `index` of a bar chart (band scale: bars sit in the middle of their slot). */
+async function hoverBar(page: Page, card: Locator, index: number, count: number) {
   // mouse.move to coordinates below the viewport hovers nothing.
   await card.scrollIntoViewIfNeeded()
   const grid = await card.locator(".recharts-cartesian-grid").boundingBox()
   if (!grid) throw new Error("chart grid is not rendered")
-  // ComposedChart uses a band x scale when it has bars and a point scale
-  // otherwise (recharts/lib/util/ChartUtils.js parseScale).
-  const bars = (await card.locator(".recharts-bar").count()) > 0
-  const x = bars ? (index + 0.5) * (grid.width / count) : index * (grid.width / (count - 1))
-  await page.mouse.move(grid.x + x, grid.y + grid.height / 2)
-  return card.locator(".recharts-tooltip-wrapper")
+  await page.mouse.move(grid.x + (index + 0.5) * (grid.width / count), grid.y + grid.height / 2)
+}
+
+function readout(card: Locator): Locator {
+  return card.locator("header")
+}
+
+/** The header as the user sees it: the phone's short labels are hidden on desktop and the other way round. */
+async function expectReadout(card: Locator, text: string, present = true) {
+  const squash = (value: string) => value.replace(/\s+/g, "")
+  const visible = expect.poll(() => readout(card).innerText().then(squash))
+  await (present ? visible.toContain(squash(text)) : visible.not.toContain(squash(text)))
 }
 
 /** Number of separate runs in an SVG path (one `M` per run). */
@@ -120,88 +121,261 @@ test.beforeEach(async ({ page }) => {
 
 test.describe("requests chart", () => {
   const points = Array.from({ length: BUCKETS }, (_, i) => timeSeriesPoint(i))
+  const sum = (key: keyof TimeSeriesDataPoint) =>
+    points.reduce((total, point) => total + (point[key] as number), 0)
 
-  test("opens in log, keeps zero buckets on one unbroken path, and a linear pick survives a reload", async ({
+  test("opens as stacked bars on a linear axis with the range totals in the header", async ({
     page,
   }) => {
     await mockTimeSeries(page, points)
     await page.goto("/analytics")
     const card = panel(page, "Requests")
 
-    // Log is the default, so no chip.
+    // Stacked bars and Linear, clip spikes are the defaults, so no chip.
     await expect(
       card.getByRole("button", { name: "Chart options: Requests", exact: true }),
     ).toBeVisible()
-    await expect(card.getByText("zeros drawn at the bottom edge")).toBeVisible()
+    await expect(card.locator(".recharts-bar")).toHaveCount(4)
+    await expect(card.getByText(/^y-axis clipped at/)).toBeVisible()
+    await expectReadout(card, `${sum("totalRequests").toLocaleString("en-US")} requests`)
+    await expectReadout(card, `2xx Success${sum("status2xx").toLocaleString("en-US")}`)
+    // The header carries the numbers, so the card has no tooltip and no legend footer.
+    await expect(card.locator("footer")).toHaveCount(0)
+    await expect(card.locator(".recharts-tooltip-wrapper")).toHaveCount(0)
+    await expect(panel(page, "Status classes")).toHaveCount(0)
+  })
+
+  test("hovering an hour puts its numbers and time in the header", async ({ page }) => {
+    await mockTimeSeries(page, points)
+    await page.goto("/analytics")
+    const card = panel(page, "Requests")
+    await expect(card.locator(".recharts-bar")).toHaveCount(4)
+
+    await hoverBar(page, card, 30, BUCKETS)
+    const hour = points[30]
+    await expectReadout(card, `${hour.totalRequests.toLocaleString("en-US")} requests`)
+    await expectReadout(card, `5xx Server error${hour.status5xx}`)
+    const stamp = await page.evaluate(
+      (timestamp) =>
+        new Intl.DateTimeFormat(undefined, {
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        }).format(new Date(timestamp)),
+      hour.timestamp,
+    )
+    await expect(readout(card).getByText(stamp, { exact: true }).first()).toBeVisible()
+    // The other bars dim under two card-colored veils.
+    await expect(card.locator('rect[fill="var(--card)"]')).toHaveCount(2)
+
+    await page.mouse.move(0, 0)
+    await expectReadout(card, `${sum("totalRequests").toLocaleString("en-US")} requests`)
+    await expect(card.locator('rect[fill="var(--card)"]')).toHaveCount(0)
+  })
+
+  test("draws hours the endpoint leaves out as empty bars", async ({ page }) => {
+    // Hours 10 and 11 have no traffic and are missing from the response.
+    await mockTimeSeries(
+      page,
+      points.filter((_, index) => !EMPTY.has(index)),
+    )
+    await page.goto("/analytics")
+    const card = panel(page, "Requests")
+    await expect(card.locator(".recharts-bar")).toHaveCount(4)
+    await hoverBar(page, card, 10, BUCKETS)
+    // The bold figure before "requests" is the hour's total.
+    await expect(card.locator("header b").first()).toHaveText("0")
+    await hoverBar(page, card, 12, BUCKETS)
+    await expectReadout(card, `${points[12].totalRequests.toLocaleString("en-US")} requests`)
+  })
+
+  test("requests outside 2xx to 5xx draw as their own segment", async ({ page }) => {
+    // Hour 30 adds 40 WebSocket upgrades (101) to its classified requests.
+    const upgrades = points.map((point, index) =>
+      index === 30 ? { ...point, totalRequests: point.totalRequests + 40 } : point,
+    )
+    await mockTimeSeries(page, upgrades)
+    await page.goto("/analytics")
+    const card = panel(page, "Requests")
+    await expect(card.locator(".recharts-bar")).toHaveCount(5)
+    await expectReadout(card, "Other statuses 40")
+    await hoverBar(page, card, 30, BUCKETS)
+    await expectReadout(card, "Other statuses 40")
+    await hoverBar(page, card, 29, BUCKETS)
+    await expectReadout(card, "Other statuses 0")
+
+    // Share of responses counts 2xx to 5xx only.
+    await choose(page, card, "Requests", "Share of responses")
+    await expect(card.locator(".recharts-bar")).toHaveCount(4)
+    await choose(page, card, "Requests", "Stacked bars")
+
+    await mockTimeSeries(page, points)
+    await page.reload()
+    await expect(panel(page, "Requests").locator(".recharts-bar")).toHaveCount(4)
+    await expectReadout(panel(page, "Requests"), "Other statuses", false)
+  })
+
+  test("the keyboard steps through hours and speaks only for key presses", async ({ page }) => {
+    await mockTimeSeries(page, points)
+    await page.goto("/analytics")
+    const card = panel(page, "Requests")
+    await expect(card.locator(".recharts-bar")).toHaveCount(4)
+    const chart = card.getByRole("application", { name: /^Requests\. Arrow keys/ })
+    const spoken = card.locator('[aria-live="polite"]')
+
+    await hoverBar(page, card, 30, BUCKETS)
+    await expect(spoken).toHaveText("")
+    await page.mouse.move(0, 0)
+
+    await chart.focus()
+    await page.keyboard.press("End")
+    const last = points[BUCKETS - 1]
+    await expect(card.locator("header b").first()).toHaveText(
+      last.totalRequests.toLocaleString("en-US"),
+    )
+    await expect(spoken).toContainText(`${last.totalRequests.toLocaleString("en-US")} requests`)
+    await page.keyboard.press("ArrowLeft")
+    await expect(card.locator("header b").first()).toHaveText(
+      points[BUCKETS - 2].totalRequests.toLocaleString("en-US"),
+    )
+    await expect(card.locator('rect[fill="var(--card)"]')).toHaveCount(2)
+    await page.keyboard.press("Escape")
+    await expect(card.locator('rect[fill="var(--card)"]')).toHaveCount(0)
+    await expect(spoken).toHaveText("")
+
+    // A click does not take keyboard focus; End stays with the page.
+    await chart.blur()
+    await hoverBar(page, card, 30, BUCKETS)
+    await page.mouse.down()
+    await page.mouse.up()
+    await page.mouse.move(0, 0)
+    await page.keyboard.press("End")
+    await expect(card.locator('rect[fill="var(--card)"]')).toHaveCount(0)
+    await chart.focus()
+
+    // Home goes to the first bucket even as the first key press.
+    await page.keyboard.press("Home")
+    await expect(card.locator("header b").first()).toHaveText(
+      points[0].totalRequests.toLocaleString("en-US"),
+    )
+  })
+
+  test("at 1024px the header keeps its controls inside the card and the time in the readout", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1024, height: 800 })
+    await mockTimeSeries(page, points)
+    await page.goto("/analytics")
+    const card = panel(page, "Request latency")
+    await card.scrollIntoViewIfNeeded()
+    const grid = (await card.locator(".recharts-cartesian-grid").boundingBox())!
+    const top = grid.y
+    await page.mouse.move(grid.x + (30.5 / BUCKETS) * grid.width, grid.y + grid.height / 2)
+    await expectReadout(card, "p99 1.10s")
+    const stamp = await page.evaluate(
+      (timestamp) =>
+        new Intl.DateTimeFormat(undefined, {
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        }).format(new Date(timestamp)),
+      points[30].timestamp,
+    )
+    // Below 1280px the time sits in the readout, not in the title row.
+    await expect(card.locator("header > div").last().getByText(stamp)).toBeVisible()
+
+    const box = (await card.boundingBox())!
+    const options = (await card.getByRole("button", { name: /^Chart options/ }).boundingBox())!
+    const title = (await card.getByRole("heading", { name: "Request latency" }).boundingBox())!
+    expect(options.x + options.width).toBeLessThanOrEqual(box.x + box.width)
+    expect(title.x + title.width).toBeLessThanOrEqual(options.x)
+    // The hover time sits in the readout, so the plot does not move under the pointer.
+    expect((await card.locator(".recharts-cartesian-grid").boundingBox())!.y).toBe(top)
+  })
+
+  test("a Log pick shows as lines and survives a reload", async ({ page }) => {
+    await mockTimeSeries(page, points)
+    await page.goto("/analytics")
+    const card = panel(page, "Requests")
+    await choose(page, card, "Requests", "Log")
+    await expect(card.getByRole("button", { name: "Chart options: Requests, Log" })).toBeVisible()
+    await expect(card.locator(".recharts-line")).toHaveCount(4)
     // Smallest value 1 is exactly a power: domain [0.1, 100000], thinned to
     // every other power, and integer series drop the 0.1 tick. Log count
     // ticks use compact labels so they fit the 48px axis.
     await expect(
       card.locator(".recharts-yAxis-tick-labels .recharts-cartesian-axis-tick-value"),
     ).toHaveText(["10", "1K", "100K"])
-    expect(await moveCount(card.locator(".recharts-area-curve").first())).toBe(1)
-    const tooltip = await hoverBucket(page, card, 10, BUCKETS)
-    await expect(tooltip.getByText("0", { exact: true })).toBeVisible()
 
-    await choose(page, card, "Requests", "Linear, clip spikes")
-    await expect(
-      card.getByRole("button", { name: "Chart options: Requests, Clip spikes" }),
-    ).toBeVisible()
-    await expect(card.getByText(/^y-axis clipped at/)).toBeVisible()
-
-    await choose(page, card, "Requests", "Linear, full range")
     await page.reload()
+    const reloaded = panel(page, "Requests")
     await expect(
-      panel(page, "Requests").getByRole("button", { name: "Chart options: Requests, Full range" }),
+      reloaded.getByRole("button", { name: "Chart options: Requests, Log" }),
     ).toBeVisible()
+    await expect(reloaded.locator(".recharts-line")).toHaveCount(4)
   })
 
-  test("bars in log draw every positive bucket, including 1 and 101", async ({ page }) => {
+  test("a Log saved before this version opens linear once; a saved view stays", async ({
+    page,
+  }) => {
+    await page.addInitScript(() =>
+      localStorage.setItem(
+        "geometrikks-chart-status",
+        JSON.stringify({ view: "share", scale: "log" }),
+      ),
+    )
     await mockTimeSeries(page, points)
     await page.goto("/analytics")
     const card = panel(page, "Requests")
-    await choose(page, card, "Requests", "Bars")
-    const positive = points.filter((p) => p.totalRequests > 0).length
-    await expect(card.locator(".recharts-bar-rectangle path")).toHaveCount(positive)
+    await expect(card.getByRole("button", { name: "Chart options: Requests, Share" })).toBeVisible()
+    await choose(page, card, "Requests", "Stacked bars")
+    await expect(
+      card.getByRole("button", { name: "Chart options: Requests", exact: true }),
+    ).toBeVisible()
+    await expect(card.locator(".recharts-line")).toHaveCount(0)
   })
 
-  test("bars in log keep a smallest value of 101 visible", async ({ page }) => {
-    const busy = Array.from({ length: BUCKETS }, (_, i) =>
-      timeSeriesPoint(i, i === 21 ? 101 : 2_000 + ((i * 37) % 900)),
-    )
-    await mockTimeSeries(page, busy)
+  test("share leaves a gap for buckets without responses", async ({ page }) => {
+    await mockTimeSeries(page, points)
     await page.goto("/analytics")
     const card = panel(page, "Requests")
-    await choose(page, card, "Requests", "Bars")
-    // Domain [10, 10000]: 101 sits log10(101 / 10) / 3 = 0.335 of the plot
-    // height above the floor. A linear axis would give about 0.035.
-    // Recharts animates bar heights for 400 ms, so re-measure until it settles.
-    await expect(async () => {
-      const plot = (await card.locator(".recharts-cartesian-grid").boundingBox())!
-      const bar = (await card
-        .locator(".recharts-bar-rectangle")
-        .nth(21)
-        .locator("path")
-        .boundingBox())!
-      expect(bar.height / plot.height).toBeGreaterThan(0.3)
-      expect(bar.height / plot.height).toBeLessThan(0.37)
-    }).toPass({ timeout: 5_000 })
+    await choose(page, card, "Requests", "Share of responses")
+    // Share always draws stacked bars; an empty bucket draws none.
+    const success = card.locator(".recharts-bar").first().locator(".recharts-bar-rectangle path")
+    await expect(success).toHaveCount(BUCKETS - EMPTY.size)
+    await hoverBar(page, card, 10, BUCKETS)
+    await expectReadout(card, "2xx Successn/a")
   })
 
-  test("keyboard: open, move to Bars, select, focus returns", async ({ page }) => {
+  test("a lone bucket with traffic stays visible in error rate and share", async ({ page }) => {
+    // One busy hour among empty ones: a line through a single point draws nothing.
+    const sparse = Array.from({ length: BUCKETS }, (_, i) => timeSeriesPoint(i, i === 30 ? 50 : 0))
+    await mockTimeSeries(page, sparse)
+    await page.goto("/analytics")
+    const card = panel(page, "Requests")
+    await choose(page, card, "Requests", "Error rate")
+    await expect(card.locator(".recharts-line-dots circle")).toHaveCount(1)
+    await choose(page, card, "Requests", "Share of responses")
+    const success = card.locator(".recharts-bar").first().locator(".recharts-bar-rectangle path")
+    await expect(success).toHaveCount(1)
+  })
+
+  test("keyboard: open, move to Stacked area, select, focus returns", async ({ page }) => {
     await mockTimeSeries(page, points)
     await page.goto("/analytics")
     const card = panel(page, "Requests")
     const trigger = card.getByRole("button", { name: /^Chart options: Requests/ })
     await trigger.focus()
     await page.keyboard.press("Enter")
-    await expect(page.getByRole("menuitemradio", { name: "Area" })).toBeFocused()
+    await expect(page.getByRole("menuitemradio", { name: "Stacked bars" })).toBeFocused()
     await page.keyboard.press("ArrowDown")
-    await expect(page.getByRole("menuitemradio", { name: "Bars" })).toBeFocused()
+    await expect(page.getByRole("menuitemradio", { name: "Stacked area" })).toBeFocused()
     await page.keyboard.press("Enter")
     await expect(page.getByRole("menu")).toBeHidden()
-    await expect(card.getByRole("button", { name: /^Chart options: Requests, Bars/ })).toBeFocused()
-    await expect(card.locator(".recharts-bar-rectangle").first()).toBeAttached()
+    await expect(card.getByRole("button", { name: /^Chart options: Requests, Area/ })).toBeFocused()
+    await expect(card.locator(".recharts-area")).toHaveCount(4)
   })
 })
 
@@ -252,85 +426,102 @@ test.describe("geo events chart", () => {
     }).toPass({ timeout: 5_000 })
   })
 })
-test.describe("status chart", () => {
+test.describe("latency chart", () => {
   const points = Array.from({ length: BUCKETS }, (_, i) => timeSeriesPoint(i))
 
-  test("opens as log lines; share hides the scale; a stacked scale returns after a reload", async ({
+  test("band draws one run per stretch of data; the header reads the hovered hour", async ({
     page,
   }) => {
     await mockTimeSeries(page, points)
     await page.goto("/analytics")
-    const card = panel(page, "Status classes")
-    await expect(
-      card.getByRole("button", { name: "Chart options: Status classes", exact: true }),
-    ).toBeVisible()
-    await expect(card.locator(".recharts-line")).toHaveCount(4)
-
-    await choose(page, card, "Status classes", "Linear, full range")
-    await expect(card.locator(".recharts-line")).toHaveCount(0)
-
-    await choose(page, card, "Status classes", "Share of responses")
-    await openOptions(card, "Status classes")
-    await expect(page.getByText("Fixed 0 to 100% axis")).toBeVisible()
-    await expect(page.getByRole("menuitemradio", { name: /^Log/ })).toHaveCount(0)
-    await page.keyboard.press("Escape")
-
-    await page.reload()
-    const reloaded = panel(page, "Status classes")
-    await expect(
-      reloaded.getByRole("button", { name: "Chart options: Status classes, Share" }),
-    ).toBeVisible()
-    await choose(page, reloaded, "Status classes", "Stacked counts")
-    await expect(
-      reloaded.getByRole("button", { name: "Chart options: Status classes, Full range" }),
-    ).toBeVisible()
-  })
-
-  test("share leaves a gap for buckets without responses", async ({ page }) => {
-    await mockTimeSeries(page, points)
-    await page.goto("/analytics")
-    const card = panel(page, "Status classes")
-    await choose(page, card, "Status classes", "Share of responses")
-    // Share always draws stacked bars; an empty bucket draws none.
-    const success = card.locator(".recharts-bar").first().locator(".recharts-bar-rectangle path")
-    await expect(success).toHaveCount(BUCKETS - EMPTY.size)
-    const tooltip = await hoverBucket(page, card, 10, BUCKETS)
-    await expect(tooltip.getByText("n/a", { exact: true })).toHaveCount(4)
-  })
-
-  test("a lone bucket with traffic stays visible in error rate and share", async ({ page }) => {
-    // One busy hour among empty ones: a line through a single point draws nothing.
-    const sparse = Array.from({ length: BUCKETS }, (_, i) => timeSeriesPoint(i, i === 30 ? 50 : 0))
-    await mockTimeSeries(page, sparse)
-    await page.goto("/analytics")
-    const card = panel(page, "Status classes")
-    await choose(page, card, "Status classes", "Error rate")
-    await expect(card.locator(".recharts-line-dots circle")).toHaveCount(1)
-    await choose(page, card, "Status classes", "Share of responses")
-    const success = card.locator(".recharts-bar").first().locator(".recharts-bar-rectangle path")
-    await expect(success).toHaveCount(1)
-  })
-})
-test.describe("latency chart", () => {
-  const points = Array.from({ length: BUCKETS }, (_, i) => timeSeriesPoint(i))
-
-  test("band draws one run per stretch of data and lists four tooltip rows", async ({ page }) => {
-    await mockTimeSeries(page, points)
-    await page.goto("/analytics")
     const card = panel(page, "Request latency")
-    // The band in log is the default, so no chip.
+    // The band on a linear axis is the default, so no chip.
     await expect(
       card.getByRole("button", { name: "Chart options: Request latency", exact: true }),
     ).toBeVisible()
     // Buckets 10 to 12 have no latency data: one gap, two runs.
     // The band has stroke="none", so its fill path is the only one rendered.
     expect(await moveCount(card.locator(".recharts-area-area").first())).toBe(2)
+    // At rest the header has labels only.
+    await expect(readout(card)).toHaveText(/p50 to p95\s*p99\s*Average/)
 
-    const tooltip = await hoverBucket(page, card, 30, BUCKETS)
-    for (const label of ["Average", "p50", "p95", "p99"]) {
-      await expect(tooltip.getByText(label, { exact: true })).toBeVisible()
-    }
-    const empty = await hoverBucket(page, card, 12, BUCKETS)
-    await expect(empty.getByText("n/a", { exact: true })).toHaveCount(4)
+    await card.scrollIntoViewIfNeeded()
+    const grid = (await card.locator(".recharts-cartesian-grid").boundingBox())!
+    const at = async (index: number) =>
+      page.mouse.move(grid.x + ((index + 0.5) / BUCKETS) * grid.width, grid.y + grid.height / 2)
+    await at(30)
+    await expectReadout(card, "p50 to p95")
+    await expectReadout(card, "80ms to 400ms")
+    await expectReadout(card, "p991.10s")
+    await at(12)
+    await expectReadout(card, "p99n/a")
+  })
+})
+
+test("latency marks timed hours that have empty hours on both sides", async ({ page }) => {
+  // Two quiet hours with traffic among empty ones: a line through one point draws nothing.
+  const sparse = Array.from({ length: BUCKETS }, (_, i) =>
+    timeSeriesPoint(i, i === 20 || i === 40 ? 30 : 0),
+  )
+  await mockTimeSeries(page, sparse)
+  await page.goto("/analytics")
+  const card = panel(page, "Request latency")
+  // p99 and Average in the band view, at both hours.
+  await expect(card.locator(".recharts-line-dots circle")).toHaveCount(4)
+  await choose(page, card, "Request latency", "Lines")
+  await expect(card.locator(".recharts-line-dots circle")).toHaveCount(8)
+})
+
+test.describe("phone", () => {
+  test.use({ viewport: { width: 393, height: 852 }, hasTouch: true, isMobile: true })
+  const points = Array.from({ length: BUCKETS }, (_, i) => timeSeriesPoint(i))
+
+  test("holding a chart reads an hour; a vertical swipe scrolls the page", async ({ page }) => {
+    await mockTimeSeries(page, points)
+    await page.goto("/analytics")
+    const card = panel(page, "Requests")
+    await expect(card.locator(".recharts-bar")).toHaveCount(4)
+    await card.scrollIntoViewIfNeeded()
+    const grid = (await card.locator(".recharts-cartesian-grid").boundingBox())!
+    const x = grid.x + (30.5 / BUCKETS) * grid.width
+    const y = grid.y + grid.height / 2
+    const cdp = await page.context().newCDPSession(page)
+    const touch = (
+      type: "touchStart" | "touchMove" | "touchEnd",
+      points: { x: number; y: number }[],
+    ) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: points })
+
+    await touch("touchStart", [{ x, y }])
+    await page.waitForTimeout(400)
+    await expectReadout(card, `${points[30].totalRequests.toLocaleString("en-US")} requests`)
+    await touch("touchEnd", [])
+    await expectReadout(
+      card,
+      `${points.reduce((total, point) => total + point.totalRequests, 0).toLocaleString("en-US")} requests`,
+    )
+
+    // A sideways drag reads the hours without waiting for a hold, and keeps the page still.
+    const still = (await card.boundingBox())!.y
+    await touch("touchStart", [{ x, y }])
+    for (let step = 1; step <= 4; step++)
+      await touch("touchMove", [{ x: x + step * 6, y: y + step }])
+    await expectReadout(
+      card,
+      `${points.reduce((total, point) => total + point.totalRequests, 0).toLocaleString("en-US")} requests`,
+      false,
+    )
+    expect((await card.boundingBox())!.y).toBe(still)
+    await expect(card.locator('rect[fill="var(--card)"]')).toHaveCount(2)
+    await touch("touchEnd", [])
+    await expect(card.locator('rect[fill="var(--card)"]')).toHaveCount(0)
+
+    // The card moves up the screen when the page scrolls under the swipe.
+    const top = async () => (await card.boundingBox())!.y
+    const before = await top()
+    await touch("touchStart", [{ x, y }])
+    for (let step = 1; step <= 6; step++) await touch("touchMove", [{ x, y: y - step * 30 }])
+    await touch("touchEnd", [])
+    await expect.poll(top).toBeLessThan(before - 50)
+    await expectReadout(card, `${points[30].totalRequests.toLocaleString("en-US")} requests`, false)
   })
 })

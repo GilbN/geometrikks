@@ -10,8 +10,9 @@ import type { DataState } from "./types"
 /**
  * One card around a chart: title, help text and actions in the header, the
  * chart (or its loading/error/empty stand-in) in the body, an optional
- * legend in the footer. `bodyClassName` sets the chart area's height so the
- * card keeps the same height in every state.
+ * legend in the footer. `readout` is a line under the title row that spans
+ * the header, for a legend that carries the numbers. `bodyClassName` sets
+ * the chart area's height so the card keeps the same height in every state.
  */
 export function SignalPanel({
   title,
@@ -19,6 +20,7 @@ export function SignalPanel({
   state,
   actions,
   legend,
+  readout,
   error = "The chart data could not be loaded.",
   empty = "No data for this range.",
   onRetry,
@@ -32,6 +34,7 @@ export function SignalPanel({
   state: DataState
   actions?: React.ReactNode
   legend?: React.ReactNode
+  readout?: React.ReactNode
   error?: string
   empty?: string
   onRetry?: () => void
@@ -50,8 +53,22 @@ export function SignalPanel({
       {/* Phones keep the title and the controls on one line. The actions box
           dissolves into the header so a SignalPanelNote can drop to a line
           of its own instead of pushing the controls under the title. */}
-      <header className="flex min-w-0 gap-2 border-b border-border/50 px-4 py-3 max-md:flex-wrap max-md:items-center md:items-start md:justify-between">
-        <div className="min-w-0 max-md:flex-1 max-md:[overflow-wrap:anywhere]">
+      <header
+        className={cn(
+          "flex min-w-0 gap-2 border-b border-border/50 px-4 py-3",
+          readout
+            ? // Below 1280px a readout header gives its notes a line of their own, as phones do.
+              "flex-wrap items-center gap-y-0.5 pb-[11px] max-xl:[&_[data-slot=signal-panel-note]]:order-last max-xl:[&_[data-slot=signal-panel-note]]:basis-full"
+            : "max-md:flex-wrap max-md:items-center md:items-start md:justify-between",
+        )}
+      >
+        <div
+          className={cn(
+            "min-w-0 max-md:flex-1 max-md:[overflow-wrap:anywhere]",
+            // A wide readout header keeps its title on one line and truncates the notes beside it.
+            readout && "max-xl:flex-1 xl:shrink-0 xl:whitespace-nowrap",
+          )}
+        >
           <h2 id={titleId} className={FRAME_LABEL}>
             {title}
           </h2>
@@ -60,10 +77,18 @@ export function SignalPanel({
           )}
         </div>
         {actions && (
-          <div className="flex shrink-0 flex-wrap items-center gap-2 text-xs text-muted-foreground max-md:contents">
+          <div
+            className={cn(
+              "flex items-center gap-2 text-xs text-muted-foreground max-md:contents",
+              readout
+                ? "max-xl:contents xl:min-w-0 xl:flex-1 xl:justify-end"
+                : "shrink-0 flex-wrap",
+            )}
+          >
             {actions}
           </div>
         )}
+        {readout && <div className="min-w-0 basis-full max-xl:order-last">{readout}</div>}
       </header>
 
       <div className={cn("min-w-0 p-4", bodyClassName)}>
@@ -98,5 +123,12 @@ export function SignalPanel({
 /** A line of header text among a SignalPanel's actions. Phones show it on its
  *  own line under the title row. */
 export function SignalPanelNote({ children }: { children: React.ReactNode }) {
-  return <span className="max-md:order-last max-md:basis-full">{children}</span>
+  return (
+    <span
+      data-slot="signal-panel-note"
+      className="max-md:order-last max-md:basis-full xl:min-w-0 xl:truncate"
+    >
+      {children}
+    </span>
+  )
 }

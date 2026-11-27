@@ -1,9 +1,9 @@
-/** Row and axis helpers for the status chart's Share and Error rate views. */
+/** Row and axis helpers for the Requests chart's status classes and its Share and Error rate views. */
 import type { TimeSeriesDataPoint } from "@/generated/api/types.gen"
-import { formatNumber } from "@/lib/api"
 import type { ChartScale } from "@/lib/chart-options"
 import { clampedYMax, type YAxisScaleProps } from "@/lib/chart-scale"
-import { formatRate, statusChartConfig } from "./chart-utils"
+import type { ChartConfig } from "@/components/ui/chart"
+import { statusChartConfig } from "./chart-utils"
 
 export type StatusKey = keyof typeof statusChartConfig
 export const STATUS_KEYS = Object.keys(statusChartConfig) as StatusKey[]
@@ -11,9 +11,29 @@ export const SHARE_TICKS = [0, 0.25, 0.5, 0.75, 1]
 
 type StatusCounts = Record<StatusKey, number | null>
 
-/** Sum of the four classes; 1xx is in totalRequests but in no class. */
+/** Sum of the four classes; 1xx and status 0 are in totalRequests but in no class. */
 export function statusTotal(row: StatusCounts): number {
   return STATUS_KEYS.reduce((sum, key) => sum + (row[key] ?? 0), 0)
+}
+
+/** Requests outside the four classes. The chart draws them only on ranges that have some. */
+export const otherChartConfig = {
+  statusOther: { label: "Other statuses", color: "var(--muted-foreground)" },
+} satisfies ChartConfig
+
+export type CountRow = TimeSeriesDataPoint & { statusOther: number }
+
+/**
+ * Adds the requests totalRequests counts and no class holds: 1xx, status 0
+ * for a connection that closed before any response, and any other code an
+ * imported log carried. On a WebSocket host the 101 upgrades can be most of
+ * an hour's requests.
+ */
+export function withOther(points: readonly TimeSeriesDataPoint[]): CountRow[] {
+  return points.map((point) => ({
+    ...point,
+    statusOther: Math.max(0, point.totalRequests - statusTotal(point)),
+  }))
 }
 
 export type ShareRow = Omit<TimeSeriesDataPoint, StatusKey> & StatusCounts
@@ -25,13 +45,6 @@ export function shareRows(points: readonly TimeSeriesDataPoint[]): ShareRow[] {
       ? point
       : { ...point, status2xx: null, status3xx: null, status4xx: null, status5xx: null },
   )
-}
-
-/** Tooltip text for the Share view: "1,234 (82.3%)". */
-export function shareLabel(value: unknown, row: unknown): string {
-  if (typeof value !== "number") return "n/a"
-  const total = statusTotal(row as StatusCounts)
-  return total > 0 ? `${formatNumber(value)} (${formatRate(value / total)})` : "n/a"
 }
 
 /**
