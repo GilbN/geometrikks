@@ -54,6 +54,7 @@ import {
   unavailableSourceCount,
   unavailableSourcesWord,
   untilLabel,
+  sinceLabel,
 } from "./status-logic"
 
 function makeHealth(overrides: Partial<HealthResponse> = {}): HealthResponse {
@@ -1229,6 +1230,34 @@ describe("the status board", () => {
       ])
     })
 
+    it("closes a default-open row that recovered from its own problem when another appears", () => {
+      const atLoad = initialBoard([signal("ingestion", "amber"), signal("crowdsec")], ["ingestion"])
+      expect(atLoad.open).toEqual(["ingestion"])
+      const recovered = boardObserve(atLoad, [signal("ingestion"), signal("crowdsec")])
+      expect(recovered.open).toEqual(["ingestion"])
+      const crowdsecDown = boardObserve(recovered, [signal("ingestion"), signal("crowdsec", "red")])
+      expect(crowdsecDown.open).toEqual(["crowdsec"])
+    })
+
+    it("closes an untouched default-open row when the user opened the new problem during a hold", () => {
+      const state = initialBoard([signal("ingestion"), signal("crowdsec")], ["ingestion"])
+      const toggled = boardToggle(state, "crowdsec", true)
+      const applied = boardObserve(toggled, [signal("ingestion"), signal("crowdsec", "red")])
+      expect(applied.open).toEqual(["crowdsec"])
+    })
+
+    it("closes an untouched default-open row when Recent errors moves up", () => {
+      const state = initialBoard(
+        [signal("ingestion"), signal("errors", "emerald", false)],
+        ["ingestion"],
+      )
+      const errors = boardObserve(state, [
+        signal("ingestion"),
+        { ...signal("errors", "amber", false), autoOpen: false },
+      ])
+      expect(errors.open).toEqual([])
+    })
+
     it("leaves a default-open row the user reopened alone when a problem appears", () => {
       const state = initialBoard([signal("ingestion"), signal("crowdsec")], ["ingestion"])
       const touched = boardToggle(boardToggle(state, "ingestion"), "ingestion")
@@ -1395,6 +1424,13 @@ describe("the status board", () => {
       expect(compressionRatio(table(null, null))).toBe("-")
       expect(compressionRatio(table(0, 0))).toBe("-")
     })
+  })
+
+  it("sinceLabel never reads as the future", () => {
+    const now = Date.parse("2026-11-27T10:00:00Z")
+    expect(sinceLabel("2026-11-27T09:59:57Z", now)).toBe("3s ago")
+    expect(sinceLabel("2026-11-27T10:00:00.400Z", now)).toBe("0s ago")
+    expect(sinceLabel(null, now)).toBe("never")
   })
 
   it("untilLabel says now once a time is due", () => {

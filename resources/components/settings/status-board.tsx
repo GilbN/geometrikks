@@ -250,7 +250,7 @@ function BoardRow({
         <CollapsibleTrigger asChild>
           <button
             type="button"
-            className="grid min-h-12 w-full grid-cols-[20px_minmax(0,1fr)_minmax(0,1.4fr)_16px] items-center gap-x-3.5 px-[18px] text-left outline-hidden @2xl:grid-cols-[20px_140px_184px_minmax(0,1fr)_auto_16px] transition-colors hover:bg-muted/40 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset"
+            className="grid min-h-12 w-full grid-cols-[20px_minmax(0,1fr)_minmax(0,1.4fr)_16px] items-center gap-x-3.5 px-[18px] text-left outline-none focus-visible:outline-hidden @2xl:grid-cols-[20px_140px_184px_minmax(0,1fr)_auto_16px] transition-colors hover:bg-muted/40 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset"
           >
             <Icon aria-hidden className={cn("size-4", PROBLEM_ICON[tone] ?? "text-primary")} />
             <span className="min-w-0 truncate text-sm font-medium">{row.name}</span>

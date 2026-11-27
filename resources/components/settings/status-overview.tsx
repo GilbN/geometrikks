@@ -228,18 +228,34 @@ function ServerLocationLine({ row }: { row: ServerLocationRow }) {
 
 export function StatusOverview() {
   const { data: health, isError: healthError, isLoading: healthLoading } = useHealth()
-  const { data: stats, isError: statsError } = useStats()
-  const { data: crowdsec, isError: crowdsecError } = useCrowdsecStatus()
-  const { data: me, isError: meError } = useMe()
-  const { data: oidc, isError: oidcError } = useOidcStatus()
-  const { data: crowdsecStats } = useCrowdsecStats()
-  const { data: files, isError: filesError } = useLogFiles()
-  const { data: schedulerData, isError: jobsError } = useSchedulerJobs()
+  const { data: stats, isError: statsError, isLoading: statsLoading } = useStats()
+  const { data: crowdsec, isError: crowdsecError, isLoading: crowdsecLoading } = useCrowdsecStatus()
+  const { data: me, isError: meError, isLoading: meLoading } = useMe()
+  const { data: oidc, isError: oidcError, isLoading: oidcLoading } = useOidcStatus()
+  const { data: crowdsecStats, isLoading: crowdsecStatsLoading } = useCrowdsecStats()
+  const { data: files, isError: filesError, isLoading: filesLoading } = useLogFiles()
+  const { data: schedulerData, isError: jobsError, isLoading: jobsLoading } = useSchedulerJobs()
   const jobs = schedulerData?.jobs
-  const { data: dbInfo } = useDatabaseInfo()
-  const { data: logRecords, isError: logsError } = useRecentErrors()
-  const { data: serverLocations } = useServerLocations()
-  const { data: instances, isError: instancesError } = useInstances()
+  const { data: dbInfo, isLoading: dbLoading } = useDatabaseInfo()
+  const { data: logRecords, isError: logsError, isLoading: logsLoading } = useRecentErrors()
+  const { data: serverLocations, isLoading: locationsLoading } = useServerLocations()
+  const { data: instances, isError: instancesError, isLoading: instancesLoading } = useInstances()
+  // The desktop board decides which rows start open from its first look, so
+  // it waits for every query's first answer instead of opening Ingestion and
+  // closing it again when a slower one reports a problem.
+  const boardLoading =
+    healthLoading ||
+    statsLoading ||
+    crowdsecLoading ||
+    meLoading ||
+    oidcLoading ||
+    crowdsecStatsLoading ||
+    filesLoading ||
+    jobsLoading ||
+    dbLoading ||
+    logsLoading ||
+    locationsLoading ||
+    instancesLoading
   const feedStatus = useLiveFeedStatus()
   const isMobile = useIsMobile()
   // Probe the live WebSocket while this page is open: the client is
@@ -521,7 +537,7 @@ export function StatusOverview() {
     </>
   )
 
-  if (healthLoading && !isMobile) return <Skeleton className="h-[476px] w-full rounded-xl" />
+  if (boardLoading && !isMobile) return <Skeleton className="h-[476px] w-full rounded-xl" />
   if (healthLoading) {
     return (
       <div className="space-y-4">

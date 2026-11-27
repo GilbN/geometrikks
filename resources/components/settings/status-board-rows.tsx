@@ -86,6 +86,7 @@ import {
   unavailableSourceCount,
   unavailableSourcesWord,
   untilLabel,
+  sinceLabel,
 } from "@/components/settings/status-logic"
 
 type Stats = NonNullable<ReturnType<typeof useStats>["data"]>
@@ -220,7 +221,7 @@ function ingestionRow(data: StatusData): BoardRowSpec {
   ) : (
     <>
       {sources ? `${sources}last event` : "Last event"}{" "}
-      <Ticking render={(nowMs) => relativeTime(lastRecordAt, nowMs)} />
+      <Ticking render={(nowMs) => sinceLabel(lastRecordAt, nowMs)} />
     </>
   )
   const running = health?.ingestion.running ?? false
@@ -535,7 +536,7 @@ function schedulerRow({ jobs, jobsError }: StatusData, now: number): BoardRowSpe
                   <ToneLabel tone={jobState.tone}>{jobState.label}</ToneLabel>
                 </TableCell>
                 <TableCell className={CELL}>
-                  {lastRun ? <Ticking render={(nowMs) => relativeTime(lastRun, nowMs)} /> : dash}
+                  {lastRun ? <Ticking render={(nowMs) => sinceLabel(lastRun, nowMs)} /> : dash}
                 </TableCell>
                 <TableCell className={CELL}>
                   {job.running ? (
@@ -616,7 +617,11 @@ function authRow({ me, meError, oidc, oidcError }: StatusData): BoardRowSpec {
     fact = `Signed in as ${me.username}${me.provider === "oidc" && oidc?.providerName ? ` with ${oidc.providerName}` : ""}`
   } else if (me) fact = "Anyone who can reach this app has full access"
   const stale = [
-    meError && me ? "The session could not be read. These values are from the last read." : "",
+    meError
+      ? me
+        ? "The session could not be read. These values are from the last read."
+        : "The session could not be read."
+      : "",
     oidcError && oidc?.configured
       ? "The identity provider status could not be read. These values are from the last read."
       : "",
@@ -628,7 +633,13 @@ function authRow({ me, meError, oidc, oidcError }: StatusData): BoardRowSpec {
     <BoardPanel sentence={sentence}>
       <Cells>
         <Cell label="Login">
-          {me?.mode === "session" ? (me.provider === "oidc" ? "SSO" : "Password") : auth.label}
+          {me?.mode === "session"
+            ? me.provider === "oidc"
+              ? "SSO"
+              : "Password"
+            : me
+              ? "Off"
+              : auth.label}
         </Cell>
         {me?.mode === "session" && <Cell label="User">{me.username}</Cell>}
         {oidc?.configured && <Cell label="Provider">{oidc.providerName ?? "-"}</Cell>}

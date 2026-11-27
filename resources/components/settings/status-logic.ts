@@ -388,7 +388,7 @@ export function lastEventState(
   running: boolean,
   nowMs: number,
 ): CardState {
-  const label = relativeTime(lastRecordAt, nowMs)
+  const label = sinceLabel(lastRecordAt, nowMs)
   if (!lastRecordAt || !running) return { tone: "muted", label }
   if (nowMs - Date.parse(lastRecordAt) > STALE_EVENT_MS) {
     return {
@@ -660,9 +660,15 @@ export function boardObserve(state: BoardState, signals: readonly BoardSignal[])
   const closeOnRecovery = recovered.filter((id) => state.autoOpened.includes(id))
   // A new problem makes room for itself. Rows that are open only because the
   // page opened them on load close, unless they are problems themselves.
-  const closeForProblem =
-    appeared.length > 0 ? state.defaultOpened.filter((id) => !problems.includes(id)) : []
-  const defaultOpened = appeared.length > 0 ? [] : state.defaultOpened
+  const newProblem = problems.some((id) => !state.orderedFor.includes(id))
+  const closeForProblem = newProblem
+    ? state.defaultOpened.filter((id) => !problems.includes(id))
+    : []
+  // A default-open row with its own problem stays tracked, so a later problem
+  // elsewhere still closes it once it has recovered.
+  const defaultOpened = newProblem
+    ? state.defaultOpened.filter((id) => problems.includes(id))
+    : state.defaultOpened
   const open = [
     ...state.open.filter(
       (id) => ids.includes(id) && !closeOnRecovery.includes(id) && !closeForProblem.includes(id),
@@ -822,6 +828,13 @@ export function compressionRatio(table: HypertableStatsView): string {
   const { beforeCompressionBytes: before, afterCompressionBytes: after } = table
   if (!before || !after) return "-"
   return `${(before / after).toFixed(1)}x`
+}
+
+/** "3s ago" for a time in the past, never "in 0s" when a poll brings a time
+ *  newer than the last tick. */
+export function sinceLabel(iso: string | null | undefined, nowMs: number): string {
+  if (iso && Date.parse(iso) > nowMs - 1000) return "0s ago"
+  return relativeTime(iso, nowMs)
 }
 
 /** "in 4s" for a time ahead, "now" once it is due, so a run the last poll has
