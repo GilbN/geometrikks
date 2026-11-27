@@ -790,6 +790,7 @@ export function StatusOverview() {
           jobsError,
           dbInfo,
           recentErrors,
+          logsLoaded: logRecords !== undefined,
           logsError,
           locationRows,
           agentOverview,

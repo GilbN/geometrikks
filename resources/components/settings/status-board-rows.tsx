@@ -113,6 +113,8 @@ export interface StatusData {
   jobsError: boolean
   dbInfo: DatabaseInfo | undefined
   recentErrors: LogRecord[]
+  /** False until the log tail has answered once. */
+  logsLoaded: boolean
   logsError: boolean
   locationRows: ServerLocationRow[]
   agentOverview: AgentSummary | null
@@ -140,6 +142,7 @@ const STATUS_QUERY_KEYS: readonly (readonly unknown[])[] = [
 ]
 
 const LIVE_FEED_GRACE_MS = 5_000
+const CHECK_NOW_WAIT_MS = 10_000
 
 /** The live feed starts disconnected on every visit and drops for a moment on
  *  a reconnect, so it counts as a problem only after a few seconds of it. */
@@ -185,10 +188,17 @@ export function DesktopStatus({ data }: { data: StatusData }) {
       Updated {new Date(health.timestamp).toLocaleTimeString()}
     </>
   )
+  // A first request that hangs is reused by a refetch, not replaced, so
+  // Check now stops waiting after a while instead of staying busy with it.
   const checkNow = () =>
-    Promise.all(
-      STATUS_QUERY_KEYS.map((queryKey) => queryClient.refetchQueries({ queryKey, type: "active" })),
-    )
+    Promise.race([
+      Promise.all(
+        STATUS_QUERY_KEYS.map((queryKey) =>
+          queryClient.refetchQueries({ queryKey, type: "active" }),
+        ),
+      ),
+      new Promise((resolve) => setTimeout(resolve, CHECK_NOW_WAIT_MS)),
+    ])
   return <StatusBoard verdict={verdict} meta={meta} rows={rows} onCheckNow={checkNow} />
 }
 
@@ -778,17 +788,21 @@ function LocationTableRow({ row }: { row: ServerLocationRow }) {
   )
 }
 
-function recentErrorsRow({ recentErrors, logsError }: StatusData): BoardRowSpec {
+function recentErrorsRow({ recentErrors, logsError, logsLoaded }: StatusData): BoardRowSpec {
   const state: CardState = logsError
     ? { tone: "muted", label: "Unavailable" }
-    : recentErrors.length > 0
-      ? { tone: "amber", label: `${recentErrors.length} recent` }
-      : { tone: "emerald", label: "None" }
+    : !logsLoaded
+      ? { tone: "muted", label: "Checking" }
+      : recentErrors.length > 0
+        ? { tone: "amber", label: `${recentErrors.length} recent` }
+        : { tone: "emerald", label: "None" }
   const fact = logsError
     ? "The application log could not be read"
-    : recentErrors.length > 0
-      ? recentErrors[0].event
-      : "No error-level events in the application log"
+    : !logsLoaded
+      ? null
+      : recentErrors.length > 0
+        ? recentErrors[0].event
+        : "No error-level events in the application log"
   const panel = (
     <BoardPanel>
       {logsError && recentErrors.length > 0 && (
@@ -822,7 +836,9 @@ function recentErrorsRow({ recentErrors, logsError }: StatusData): BoardRowSpec 
         <p className="text-muted-foreground">
           {logsError
             ? "The log tail could not be read."
-            : "No error-level events in the application log."}
+            : logsLoaded
+              ? "No error-level events in the application log."
+              : "Reading the application log."}
         </p>
       )}
       <PanelFooter>

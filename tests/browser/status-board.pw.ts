@@ -143,3 +143,16 @@ test("Check now reads the state again and the recovered row goes back in place",
   await expect(toggle(page, "crowdsec")).toHaveAttribute("aria-expanded", "false")
   await expect(page.getByRole("status").filter({ hasText: "Healthy" })).toBeVisible()
 })
+
+test("a check that never answers does not hide the board", async ({ page }) => {
+  const password = process.env.SMOKE_ADMIN_PASSWORD ?? process.env.APP_ADMIN_PASSWORD
+  if (!password) throw new Error("Administrator credentials are required")
+  const username = process.env.SMOKE_ADMIN_USER ?? process.env.APP_ADMIN_USER ?? "admin"
+  expect(
+    (await page.request.post("/api/v1/auth/login", { data: { username, password } })).ok(),
+  ).toBe(true)
+  // Never answered: the board must still show after its wait.
+  await page.route("**/api/v1/instances", () => {})
+  await page.goto("/settings/status")
+  await expect(page.getByTestId("status-board")).toBeVisible({ timeout: 6_000 })
+})
