@@ -136,11 +136,9 @@ test.describe("requests chart", () => {
     // Smallest value 1 is exactly a power: domain [0.1, 100000], thinned to
     // every other power, and integer series drop the 0.1 tick. Log count
     // ticks use compact labels so they fit the 48px axis.
-    await expect(card.locator(".recharts-yAxis .recharts-cartesian-axis-tick-value")).toHaveText([
-      "10",
-      "1K",
-      "100K",
-    ])
+    await expect(
+      card.locator(".recharts-yAxis-tick-labels .recharts-cartesian-axis-tick-value"),
+    ).toHaveText(["10", "1K", "100K"])
     expect(await moveCount(card.locator(".recharts-area-curve").first())).toBe(1)
     const tooltip = await hoverBucket(page, card, 10, BUCKETS)
     await expect(tooltip.getByText("0", { exact: true })).toBeVisible()
@@ -294,9 +292,8 @@ test.describe("status chart", () => {
     const card = panel(page, "Status classes")
     await choose(page, card, "Status classes", "Share of responses")
     // Share always draws stacked bars; an empty bucket draws none.
-    const success = card.locator(".recharts-bar").first().locator(".recharts-bar-rectangle")
-    await expect(success.nth(9).locator("path")).toHaveCount(1)
-    await expect(success.nth(10).locator("path")).toHaveCount(0)
+    const success = card.locator(".recharts-bar").first().locator(".recharts-bar-rectangle path")
+    await expect(success).toHaveCount(BUCKETS - EMPTY.size)
     const tooltip = await hoverBucket(page, card, 10, BUCKETS)
     await expect(tooltip.getByText("n/a", { exact: true })).toHaveCount(4)
   })
@@ -310,8 +307,8 @@ test.describe("status chart", () => {
     await choose(page, card, "Status classes", "Error rate")
     await expect(card.locator(".recharts-line-dots circle")).toHaveCount(1)
     await choose(page, card, "Status classes", "Share of responses")
-    const success = card.locator(".recharts-bar").first().locator(".recharts-bar-rectangle")
-    await expect(success.nth(30).locator("path")).toHaveCount(1)
+    const success = card.locator(".recharts-bar").first().locator(".recharts-bar-rectangle path")
+    await expect(success).toHaveCount(1)
   })
 })
 test.describe("latency chart", () => {
