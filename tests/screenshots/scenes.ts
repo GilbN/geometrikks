@@ -432,8 +432,8 @@ export const STAGES: Record<string, Stage> = {
         timeout: LOAD_TIMEOUT,
       },
     )
-    // Column 3 of the sources table is the file size.
-    const sizes = ingestion.locator("tbody tr td:nth-child(3)")
+    // Column 3 of the first table, the log files, is the file size.
+    const sizes = ingestion.locator("table").first().locator("tbody tr td:nth-child(3)")
     await expect
       .poll(
         async () => {

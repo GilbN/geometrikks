@@ -172,7 +172,7 @@ export function DesktopStatus({ data }: { data: StatusData }) {
   ]
   const verdict = boardVerdict(
     data.overall,
-    rows.map((row) => ({ id: row.id, tone: row.signalTone ?? row.state.tone, counts: row.counts })),
+    rows.map((row) => ({ id: row.id, tone: row.state.tone, counts: row.counts })),
   )
   const startedAt = health?.startedAt
   const meta = health && (
@@ -292,6 +292,7 @@ function ingestionRow(data: StatusData): BoardRowSpec {
           )}
           {lokiSources.length > 0 && (
             <PanelTable
+              className={data.accessFiles.length > 0 ? "mt-3" : undefined}
               columns={[
                 ["Loki query", 2],
                 ["State", 1],
@@ -440,6 +441,11 @@ function crowdsecRow({ crowdsec, crowdsecError, crowdsecStats }: StatusData): Bo
   const unreachable = crowdsec?.enabled === true && !crowdsec.lapiReachable
   const panel = (
     <BoardPanel sentence={state.detail}>
+      {crowdsecError && crowdsec && (
+        <p className="mb-3 text-muted-foreground">
+          The CrowdSec status could not be read. These values are from the last read.
+        </p>
+      )}
       {crowdsec?.enabled ? (
         <Cells
           action={
@@ -547,7 +553,11 @@ const LIVE_FEED_FACTS: Record<LiveFeedStatus, string> = {
 }
 
 function liveFeedRow({ feedStatus }: StatusData, settled: boolean): BoardRowSpec {
-  const state = liveFeedState(feedStatus)
+  const live = liveFeedState(feedStatus)
+  // Muted for the first seconds of a drop, so the row neither looks like a
+  // problem nor counts as one until the grace period is over.
+  const state: CardState =
+    feedStatus === "connected" || settled ? live : { tone: "muted", label: live.label }
   const panel = (
     <BoardPanel sentence={state.detail}>
       <PanelCaption>
@@ -565,14 +575,15 @@ function liveFeedRow({ feedStatus }: StatusData, settled: boolean): BoardRowSpec
     state,
     fact: LIVE_FEED_FACTS[feedStatus],
     counts: true,
-    signalTone: feedStatus === "connected" || settled ? state.tone : "muted",
     panel,
   }
 }
 
 function authRow({ me, meError, oidc, oidcError }: StatusData): BoardRowSpec {
   const auth = authState(me, meError)
-  const oidcLine = oidcState(oidc, oidcError)
+  // A failed status poll keeps the cached answer, so a failing discovery does
+  // not read as a recovery for one poll.
+  const oidcLine = oidcState(oidc, oidcError && !oidc)
   // A failed discovery is the worse news, so it takes the row.
   const state = oidcLine?.tone === "red" ? oidcLine : auth
   let fact: React.ReactNode = null
@@ -625,7 +636,7 @@ function agentsRow({ instancesError }: StatusData, overview: AgentSummary): Boar
     <BoardPanel>
       <Cells action={<PanelLink to="/settings/agents">Open Agents</PanelLink>}>
         <Cell label="Agents">{count}</Cell>
-        <Cell label="State">
+        <Cell label="State" title={rest.join(", ")}>
           {instancesError ? "List unavailable" : capitalize(rest.join(", ") || "healthy")}
         </Cell>
       </Cells>
@@ -731,6 +742,11 @@ function recentErrorsRow({ recentErrors, logsError }: StatusData): BoardRowSpec 
       : "No error-level events in the application log"
   const panel = (
     <BoardPanel>
+      {logsError && recentErrors.length > 0 && (
+        <p className="mb-3 text-muted-foreground">
+          The log tail could not be read. These are the errors from the last read.
+        </p>
+      )}
       {recentErrors.length > 0 ? (
         <PanelTable
           columns={[
@@ -784,14 +800,16 @@ const CELL = "h-9 truncate py-0 pr-4 pl-0 tabular-nums"
 /** A table on the panel's six-column grid; each column spans some of the six. */
 function PanelTable({
   columns,
+  className,
   children,
 }: {
   columns: readonly (readonly [label: string, span: number])[]
+  className?: string
   children: React.ReactNode
 }) {
   return (
     // On a narrow board the table scrolls sideways instead of squeezing its columns.
-    <Table className="min-w-[520px] table-fixed">
+    <Table className="min-w-[520px] table-fixed" containerClassName={className}>
       <colgroup>
         {columns.map(([label, span], index) => (
           <col key={`${label}-${index}`} style={{ width: `${(span / 6) * 100}%` }} />

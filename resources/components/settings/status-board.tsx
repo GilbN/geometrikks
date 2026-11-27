@@ -43,9 +43,6 @@ export interface BoardRowSpec {
   counts: boolean
   /** False keeps the row closed when it turns into a problem. */
   autoOpen?: boolean
-  /** The tone the board orders and opens by, when it differs from the shown
-   *  one. The live feed uses it for its first seconds. */
-  signalTone?: LedTone
   panel: React.ReactNode
 }
 
@@ -98,7 +95,7 @@ export function StatusBoard({
 }) {
   const signals: BoardSignal[] = rows.map((row) => ({
     id: row.id,
-    tone: row.signalTone ?? row.state.tone,
+    tone: row.state.tone,
     counts: row.counts,
     autoOpen: row.autoOpen,
   }))
@@ -199,7 +196,7 @@ export function StatusBoard({
           type="button"
           variant="outline"
           size="sm"
-          className="h-7 px-2 text-xs"
+          className="h-7 px-2 text-xs aria-disabled:opacity-50"
           // aria-disabled, not disabled: a disabled button drops keyboard focus.
           aria-disabled={checking}
           onClick={() => {
@@ -217,9 +214,7 @@ export function StatusBoard({
             row={row}
             open={board.open.includes(row.id)}
             onToggle={() =>
-              setBoard((state) =>
-                boardToggle(state, row.id, isProblemTone(row.signalTone ?? row.state.tone)),
-              )
+              setBoard((state) => boardToggle(state, row.id, isProblemTone(row.state.tone)))
             }
           />
         ))}
@@ -245,13 +240,15 @@ function BoardRow({
         <CollapsibleTrigger asChild>
           <button
             type="button"
-            className="grid min-h-12 w-full grid-cols-[20px_minmax(0,1fr)_minmax(0,auto)_16px] items-center gap-x-3.5 px-[18px] text-left outline-none @2xl:grid-cols-[20px_140px_184px_minmax(0,1fr)_auto_16px] transition-colors hover:bg-muted/40 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset"
+            className="grid min-h-12 w-full grid-cols-[20px_minmax(0,1fr)_minmax(0,1.4fr)_16px] items-center gap-x-3.5 px-[18px] text-left outline-none @2xl:grid-cols-[20px_140px_184px_minmax(0,1fr)_auto_16px] transition-colors hover:bg-muted/40 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset"
           >
             <Icon aria-hidden className={cn("size-4", PROBLEM_ICON[tone] ?? "text-primary")} />
             <span className="min-w-0 truncate text-sm font-medium">{row.name}</span>
             <span className="flex min-w-0 items-center gap-2">
               <StatusLed tone={tone} />
-              <span className="truncate">{row.state.label}</span>
+              <span className="truncate" title={row.state.label}>
+                {row.state.label}
+              </span>
             </span>
             <span className="hidden truncate text-muted-foreground @2xl:block">{row.fact}</span>
             <span className="hidden text-xs whitespace-nowrap text-muted-foreground tabular-nums @2xl:block">
@@ -327,9 +324,17 @@ export function Cells({
   )
 }
 
-export function Cell({ label, children }: { label: string; children: React.ReactNode }) {
+export function Cell({
+  label,
+  title,
+  children,
+}: {
+  label: string
+  title?: string
+  children: React.ReactNode
+}) {
   return (
-    <dl className="min-w-0 pr-4">
+    <dl className="min-w-0 pr-4" title={title}>
       <dt className="truncate text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">
         {label}
       </dt>
@@ -341,9 +346,9 @@ export function Cell({ label, children }: { label: string; children: React.React
 /** A light and a label, for a state inside a panel table. */
 export function ToneLabel({ tone, children }: { tone: LedTone; children: React.ReactNode }) {
   return (
-    <span className="flex items-center gap-2">
+    <span className="flex min-w-0 items-center gap-2">
       <StatusLed tone={tone} />
-      {children}
+      <span className="min-w-0 truncate">{children}</span>
     </span>
   )
 }

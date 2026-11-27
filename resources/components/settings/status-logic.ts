@@ -662,7 +662,9 @@ export function boardObserve(state: BoardState, signals: readonly BoardSignal[])
     ...state.seen.filter((id) => problems.includes(id) || unknown.includes(id)),
     ...appeared,
   ]
-  const reorder = !sameSet(state.orderedFor, problems) || !sameSet(state.order, ids)
+  // A problem whose state could not be read for a poll keeps its place.
+  const stillProblems = [...problems, ...state.orderedFor.filter((id) => unknown.includes(id))]
+  const reorder = !sameSet(state.orderedFor, stillProblems) || !sameSet(state.order, ids)
   const order = reorder ? boardOrder(signals) : state.order
   if (
     !reorder &&
@@ -672,7 +674,7 @@ export function boardObserve(state: BoardState, signals: readonly BoardSignal[])
   ) {
     return state
   }
-  return { order, orderedFor: reorder ? problems : state.orderedFor, open, seen, autoOpened }
+  return { order, orderedFor: reorder ? stillProblems : state.orderedFor, open, seen, autoOpened }
 }
 
 /** The user opens or closes a row; the board stops managing it. Toggling a
