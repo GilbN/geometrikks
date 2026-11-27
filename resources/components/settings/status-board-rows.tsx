@@ -431,7 +431,8 @@ function crowdsecRow({ crowdsec, crowdsecError, crowdsecStats }: StatusData): Bo
   const state = crowdsecState(crowdsec, crowdsecError)
   const decisions = crowdsecStats && `${crowdsecStats.total.toLocaleString()} active decisions`
   let fact: React.ReactNode = null
-  if (crowdsec?.enabled && !crowdsec.lapiReachable) fact = "Bans cannot be viewed or changed"
+  if (crowdsecError) fact = "The CrowdSec status could not be read"
+  else if (crowdsec?.enabled && !crowdsec.lapiReachable) fact = "Bans cannot be viewed or changed"
   else if (crowdsec && !crowdsec.enabled) fact = "The CrowdSec integration is off"
   else if (crowdsec) {
     fact = [crowdsec.writeEnabled ? "Write enabled" : "Read only", decisions]
@@ -503,6 +504,7 @@ function schedulerRow({ jobs, jobsError }: StatusData, now: number): BoardRowSpe
           {jobs.map((job) => {
             const jobState = schedulerJobState(job)
             const nextRun = job.nextRunTime
+            const lastRun = job.lastRunTime
             return (
               <TableRow key={job.id} className={ROW}>
                 <TableCell className={cn(CELL, "font-medium")} title={job.name}>
@@ -512,7 +514,7 @@ function schedulerRow({ jobs, jobsError }: StatusData, now: number): BoardRowSpe
                   <ToneLabel tone={jobState.tone}>{jobState.label}</ToneLabel>
                 </TableCell>
                 <TableCell className={CELL}>
-                  {job.lastRunTime ? relativeTime(job.lastRunTime, now) : dash}
+                  {lastRun ? <Ticking render={(nowMs) => relativeTime(lastRun, nowMs)} /> : dash}
                 </TableCell>
                 <TableCell className={CELL}>
                   {job.running ? (
@@ -590,7 +592,11 @@ function authRow({ me, meError, oidc, oidcError }: StatusData): BoardRowSpec {
   if (me?.mode === "session") {
     fact = `Signed in as ${me.username}${me.provider === "oidc" && oidc?.providerName ? ` with ${oidc.providerName}` : ""}`
   } else if (me) fact = "Anyone who can reach this app has full access"
-  const sentence = [auth.detail, oidcLine?.detail].filter(Boolean).join(" ") || undefined
+  const stale =
+    oidcError && oidc
+      ? "The identity provider status could not be read. These values are from the last read."
+      : undefined
+  const sentence = [auth.detail, oidcLine?.detail, stale].filter(Boolean).join(" ") || undefined
   const panel = (
     <BoardPanel sentence={sentence}>
       <Cells>
@@ -636,7 +642,7 @@ function agentsRow({ instancesError }: StatusData, overview: AgentSummary): Boar
     <BoardPanel>
       <Cells action={<PanelLink to="/settings/agents">Open Agents</PanelLink>}>
         <Cell label="Agents">{count}</Cell>
-        <Cell label="State" title={rest.join(", ")}>
+        <Cell label="State" title={instancesError ? undefined : rest.join(", ")}>
           {instancesError ? "List unavailable" : capitalize(rest.join(", ") || "healthy")}
         </Cell>
       </Cells>

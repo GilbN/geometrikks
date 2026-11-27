@@ -1147,6 +1147,26 @@ describe("the status board", () => {
       expect(boardObserve(unread, failing).order).toEqual(["crowdsec", "ingestion"])
     })
 
+    it("keeps an unread problem above healthy rows when another row changes", () => {
+      const state = boardObserve(EMPTY_BOARD, [
+        signal("ingestion"),
+        signal("crowdsec", "red"),
+        signal("scheduler"),
+      ])
+      const unread = boardObserve(state, [
+        signal("ingestion"),
+        signal("crowdsec", "muted"),
+        signal("scheduler", "amber"),
+      ])
+      expect(unread.order).toEqual(["crowdsec", "scheduler", "ingestion"])
+      const confirmed = boardObserve(unread, [
+        signal("ingestion"),
+        signal("crowdsec", "red"),
+        signal("scheduler", "amber"),
+      ])
+      expect(confirmed.order).toEqual(["crowdsec", "scheduler", "ingestion"])
+    })
+
     it("keeps a row the board opened open while its state could not be read", () => {
       const failing = [signal("ingestion", "amber")]
       const opened = boardObserve(EMPTY_BOARD, failing)

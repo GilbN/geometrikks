@@ -597,12 +597,17 @@ export function isProblemTone(tone: LedTone): tone is "red" | "amber" {
   return tone === "red" || tone === "amber"
 }
 
-/** Problems first, red before amber, each group in the given order. */
-export function boardOrder(signals: readonly BoardSignal[]): string[] {
-  const rank = (tone: LedTone) => (tone === "red" ? 0 : tone === "amber" ? 1 : 2)
+/** Problems first, red before amber, each group in the given order. Rows in
+ *  `stillUp` are problems whose state could not be read, and sort with amber. */
+export function boardOrder(
+  signals: readonly BoardSignal[],
+  stillUp: readonly string[] = [],
+): string[] {
+  const rank = ({ id, tone }: BoardSignal) =>
+    tone === "red" ? 0 : tone === "amber" || stillUp.includes(id) ? 1 : 2
   return signals
     .map((signal, index) => ({ signal, index }))
-    .sort((a, b) => rank(a.signal.tone) - rank(b.signal.tone) || a.index - b.index)
+    .sort((a, b) => rank(a.signal) - rank(b.signal) || a.index - b.index)
     .map(({ signal }) => signal.id)
 }
 
@@ -665,7 +670,7 @@ export function boardObserve(state: BoardState, signals: readonly BoardSignal[])
   // A problem whose state could not be read for a poll keeps its place.
   const stillProblems = [...problems, ...state.orderedFor.filter((id) => unknown.includes(id))]
   const reorder = !sameSet(state.orderedFor, stillProblems) || !sameSet(state.order, ids)
-  const order = reorder ? boardOrder(signals) : state.order
+  const order = reorder ? boardOrder(signals, stillProblems) : state.order
   if (
     !reorder &&
     sameSet(open, state.open) &&

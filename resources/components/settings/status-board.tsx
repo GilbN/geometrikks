@@ -250,7 +250,10 @@ function BoardRow({
                 {row.state.label}
               </span>
             </span>
-            <span className="hidden truncate text-muted-foreground @2xl:block">{row.fact}</span>
+            {/* Hidden on a narrow board, but still part of the row's name. */}
+            <span className="sr-only truncate text-muted-foreground @2xl:not-sr-only @2xl:block">
+              {row.fact}
+            </span>
             <span className="hidden text-xs whitespace-nowrap text-muted-foreground tabular-nums @2xl:block">
               {row.end}
             </span>
