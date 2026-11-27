@@ -1284,6 +1284,15 @@ describe("the status board", () => {
       expect(recovered.open).toEqual(["crowdsec"])
     })
 
+    it("closes a recovered default-open row while another problem could not be read", () => {
+      const atLoad = initialBoard(
+        [signal("ingestion", "amber"), signal("crowdsec", "red")],
+        ["ingestion"],
+      )
+      const recovered = boardObserve(atLoad, [signal("ingestion"), signal("crowdsec", "muted")])
+      expect(recovered.open).toEqual(["crowdsec"])
+    })
+
     it("keeps a default-open row open for a problem that is a setting", () => {
       const state = initialBoard(
         [

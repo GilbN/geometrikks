@@ -226,6 +226,8 @@ function ServerLocationLine({ row }: { row: ServerLocationRow }) {
   )
 }
 
+const BOARD_WAIT_MS = 3_000
+
 export function StatusOverview() {
   const {
     data: health,
@@ -262,7 +264,14 @@ export function StatusOverview() {
   // Once shown, the board stays. A retry after a failed first read sets
   // isLoading again, and unmounting would drop focus and the open rows.
   const boardShown = useRef(false)
-  if (!boardLoading) boardShown.current = true
+  // A query that hangs on its first answer must not hide the page, so the
+  // board shows what has answered after a few seconds.
+  const [waitedLong, setWaitedLong] = useState(false)
+  useEffect(() => {
+    const id = setTimeout(() => setWaitedLong(true), BOARD_WAIT_MS)
+    return () => clearTimeout(id)
+  }, [])
+  if (!boardLoading || waitedLong) boardShown.current = true
   const feedStatus = useLiveFeedStatus()
   // Started here, not in the board, so the grace period runs while the
   // queries load.

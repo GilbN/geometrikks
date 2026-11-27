@@ -667,7 +667,9 @@ export function boardObserve(state: BoardState, signals: readonly BoardSignal[])
     signals.filter((signal) => signal.closesDefault !== false).map((signal) => signal.id),
   )
   // Any problem on another row, new or still there, makes room for itself.
-  const newProblem = problems.some(
+  // Remembered problems whose state could not be read this poll count too.
+  const activeProblems = [...problems, ...unknown.filter((id) => state.seen.includes(id))]
+  const newProblem = activeProblems.some(
     (id) => closesDefault.has(id) && !state.defaultOpened.includes(id),
   )
   // A default-open row with its own problem, or one whose state could not be
