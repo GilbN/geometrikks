@@ -227,7 +227,15 @@ function ServerLocationLine({ row }: { row: ServerLocationRow }) {
 }
 
 export function StatusOverview() {
-  const { data: health, isError: healthError, isLoading: healthLoading } = useHealth()
+  const {
+    data: health,
+    isError: healthQueryError,
+    isLoading: healthLoading,
+    errorUpdateCount: healthErrorCount,
+  } = useHealth()
+  // A retry with no data resets the query to pending, which would flip the
+  // verdict from Unreachable to Loading and back on every poll.
+  const healthError = healthQueryError || (health === undefined && healthErrorCount > 0)
   const { data: stats, isError: statsError } = useStats()
   const { data: crowdsec, isError: crowdsecError, isLoading: crowdsecLoading } = useCrowdsecStatus()
   const { data: me, isError: meError, isLoading: meLoading } = useMe()
@@ -540,7 +548,7 @@ export function StatusOverview() {
   )
 
   if (!boardShown.current && !isMobile) return <Skeleton className="h-[476px] w-full rounded-xl" />
-  if (healthLoading) {
+  if (healthLoading && isMobile) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-20 w-full" />

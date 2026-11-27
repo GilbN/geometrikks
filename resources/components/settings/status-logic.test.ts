@@ -1268,6 +1268,22 @@ describe("the status board", () => {
       expect(recovered.open).toEqual(["crowdsec"])
     })
 
+    it("keeps a default-open row with its own problem open through an unreadable poll", () => {
+      const atLoad = initialBoard(
+        [signal("ingestion", "amber"), signal("crowdsec", "red")],
+        ["ingestion"],
+      )
+      const unread = boardObserve(atLoad, [signal("ingestion", "muted"), signal("crowdsec", "red")])
+      expect(unread.open).toEqual(["ingestion", "crowdsec"])
+      const confirmed = boardObserve(unread, [
+        signal("ingestion", "amber"),
+        signal("crowdsec", "red"),
+      ])
+      expect(confirmed.open).toEqual(["ingestion", "crowdsec"])
+      const recovered = boardObserve(confirmed, [signal("ingestion"), signal("crowdsec", "red")])
+      expect(recovered.open).toEqual(["crowdsec"])
+    })
+
     it("keeps a default-open row open for a problem that is a setting", () => {
       const state = initialBoard(
         [
@@ -1448,7 +1464,7 @@ describe("the status board", () => {
     })
   })
 
-  it("sinceLabel never reads as the future", () => {
+  it("sinceLabel reads a time within a second of now as 0s ago", () => {
     const now = Date.parse("2026-11-27T10:00:00Z")
     expect(sinceLabel("2026-11-27T09:59:57Z", now)).toBe("3s ago")
     expect(sinceLabel("2026-11-27T10:00:00.400Z", now)).toBe("0s ago")

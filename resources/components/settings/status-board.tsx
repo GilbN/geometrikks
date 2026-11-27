@@ -177,7 +177,9 @@ export function StatusBoard({
         if (event.target.matches(":focus-visible")) setKeyboardInside(true)
       }}
       onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+        const next = event.relatedTarget
+        const intoDialog = next instanceof Element && next.closest('[role="alertdialog"]')
+        if (!event.currentTarget.contains(next as Node | null) && !intoDialog) {
           setKeyboardInside(false)
         }
       }}

@@ -670,14 +670,12 @@ export function boardObserve(state: BoardState, signals: readonly BoardSignal[])
   const newProblem = problems.some(
     (id) => closesDefault.has(id) && !state.defaultOpened.includes(id),
   )
-  const closeForProblem = newProblem
-    ? state.defaultOpened.filter((id) => !problems.includes(id))
-    : []
-  // A default-open row with its own problem stays tracked, so a later problem
-  // elsewhere still closes it once it has recovered.
-  const defaultOpened = newProblem
-    ? state.defaultOpened.filter((id) => problems.includes(id))
-    : state.defaultOpened
+  // A default-open row with its own problem, or one whose state could not be
+  // read, stays open and tracked, so it closes once it has recovered.
+  const keepOpen = (id: string) =>
+    problems.includes(id) || (unknown.includes(id) && state.seen.includes(id))
+  const closeForProblem = newProblem ? state.defaultOpened.filter((id) => !keepOpen(id)) : []
+  const defaultOpened = newProblem ? state.defaultOpened.filter(keepOpen) : state.defaultOpened
   const open = [
     ...state.open.filter(
       (id) => ids.includes(id) && !closeOnRecovery.includes(id) && !closeForProblem.includes(id),
