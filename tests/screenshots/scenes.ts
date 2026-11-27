@@ -416,28 +416,35 @@ export const STAGES: Record<string, Stage> = {
       })
       return
     }
-    await expect(page.getByText("Parsed lines", { exact: true }).locator("..")).toHaveText(
+    // The desktop shot shows the board with Ingestion open, as in the docs.
+    const ingestion = page.locator('[data-row="ingestion"]')
+    const toggle = ingestion.locator("button[aria-expanded]").first()
+    if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click()
+    await expect(ingestion.getByText("Parsed lines", { exact: true }).locator("..")).toHaveText(
       /^Parsed lines[1-9]/,
       {
         timeout: LOAD_TIMEOUT,
       },
     )
-    await expect(page.getByText("Last event", { exact: true }).locator("..")).toHaveText(
+    await expect(ingestion.getByText("Last event", { exact: true }).locator("..")).toHaveText(
       /^Last event\d+s ago$/,
       {
         timeout: LOAD_TIMEOUT,
       },
     )
-    const sources = page.getByText("Access log sources", { exact: true }).locator("..")
+    // Column 3 of the sources table is the file size.
+    const sizes = ingestion.locator("tbody tr td:nth-child(3)")
     await expect
       .poll(
         async () => {
-          const sizes = await sources.locator(":scope > div > span.tabular-nums").allTextContents()
-          return sizes.length > 0 && sizes.every((size) => !/^0 B\b/.test(size))
+          const values = await sizes.allTextContents()
+          return values.length > 0 && values.every((size) => !/^(0 B|-)$/.test(size))
         },
         { timeout: LOAD_TIMEOUT },
       )
       .toBe(true)
+    // Park the pointer off the board so no row shows its hover color.
+    await page.mouse.move(0, 0)
   },
   settings: async (page) => {
     await expect(page.getByRole("heading", { name: "Appearance" }).first()).toBeVisible({

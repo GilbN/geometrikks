@@ -30,23 +30,15 @@ import {
 } from "@/lib/queries"
 import { useLiveEvents, useLiveFeedStatus } from "@/lib/live-feed-context"
 import { cn } from "@/lib/utils"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { MonoChip, StateLine, StatusLed } from "@/components/settings/status-led"
 import { StatusPhone, type StatusTile } from "@/components/settings/status-phone"
+import { DesktopStatus } from "@/components/settings/status-board-rows"
+import { RemoveLocationAlert } from "@/components/settings/status-remove-location"
 import { useIsMobile } from "@/hooks/use-mobile"
 import {
   agentAdvisoryCards,
@@ -74,7 +66,6 @@ import {
   loginMethodBadges,
   oidcState,
   overallState,
-  recentErrorsFillsRow,
   relativeTime,
   schedulerJobState,
   schedulerSummary,
@@ -186,27 +177,13 @@ function ServerLocationLine({ row }: { row: ServerLocationRow }) {
           >
             <Trash2 />
           </Button>
-          <AlertDialog open={!isMobile && confirming} onOpenChange={setConfirming}>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Remove the location for {row.server}?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Its beacon leaves the map and live routes stop flying to it. If an agent still
-                  ingests as {row.server}, the location comes back at that agent's next refresh.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Keep</AlertDialogCancel>
-                <AlertDialogAction
-                  variant="destructive"
-                  disabled={remove.isPending}
-                  onClick={removeLocation}
-                >
-                  Remove
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          <RemoveLocationAlert
+            server={row.server}
+            open={!isMobile && confirming}
+            onOpenChange={setConfirming}
+            pending={remove.isPending}
+            onRemove={removeLocation}
+          />
         </>
       )}
       {/* Outside the auto/override branch: a 409 refetch turns the row into an
@@ -296,7 +273,6 @@ export function StatusOverview() {
     healthError,
     instancesError ? 0 : agentsNeedingAttention(instances).length,
   )
-  const bottomCardsBefore = (agentOverview ? 1 : 0) + (locationRows.length > 0 ? 1 : 0)
 
   // Card bodies, shared by the desktop cards and the phone tiles' drawers.
   const authBody = (
@@ -554,6 +530,7 @@ export function StatusOverview() {
     </>
   )
 
+  if (healthLoading && !isMobile) return <Skeleton className="h-[476px] w-full rounded-xl" />
   if (healthLoading) {
     return (
       <div className="space-y-4">
@@ -767,177 +744,33 @@ export function StatusOverview() {
         )
       })}
 
-      {/* Overall state and Authentication share the banner row: the subsystem
-          grid below holds an even number of cards, so putting Authentication
-          there instead would leave a hole in its last row. */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-3">
-                <StatusLed tone={overall.tone} pulse={overall.tone !== "muted"} />
-                <CardTitle>{overall.label}</CardTitle>
-              </div>
-              {health && (
-                <span className="text-xs text-muted-foreground">
-                  {uptime && `${uptime} · `}
-                  Updated {new Date(health.timestamp).toLocaleTimeString()}
-                </span>
-              )}
-            </div>
-            {overall.detail && <CardDescription>{overall.detail}</CardDescription>}
-          </CardHeader>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-3">
-              <SectionIcon icon={ShieldUser} />
-              <CardTitle className="text-base">Authentication</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-2">{authBody}</CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-3">
-              <SectionIcon icon={Activity} />
-              <div>
-                <CardTitle className="text-base">Ingestion</CardTitle>
-                <CardDescription>Access log tailing and parsing pipeline</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-3">{ingestionBody}</CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-3">
-              <SectionIcon icon={Database} />
-              <div>
-                <CardTitle className="text-base">Database</CardTitle>
-                <CardDescription>TimescaleDB connection</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-3">{databaseBody}</CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-3">
-              <SectionIcon icon={Globe} />
-              <div>
-                <CardTitle className="text-base">GeoIP</CardTitle>
-                <CardDescription>MaxMind GeoLite2 databases</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-2">{geoipBody}</CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-3">
-              <SectionIcon icon={ShieldCheck} />
-              <div>
-                <CardTitle className="text-base">CrowdSec</CardTitle>
-                <CardDescription>LAPI integration for viewing and managing bans</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-2">{crowdsecBody}</CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-3">
-              <SectionIcon icon={CalendarClock} />
-              <div>
-                <CardTitle className="text-base">Scheduler</CardTitle>
-                <CardDescription>
-                  Background jobs ·{" "}
-                  <Link to="/settings/scheduler" className="tap-area underline underline-offset-2">
-                    details
-                  </Link>
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-2">{schedulerBody}</CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-3">
-              <SectionIcon icon={Radio} />
-              <div>
-                <CardTitle className="text-base">Live feed</CardTitle>
-                <CardDescription>
-                  WebSocket stream for the map and live views, probed while this page is open
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>{liveFeedBody}</CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        {agentOverview && (
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center gap-3">
-                <SectionIcon icon={Network} />
-                <div>
-                  <CardTitle className="text-base">Agents</CardTitle>
-                  <CardDescription>Other instances writing to this database</CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>{agentsBody}</CardContent>
-          </Card>
-        )}
-
-        {locationRows.length > 0 && (
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center gap-3">
-                <SectionIcon icon={MapPin} />
-                <div>
-                  <CardTitle className="text-base">Server locations</CardTitle>
-                  <CardDescription>
-                    Where each server sits on the map and where its live routes land
-                  </CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-2">{locationsBody}</CardContent>
-          </Card>
-        )}
-
-        <Card className={recentErrorsFillsRow(bottomCardsBefore) ? "md:col-span-2" : undefined}>
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-3">
-              <SectionIcon icon={TriangleAlert} />
-              <div>
-                <CardTitle className="text-base">Recent errors</CardTitle>
-                <CardDescription>
-                  Latest error-level events from the application log ·{" "}
-                  <Link to="/settings/logs" className="tap-area underline underline-offset-2">
-                    open Logs
-                  </Link>
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-2">{recentErrorsBody}</CardContent>
-        </Card>
-      </div>
+      <DesktopStatus
+        data={{
+          health,
+          healthError,
+          stats,
+          statsError,
+          crowdsec,
+          crowdsecError,
+          crowdsecStats,
+          me,
+          meError,
+          oidc,
+          oidcError,
+          accessFiles: access,
+          filesError,
+          jobs,
+          jobsError,
+          dbInfo,
+          recentErrors,
+          logsError,
+          locationRows,
+          agentOverview,
+          instancesError,
+          feedStatus,
+          overall,
+        }}
+      />
     </div>
   )
 }

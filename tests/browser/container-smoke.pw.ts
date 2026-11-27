@@ -294,17 +294,15 @@ test("production image serves the authenticated dashboard without browser errors
   expect(breakpointWidths.body[1]).toBe(breakpointWidths.body[0])
   expect(breakpointWidths.content[1]).toBe(breakpointWidths.content[0])
 
-  // The Authentication card reports the mode the deployment is actually in.
-  // Scoped to that card (not page-wide) so a future card printing a
-  // username elsewhere cannot make this assertion pass for the wrong reason.
+  // The Authentication row reports the mode the deployment is actually in.
+  // Scoped to that row, not the whole page, so another row printing a
+  // username cannot make this assertion pass for the wrong reason.
   await page.setViewportSize({ width: 1280, height: 900 })
   await page.goto("/settings/status")
-  const authenticationCard = page
-    .locator('[data-slot="card"]')
-    .filter({ has: page.getByText("Authentication", { exact: true }) })
-  await expect(authenticationCard).toBeVisible()
-  await expect(authenticationCard.getByText("Session login active", { exact: true })).toBeVisible()
-  await expect(authenticationCard.getByText(adminUser, { exact: true })).toBeVisible()
+  const authenticationRow = page.locator('[data-row="auth"]')
+  await expect(authenticationRow).toBeVisible()
+  await expect(authenticationRow.getByText("Session login active", { exact: true })).toBeVisible()
+  await expect(authenticationRow.getByText(`Signed in as ${adminUser}`)).toBeVisible()
 
   // /logout is a real route, not just a sidebar button. This must come last:
   // it ends the session, and the 401s that follow are expected again, so the

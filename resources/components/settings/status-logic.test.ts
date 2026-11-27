@@ -28,7 +28,6 @@ import {
   loginMethodBadges,
   oidcState,
   overallState,
-  recentErrorsFillsRow,
   relativeTime,
   schedulerJobState,
   sidebarIngestionVariant,
@@ -38,6 +37,22 @@ import {
   schedulerSummary,
   statusProblems,
   verdictTitle,
+  ageLabel,
+  clockOrDate,
+  compressionRatio,
+  boardObserve,
+  boardOrder,
+  boardToggle,
+  boardVerdict,
+  type BoardSignal,
+  EMPTY_BOARD,
+  locationsFact,
+  locationsSource,
+  nextSchedulerJob,
+  sourcesPhrase,
+  unavailableSourceCount,
+  unavailableSourcesWord,
+  untilLabel,
 } from "./status-logic"
 
 function makeHealth(overrides: Partial<HealthResponse> = {}): HealthResponse {
@@ -427,16 +442,6 @@ describe("agentMoreProblemsText", () => {
   it("counts the problems behind the headline", () => {
     expect(agentMoreProblemsText(1)).toBe("And 1 more problem.")
     expect(agentMoreProblemsText(3)).toBe("And 3 more problems.")
-  })
-})
-
-describe("recentErrorsFillsRow", () => {
-  it("spans the row when the cards before it pair up", () => {
-    expect(recentErrorsFillsRow(0)).toBe(true)
-    expect(recentErrorsFillsRow(2)).toBe(true)
-  })
-  it("sits beside an unpaired card", () => {
-    expect(recentErrorsFillsRow(1)).toBe(false)
   })
 })
 
@@ -1014,5 +1019,292 @@ describe("schedulerSummary", () => {
 
   it("says when the job list is unavailable", () => {
     expect(schedulerSummary(undefined, true, now)).toEqual({ tone: "muted", label: "Unavailable" })
+  })
+})
+
+describe("the status board", () => {
+  const signal = (
+    id: string,
+    tone: BoardSignal["tone"] = "emerald",
+    counts = true,
+  ): BoardSignal => ({
+    id,
+    tone,
+    counts,
+  })
+  const healthy = [signal("ingestion"), signal("database"), signal("crowdsec"), signal("errors")]
+
+  describe("boardOrder", () => {
+    it("keeps the given order when nothing is wrong", () => {
+      expect(boardOrder(healthy)).toEqual(["ingestion", "database", "crowdsec", "errors"])
+    })
+    it("puts red rows first, then amber, each in the given order", () => {
+      expect(
+        boardOrder([
+          signal("ingestion", "amber"),
+          signal("database"),
+          signal("crowdsec", "red"),
+          signal("errors", "amber"),
+        ]),
+      ).toEqual(["crowdsec", "ingestion", "errors", "database"])
+    })
+    it("leaves muted rows in place: off or loading is not a problem", () => {
+      expect(boardOrder([signal("ingestion"), signal("crowdsec", "muted")])).toEqual([
+        "ingestion",
+        "crowdsec",
+      ])
+    })
+  })
+
+  describe("boardObserve", () => {
+    it("starts in the given order with nothing open", () => {
+      expect(boardObserve(EMPTY_BOARD, healthy)).toEqual({
+        order: ["ingestion", "database", "crowdsec", "errors"],
+        open: [],
+        seen: [],
+        autoOpened: [],
+      })
+    })
+
+    it("opens a problem row and moves it to the top", () => {
+      const state = boardObserve(boardObserve(EMPTY_BOARD, healthy), [
+        signal("ingestion"),
+        signal("database"),
+        signal("crowdsec", "red"),
+        signal("errors"),
+      ])
+      expect(state.order[0]).toBe("crowdsec")
+      expect(state.open).toEqual(["crowdsec"])
+    })
+
+    it("opens problems that are there on the first look", () => {
+      const state = boardObserve(EMPTY_BOARD, [signal("ingestion", "amber"), signal("database")])
+      expect(state.open).toEqual(["ingestion"])
+    })
+
+    it("keeps a closed problem row closed on the next poll", () => {
+      const failing = [signal("ingestion"), signal("crowdsec", "red")]
+      const closed = boardToggle(boardObserve(EMPTY_BOARD, failing), "crowdsec")
+      expect(closed.open).toEqual([])
+      expect(boardObserve(closed, failing).open).toEqual([])
+    })
+
+    it("returns the same state on a poll that changes nothing", () => {
+      const failing = [signal("ingestion"), signal("crowdsec", "red")]
+      const state = boardObserve(EMPTY_BOARD, failing)
+      expect(boardObserve(state, failing)).toBe(state)
+    })
+
+    it("does not move rows when a problem only changes color", () => {
+      const state = boardObserve(EMPTY_BOARD, [
+        signal("ingestion", "amber"),
+        signal("crowdsec", "red"),
+      ])
+      expect(state.order).toEqual(["crowdsec", "ingestion"])
+      const next = boardObserve(state, [signal("ingestion", "red"), signal("crowdsec", "amber")])
+      expect(next.order).toEqual(["crowdsec", "ingestion"])
+    })
+
+    it("closes a row it opened when the problem clears, and puts it back in place", () => {
+      const state = boardObserve(EMPTY_BOARD, [signal("ingestion"), signal("crowdsec", "red")])
+      const recovered = boardObserve(state, [signal("ingestion"), signal("crowdsec")])
+      expect(recovered.open).toEqual([])
+      expect(recovered.order).toEqual(["ingestion", "crowdsec"])
+    })
+
+    it("leaves a row the user opened open when its problem clears", () => {
+      const opened = boardToggle(boardObserve(EMPTY_BOARD, [signal("ingestion")]), "ingestion")
+      const failing = boardObserve(opened, [signal("ingestion", "amber")])
+      expect(failing.autoOpened).toEqual([])
+      expect(boardObserve(failing, [signal("ingestion")]).open).toEqual(["ingestion"])
+    })
+
+    it("stops managing a row the user toggled: reopening by hand survives recovery", () => {
+      const state = boardObserve(EMPTY_BOARD, [signal("crowdsec", "red")])
+      const reopened = boardToggle(boardToggle(state, "crowdsec"), "crowdsec")
+      expect(boardObserve(reopened, [signal("crowdsec")]).open).toEqual(["crowdsec"])
+    })
+
+    it("opens a problem again when it comes back after clearing", () => {
+      const first = boardToggle(boardObserve(EMPTY_BOARD, [signal("crowdsec", "red")]), "crowdsec")
+      const cleared = boardObserve(first, [signal("crowdsec")])
+      expect(boardObserve(cleared, [signal("crowdsec", "red")]).open).toEqual(["crowdsec"])
+    })
+
+    it("moves a row that does not open by itself up, and leaves it closed", () => {
+      const state = boardObserve(EMPTY_BOARD, [
+        signal("ingestion"),
+        { ...signal("errors", "amber", false), autoOpen: false },
+      ])
+      expect(state.order).toEqual(["errors", "ingestion"])
+      expect(state.open).toEqual([])
+    })
+
+    it("reorders when a row appears or goes", () => {
+      const state = boardObserve(EMPTY_BOARD, [signal("ingestion"), signal("errors")])
+      const withAgents = boardObserve(state, [
+        signal("ingestion"),
+        signal("agents"),
+        signal("errors"),
+      ])
+      expect(withAgents.order).toEqual(["ingestion", "agents", "errors"])
+      expect(boardObserve(withAgents, [signal("ingestion")]).order).toEqual(["ingestion"])
+    })
+
+    it("drops a row that went away from the open list", () => {
+      const state = boardToggle(boardObserve(EMPTY_BOARD, [signal("locations")]), "locations")
+      expect(boardObserve(state, []).open).toEqual([])
+    })
+  })
+
+  describe("boardVerdict", () => {
+    const healthyOverall = { tone: "emerald", label: "Healthy", detail: "x" } as const
+
+    it("counts every row when nothing is wrong", () => {
+      expect(boardVerdict(healthyOverall, healthy)).toEqual({
+        tone: "emerald",
+        icon: "healthy",
+        label: "Healthy",
+        detail: "All 4 components operational.",
+      })
+    })
+
+    it("is Degraded with a count when a counted row is amber or red", () => {
+      expect(
+        boardVerdict(healthyOverall, [signal("a", "red"), signal("b"), signal("c")]),
+      ).toMatchObject({
+        tone: "amber",
+        icon: "warning",
+        label: "Degraded",
+        detail: "1 of 3 components is not operational.",
+      })
+      expect(
+        boardVerdict(healthyOverall, [signal("a", "red"), signal("b", "amber"), signal("c")])
+          .detail,
+      ).toBe("2 of 3 components are not operational.")
+    })
+
+    it("leaves rows that do not count out of the verdict", () => {
+      expect(
+        boardVerdict(healthyOverall, [signal("errors", "amber", false), signal("b")]),
+      ).toMatchObject({ label: "Healthy", detail: "All 2 components operational." })
+    })
+
+    it("keeps the overall Attention line for advisories and agents", () => {
+      const attention = {
+        tone: "amber",
+        label: "Attention",
+        detail: "1 agent needs attention.",
+      } as const
+      expect(boardVerdict(attention, [signal("agents", "amber", false)])).toEqual({
+        ...attention,
+        icon: "warning",
+      })
+    })
+
+    it("keeps Degraded from health when no row explains it", () => {
+      const degraded = { tone: "amber", label: "Degraded", detail: "One or more." } as const
+      expect(boardVerdict(degraded, healthy)).toMatchObject({
+        label: "Degraded",
+        detail: "One or more.",
+      })
+    })
+
+    it("passes Unreachable and Loading through", () => {
+      expect(boardVerdict({ tone: "red", label: "Unreachable" }, healthy).icon).toBe("down")
+      expect(boardVerdict({ tone: "muted", label: "Loading" }, healthy).icon).toBe("loading")
+    })
+  })
+
+  describe("row facts", () => {
+    const now = Date.parse("2026-11-27T10:00:00Z")
+
+    it("ageLabel says how old a build is", () => {
+      expect(ageLabel("2026-11-06T10:00:00Z", now)).toBe("21d old")
+    })
+
+    it("sourcesPhrase counts sources and the ones that are down", () => {
+      expect(sourcesPhrase(2, 0, "missing")).toBe("2 sources")
+      expect(sourcesPhrase(1, 0, "missing")).toBe("1 source")
+      expect(sourcesPhrase(2, 1, "missing")).toBe("1 of 2 sources missing")
+      expect(sourcesPhrase(0, 0, "missing")).toBe("No sources")
+    })
+
+    it("unavailableSourcesWord names one shared reason, or falls back", () => {
+      const health = (reasons: string[]) =>
+        makeHealth({
+          ingestion: {
+            ...makeHealth().ingestion,
+            unavailableSources: reasons.map((reason, index) => ({
+              kind: "file",
+              label: `f${index}`,
+              reason,
+            })),
+          } as HealthIngestionStatus,
+        })
+      expect(unavailableSourcesWord(health(["missing", "missing"]))).toBe("missing")
+      expect(unavailableSourcesWord(health(["unreadable"]))).toBe("not readable")
+      expect(unavailableSourcesWord(health(["missing", "unreadable"]))).toBe("unavailable")
+      expect(unavailableSourceCount(health(["missing", "unreadable"]))).toBe(2)
+      expect(unavailableSourceCount(undefined)).toBe(0)
+    })
+
+    it("nextSchedulerJob picks the soonest job that is not running", () => {
+      const job = (id: string, nextRunTime: string | null, running = false) =>
+        ({ id, name: id, running, nextRunTime }) as SchedulerJobView
+      expect(
+        nextSchedulerJob([
+          job("later", "2026-11-27T11:00:00Z"),
+          job("busy", "2026-11-27T10:00:01Z", true),
+          job("soon", "2026-11-27T10:00:05Z"),
+          job("never", null),
+        ])?.id,
+      ).toBe("soon")
+      expect(nextSchedulerJob([])).toBeNull()
+      expect(nextSchedulerJob(undefined)).toBeNull()
+    })
+
+    it("locationsFact and locationsSource sum up the server locations", () => {
+      const row = (server: string, source: "auto" | "override") => ({
+        server,
+        coords: "1.00, 2.00",
+        source,
+        lastSeen: "Traffic today",
+        stale: false,
+      })
+      expect(locationsFact([row("edge", "auto"), row("homelab", "auto")])).toBe(
+        "edge 1.00, 2.00 · homelab 1.00, 2.00",
+      )
+      expect(locationsSource([row("a", "auto"), row("b", "auto")])).toBe("auto")
+      expect(locationsSource([row("a", "override")])).toBe("override")
+      expect(locationsSource([row("a", "auto"), row("b", "override")])).toBe("1 auto, 1 override")
+    })
+  })
+
+  describe("panel values", () => {
+    it("clockOrDate shows a clock for today and a date otherwise", () => {
+      const now = Date.parse("2026-11-27T12:00:00")
+      expect(clockOrDate("2026-11-27T10:26:57", now)).toBe(
+        new Date("2026-11-27T10:26:57").toLocaleTimeString(),
+      )
+      expect(clockOrDate("2026-11-20T10:26:57", now)).not.toBe(
+        new Date("2026-11-20T10:26:57").toLocaleTimeString(),
+      )
+    })
+
+    it("compressionRatio is per table, with a dash before compression", () => {
+      const table = (before: number | null, after: number | null) =>
+        ({ beforeCompressionBytes: before, afterCompressionBytes: after }) as HypertableStatsView
+      expect(compressionRatio(table(3200, 1000))).toBe("3.2x")
+      expect(compressionRatio(table(null, null))).toBe("-")
+      expect(compressionRatio(table(0, 0))).toBe("-")
+    })
+  })
+
+  it("untilLabel says now once a time is due", () => {
+    const now = Date.parse("2026-11-27T10:00:00Z")
+    expect(untilLabel("2026-11-27T10:00:04Z", now)).toBe("in 4s")
+    expect(untilLabel("2026-11-27T09:59:59Z", now)).toBe("now")
+    expect(untilLabel("2026-11-27T10:00:00.500Z", now)).toBe("now")
   })
 })
