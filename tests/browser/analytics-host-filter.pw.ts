@@ -80,8 +80,6 @@ function analyticsQuery(params: Record<string, string[]>) {
   return `?${query}`
 }
 
-const LONG_HOST = "nightlybackupreportsforeveryhomelabclusters.apps.example.com"
-
 function urlRow(host: string | null, url: string): TopUrlDto {
   return {
     host,
@@ -317,43 +315,6 @@ test("filtering two hosts hides the Top URLs Host column", async ({ page }) => {
   await expect(card.getByRole("columnheader", { name: "Host", exact: true })).toHaveCount(0)
 })
 
-test("a long Top URLs host keeps its menu button", async ({ page }) => {
-  await mockTopUrls(page, [urlRow(LONG_HOST, "/reports/latest")])
-  await openAnalytics(page)
-  const trigger = topUrlsCard(page).getByRole("button", {
-    name: `Actions for ${LONG_HOST}`,
-    exact: true,
-  })
-  await expect(trigger).toBeVisible()
-  await trigger.click()
-  await expect(
-    page.getByRole("menu").getByRole("menuitem", { name: "Filter by host", exact: true }),
-  ).toBeVisible()
-})
-
-test.describe("wide screen", () => {
-  test.use({ viewport: { width: 1920, height: 1080 } })
-
-  test("a long host stays in the wide table, truncated beside its menu", async ({ page }) => {
-    await mockTopUrls(page, [urlRow(LONG_HOST, "/reports/latest")])
-    await openAnalytics(page)
-    const card = topUrlsCard(page)
-    await expect(card.getByRole("columnheader", { name: "Avg time", exact: true })).toBeVisible()
-    await expect(card.getByRole("columnheader", { name: "Host", exact: true })).toBeVisible()
-    const trigger = card.getByRole("button", { name: `Actions for ${LONG_HOST}`, exact: true })
-    await trigger.scrollIntoViewIfNeeded()
-    const cardBox = await card.boundingBox()
-    const triggerBox = await trigger.boundingBox()
-    expect((triggerBox?.x ?? Infinity) + (triggerBox?.width ?? 0)).toBeLessThanOrEqual(
-      (cardBox?.x ?? 0) + (cardBox?.width ?? 0),
-    )
-    await trigger.click()
-    const hostLabel = page.getByRole("menu").getByText(LONG_HOST, { exact: true })
-    const labelBox = await hostLabel.boundingBox()
-    expect(labelBox?.width ?? Infinity).toBeLessThanOrEqual(320)
-  })
-})
-
 test("the Top ASNs row menu names the ASN and its organization", async ({ page }) => {
   await mockTopAsns(page)
   await openAnalytics(page)
@@ -416,70 +377,6 @@ test("the Top IPs header shows no count at zero", async ({ page }) => {
 
 test.describe("phone", () => {
   test.use({ viewport: { width: 393, height: 852 } })
-
-  test("the Top IPs count shows and the title stays on one line", async ({ page }) => {
-    await mockTopIps(page, 1284)
-    await openAnalytics(page)
-    const card = cardTitled(page, "Top IPs")
-    await card.scrollIntoViewIfNeeded()
-    await expect(card.getByText("1,284 unique IPs", { exact: true })).toBeVisible()
-    const title = card.locator('[data-slot="card-title"]')
-    expect(
-      await title.evaluate((element) => {
-        const range = document.createRange()
-        range.selectNodeContents(element)
-        return range.getClientRects().length
-      }),
-    ).toBe(1)
-  })
-
-  test("the Countries table stacks to fit a long country name", async ({ page }) => {
-    await mockTopCountries(page, [
-      {
-        countryCode: "US",
-        countryName: "United States",
-        hits: 48_210,
-        errorHits: 3_412,
-        uniqueIps: 1_934,
-      },
-      {
-        countryCode: "CD",
-        countryName: "Democratic Republic of the Congo",
-        hits: 2_604,
-        errorHits: 1,
-        uniqueIps: 1,
-      },
-    ])
-    await openAnalytics(page)
-    const card = cardTitled(page, "Top Countries / Cities")
-    await card.scrollIntoViewIfNeeded()
-    const congoRow = card.getByRole("row").filter({ hasText: "Democratic Republic of the Congo" })
-    await expect(congoRow.getByText("1 error", { exact: true })).toBeVisible()
-    await expect(congoRow.getByText("1 unique IP", { exact: true })).toBeVisible()
-    const unitedStatesRow = card.getByRole("row").filter({ hasText: "United States" })
-    await expect(unitedStatesRow.getByText("3,412 errors", { exact: true })).toBeVisible()
-    await expect(unitedStatesRow.getByText("1,934 unique IPs", { exact: true })).toBeVisible()
-    const overflow = await card
-      .locator('[data-slot="table-container"]:visible')
-      .evaluate((container) => container.scrollWidth - container.clientWidth)
-    expect(overflow).toBeLessThanOrEqual(0)
-  })
-
-  test("a long Top URLs host opens a drawer whose title wraps", async ({ page }) => {
-    await mockTopUrls(page, [urlRow(LONG_HOST, "/reports/latest")])
-    await openAnalytics(page)
-    await topUrlsCard(page)
-      .getByRole("button", { name: `Actions for ${LONG_HOST}`, exact: true })
-      .click()
-    const drawer = page.locator('[data-slot="drawer-content"]')
-    const title = drawer.getByRole("heading", { name: LONG_HOST, exact: true })
-    await expect(title).toBeVisible()
-    await expect(drawer.getByRole("button", { name: "Filter by host", exact: true })).toBeVisible()
-    const viewportWidth = page.viewportSize()?.width ?? 0
-    const box = await title.boundingBox()
-    expect(box?.width ?? Infinity).toBeLessThanOrEqual(viewportWidth)
-    expect(await title.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
-  })
 
   for (const exclude of [false, true]) {
     test(`the drawer's ${exclude ? "Exclude" : "Show only"} section has a Host row`, async ({

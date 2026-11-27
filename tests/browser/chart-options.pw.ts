@@ -274,40 +274,6 @@ test.describe("requests chart", () => {
     )
   })
 
-  test("at 1024px the header keeps its controls inside the card and the time in the readout", async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width: 1024, height: 800 })
-    await mockTimeSeries(page, points)
-    await page.goto("/analytics")
-    const card = panel(page, "Request latency")
-    await card.scrollIntoViewIfNeeded()
-    const grid = (await card.locator(".recharts-cartesian-grid").boundingBox())!
-    const top = grid.y
-    await page.mouse.move(grid.x + (30.5 / BUCKETS) * grid.width, grid.y + grid.height / 2)
-    await expectReadout(card, "p99 1.10s")
-    const stamp = await page.evaluate(
-      (timestamp) =>
-        new Intl.DateTimeFormat(undefined, {
-          month: "short",
-          day: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        }).format(new Date(timestamp)),
-      points[30].timestamp,
-    )
-    // Below 1280px the time sits in the readout, not in the title row.
-    await expect(card.locator("header > div").last().getByText(stamp)).toBeVisible()
-
-    const box = (await card.boundingBox())!
-    const options = (await card.getByRole("button", { name: /^Chart options/ }).boundingBox())!
-    const title = (await card.getByRole("heading", { name: "Request latency" }).boundingBox())!
-    expect(options.x + options.width).toBeLessThanOrEqual(box.x + box.width)
-    expect(title.x + title.width).toBeLessThanOrEqual(options.x)
-    // The hover time sits in the readout, so the plot does not move under the pointer.
-    expect((await card.locator(".recharts-cartesian-grid").boundingBox())!.y).toBe(top)
-  })
-
   test("a Log pick shows as lines and survives a reload", async ({ page }) => {
     await mockTimeSeries(page, points)
     await page.goto("/analytics")

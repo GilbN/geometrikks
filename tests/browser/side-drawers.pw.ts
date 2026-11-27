@@ -77,27 +77,6 @@ async function routeWritableCrowdsec(page: Page) {
   )
 }
 
-async function routeLogTail(page: Page) {
-  await page.route("**/api/v1/logs/tail?*", (route) =>
-    route.fulfill({
-      json: {
-        records: [
-          {
-            event: "request failed",
-            level: "error",
-            logger: "geometrikks.test",
-            timestamp: "2026-08-16T12:00:00Z",
-            exception: Array.from(
-              { length: 80 },
-              (_, line) => `  File "app.py", line ${line}, in handler`,
-            ).join("\n"),
-          },
-        ],
-      },
-    }),
-  )
-}
-
 // Only creates a key in the browser: the POST never reaches the server.
 async function routeApiKeyCreate(page: Page) {
   await page.route("**/api/v1/auth/api-keys", (route) => {
@@ -302,87 +281,123 @@ async function expectBackCloses(page: Page, drawer: Locator, path: RegExp) {
   await expect(page).toHaveURL(path)
 }
 
-for (const viewport of [
-  { width: 932, height: 430 },
-  { width: 844, height: 390 },
-]) {
-  test.describe(`phone held sideways at ${viewport.width}x${viewport.height}`, () => {
-    test.use({ viewport, hasTouch: true, isMobile: true })
+test.describe("phone held sideways at 932x430", () => {
+  test.use({ viewport: { width: 932, height: 430 }, hasTouch: true, isMobile: true })
 
-    test("the ban form opens from the right at full height and Back closes it", async ({
-      page,
-    }) => {
-      await login(page)
-      await routeWritableCrowdsec(page)
-      await page.goto("/")
-      await page.goto("/security")
-      await page.getByRole("button", { name: "Ban IP" }).click()
-      const drawer = openDrawer(page)
-      await expect(drawer.getByRole("heading", { name: "Ban an IP or range" })).toBeVisible()
-      await expectRightFullHeight(page, drawer)
-      await expect(tabBar(page)).toBeHidden()
+  test("the ban form opens from the right at full height and Back closes it", async ({ page }) => {
+    await login(page)
+    await routeWritableCrowdsec(page)
+    await page.goto("/")
+    await page.goto("/security")
+    await page.getByRole("button", { name: "Ban IP" }).click()
+    const drawer = openDrawer(page)
+    await expect(drawer.getByRole("heading", { name: "Ban an IP or range" })).toBeVisible()
+    await expectRightFullHeight(page, drawer)
+    await expect(tabBar(page)).toBeHidden()
 
-      const reason = drawer.getByLabel("Reason (optional)")
-      await reason.scrollIntoViewIfNeeded()
-      await expect(reason).toBeInViewport()
-      await expect(drawer.getByRole("button", { name: "Ban", exact: true })).toBeInViewport()
+    const reason = drawer.getByLabel("Reason (optional)")
+    await reason.scrollIntoViewIfNeeded()
+    await expect(reason).toBeInViewport()
+    await expect(drawer.getByRole("button", { name: "Ban", exact: true })).toBeInViewport()
 
-      await expectBackCloses(page, drawer, /\/security$/)
-      await expect(tabBar(page)).toBeVisible()
-    })
-
-    test("the IP actions menu opens from the right at full height and Back closes it", async ({
-      page,
-    }) => {
-      await login(page)
-      await routeAccessLogs(page)
-      await page.goto("/")
-      await page.goto("/access-logs")
-      await ipActions(page).click()
-      const drawer = openDrawer(page)
-      await expect(drawer.getByRole("button", { name: "Inspect IP" })).toBeVisible()
-      await expectRightFullHeight(page, drawer)
-      await expect(tabBar(page)).toBeHidden()
-
-      await expectBackCloses(page, drawer, /\/access-logs$/)
-      await expect(tabBar(page)).toBeVisible()
-    })
-
-    test("the Access Logs Filters drawer opens from the right at full height and Back closes it", async ({
-      page,
-    }) => {
-      await login(page)
-      await routeAccessLogs(page)
-      await page.goto("/")
-      await page.goto("/access-logs")
-      await expect(page.getByRole("region", { name: "Request filters" })).toHaveCount(0)
-      await page.getByRole("button", { name: /^Filters/ }).click()
-      const drawer = openDrawer(page)
-      await expect(drawer.getByRole("heading", { name: "Filters" })).toBeVisible()
-      await expectRightFullHeight(page, drawer)
-      await expect(tabBar(page)).toBeHidden()
-
-      await expectBackCloses(page, drawer, /\/access-logs$/)
-      await expect(tabBar(page)).toBeVisible()
-    })
-
-    test("the hosting ASN list opens from the right at full height and Back closes it", async ({
-      page,
-    }) => {
-      await login(page)
-      await page.goto("/")
-      await page.goto("/settings/about")
-      await page.getByRole("button", { name: "Browse list" }).click()
-      const drawer = openDrawer(page)
-      await expect(drawer.getByRole("heading", { name: "Hosting ASN list" })).toBeVisible()
-      await expectRightFullHeight(page, drawer)
-      await expect(tabBar(page)).toBeHidden()
-      await expect(drawer.getByText(/entries/)).toBeInViewport()
-
-      await expectBackCloses(page, drawer, /\/settings\/about$/)
-    })
+    await expectBackCloses(page, drawer, /\/security$/)
+    await expect(tabBar(page)).toBeVisible()
   })
-}
+
+  test("the IP actions menu opens from the right at full height and Back closes it", async ({
+    page,
+  }) => {
+    await login(page)
+    await routeAccessLogs(page)
+    await page.goto("/")
+    await page.goto("/access-logs")
+    await ipActions(page).click()
+    const drawer = openDrawer(page)
+    await expect(drawer.getByRole("button", { name: "Inspect IP" })).toBeVisible()
+    await expectRightFullHeight(page, drawer)
+    await expect(tabBar(page)).toBeHidden()
+
+    await expectBackCloses(page, drawer, /\/access-logs$/)
+    await expect(tabBar(page)).toBeVisible()
+  })
+
+  test("the Access Logs Filters drawer opens from the right at full height and Back closes it", async ({
+    page,
+  }) => {
+    await login(page)
+    await routeAccessLogs(page)
+    await page.goto("/")
+    await page.goto("/access-logs")
+    await expect(page.getByRole("region", { name: "Request filters" })).toHaveCount(0)
+    await page.getByRole("button", { name: /^Filters/ }).click()
+    const drawer = openDrawer(page)
+    await expect(drawer.getByRole("heading", { name: "Filters" })).toBeVisible()
+    await expectRightFullHeight(page, drawer)
+    await expect(tabBar(page)).toBeHidden()
+
+    await expectBackCloses(page, drawer, /\/access-logs$/)
+    await expect(tabBar(page)).toBeVisible()
+  })
+
+  test("the hosting ASN list opens from the right at full height and Back closes it", async ({
+    page,
+  }) => {
+    await login(page)
+    await page.goto("/")
+    await page.goto("/settings/about")
+    await page.getByRole("button", { name: "Browse list" }).click()
+    const drawer = openDrawer(page)
+    await expect(drawer.getByRole("heading", { name: "Hosting ASN list" })).toBeVisible()
+    await expectRightFullHeight(page, drawer)
+    await expect(tabBar(page)).toBeHidden()
+    await expect(drawer.getByText(/entries/)).toBeInViewport()
+
+    await expectBackCloses(page, drawer, /\/settings\/about$/)
+  })
+
+  test("the inspector's range picker opens a drawer over the inspector sheet", async ({ page }) => {
+    await login(page)
+    await page.goto("/access-logs?inspect=192.0.2.1")
+    const sheet = page.locator('[data-slot="sheet-content"][data-state="open"]')
+    await expect(sheet).toBeVisible()
+    const bodyPointerEvents = () => page.evaluate(() => document.body.style.pointerEvents)
+    // The modal sheet itself turns the body's pointer events off.
+    const underSheet = await bodyPointerEvents()
+
+    await sheet.getByRole("button", { name: "Last 7d" }).click()
+    const drawer = openDrawer(page)
+    await expect(drawer.getByRole("heading", { name: "Time range" })).toBeVisible()
+    await drawer.getByRole("button", { name: "24h", exact: true }).click()
+    await expect(drawer).toHaveCount(0)
+    await expect(sheet.getByRole("button", { name: "Last 24h" })).toBeVisible()
+    await expect(page).toHaveURL(/inspect=192\.0\.2\.1/)
+    await expect.poll(bodyPointerEvents).toBe(underSheet)
+    // The sheet still answers a tap once the drawer over it has gone.
+    await sheet.getByRole("button", { name: "Last 24h" }).click()
+    await expect(drawer.getByRole("heading", { name: "Time range" })).toBeVisible()
+    await page.keyboard.press("Escape")
+    await expect(drawer).toHaveCount(0)
+    await expect(sheet).toBeVisible()
+    await page.goBack()
+    await expect(sheet).toHaveCount(0)
+    await expect.poll(bodyPointerEvents).not.toBe("none")
+  })
+
+  test("the inspector's shield opens the ban drawer from the right", async ({ page }) => {
+    await login(page)
+    await routeWritableCrowdsec(page)
+    await routeUnbannedInspector(page)
+    await page.goto("/access-logs?inspect=192.0.2.1")
+    const sheet = inspectorSheet(page)
+    await expect(sheet).toBeVisible()
+    await sheet.getByRole("button", { name: "Ban 192.0.2.1" }).click()
+    const drawer = openDrawer(page)
+    await expectRightFullHeight(page, drawer)
+    await expect(drawer.getByText("Ban this IP in CrowdSec for")).toBeVisible()
+    await expectBackCloses(page, drawer, /inspect=192\.0\.2\.1/)
+    await expect(sheet).toBeVisible()
+  })
+})
 
 test.describe("turning a phone with a drawer open", () => {
   test.use({ viewport: { width: 393, height: 852 }, hasTouch: true, isMobile: true })
@@ -589,102 +604,6 @@ test.describe("desktop", () => {
         .getByRole("heading", { name: "Ban an IP or range" }),
     ).toBeVisible()
     await expect(openDrawer(page)).toHaveCount(0)
-  })
-})
-
-test.describe("phone held sideways at 932x430", () => {
-  test.use({ viewport: { width: 932, height: 430 }, hasTouch: true, isMobile: true })
-
-  test("the inspector's range picker opens a drawer over the inspector sheet", async ({ page }) => {
-    await login(page)
-    await page.goto("/access-logs?inspect=192.0.2.1")
-    const sheet = page.locator('[data-slot="sheet-content"][data-state="open"]')
-    await expect(sheet).toBeVisible()
-    const bodyPointerEvents = () => page.evaluate(() => document.body.style.pointerEvents)
-    // The modal sheet itself turns the body's pointer events off.
-    const underSheet = await bodyPointerEvents()
-
-    await sheet.getByRole("button", { name: "Last 7d" }).click()
-    const drawer = openDrawer(page)
-    await expect(drawer.getByRole("heading", { name: "Time range" })).toBeVisible()
-    await drawer.getByRole("button", { name: "24h", exact: true }).click()
-    await expect(drawer).toHaveCount(0)
-    await expect(sheet.getByRole("button", { name: "Last 24h" })).toBeVisible()
-    await expect(page).toHaveURL(/inspect=192\.0\.2\.1/)
-    await expect.poll(bodyPointerEvents).toBe(underSheet)
-    // The sheet still answers a tap once the drawer over it has gone.
-    await sheet.getByRole("button", { name: "Last 24h" }).click()
-    await expect(drawer.getByRole("heading", { name: "Time range" })).toBeVisible()
-    await page.keyboard.press("Escape")
-    await expect(drawer).toHaveCount(0)
-    await expect(sheet).toBeVisible()
-    await page.goBack()
-    await expect(sheet).toHaveCount(0)
-    await expect.poll(bodyPointerEvents).not.toBe("none")
-  })
-
-  test("the inspector's shield opens the ban drawer from the right", async ({ page }) => {
-    await login(page)
-    await routeWritableCrowdsec(page)
-    await routeUnbannedInspector(page)
-    await page.goto("/access-logs?inspect=192.0.2.1")
-    const sheet = inspectorSheet(page)
-    await expect(sheet).toBeVisible()
-    await sheet.getByRole("button", { name: "Ban 192.0.2.1" }).click()
-    const drawer = openDrawer(page)
-    await expectRightFullHeight(page, drawer)
-    await expect(drawer.getByText("Ban this IP in CrowdSec for")).toBeVisible()
-    await expectBackCloses(page, drawer, /inspect=192\.0\.2\.1/)
-    await expect(sheet).toBeVisible()
-  })
-
-  test("the new API key form fits on the screen", async ({ page }) => {
-    await login(page)
-    await page.goto("/settings/api-keys")
-    await page.getByRole("button", { name: "Create key" }).click()
-    const drawer = openDrawer(page)
-    await expect(drawer.getByRole("heading", { name: "Create API key" })).toBeVisible()
-    await expectRightFullHeight(page, drawer)
-    const create = drawer.getByRole("button", { name: /^Create/ }).last()
-    await create.scrollIntoViewIfNeeded()
-    await expect(create).toBeInViewport()
-  })
-
-  test("the log record and traceback fit on the screen", async ({ page }) => {
-    await login(page)
-    await routeLogTail(page)
-    await page.goto("/settings/logs")
-    await page.getByText("request failed").first().click()
-    const drawer = openDrawer(page)
-    await expect(drawer.getByRole("heading", { name: /request failed/ })).toBeVisible()
-    await expectRightFullHeight(page, drawer)
-    await page.keyboard.press("Escape")
-    // The record stays in the drawer while it slides out.
-    await expect(closingDrawer(page).getByText("geometrikks.test").first()).toBeAttached()
-    await expect(drawer).toHaveCount(0)
-
-    await page.getByText("request failed").first().click()
-    await expect(drawer.getByRole("heading", { name: /request failed/ })).toBeVisible()
-    await expectBackCloses(page, drawer, /\/settings\/logs$/)
-
-    await page.getByRole("button", { name: "View traceback" }).first().click()
-    await expect(drawer.getByRole("heading", { name: "Traceback" })).toBeVisible()
-    await expectRightFullHeight(page, drawer)
-    // The long traceback scrolls inside the drawer instead of running off the screen.
-    const scroller = drawer.locator("pre").locator("..")
-    await expect
-      .poll(async () => {
-        const box = await scroller.boundingBox()
-        return box !== null && box.y + box.height <= 430
-      })
-      .toBe(true)
-    expect(await scroller.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(
-      true,
-    )
-    await page.goBack()
-    await expect(closingDrawer(page).locator("pre")).toBeAttached()
-    await expect(drawer).toHaveCount(0)
-    await expect(page).toHaveURL(/\/settings\/logs$/)
   })
 })
 

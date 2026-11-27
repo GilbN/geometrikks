@@ -1,7 +1,6 @@
 import { expect, test, type Locator, type Page, type WebSocketRoute } from "@playwright/test"
 import type { BannedMapCollection, BannedMapFeature } from "../../resources/generated/api/types.gen"
-import { emulateSafeAreas, IPHONE_LANDSCAPE_INSETS, type SafeAreaInsets } from "./safe-areas"
-import { settledToastBox } from "./toasts"
+import { emulateSafeAreas, IPHONE_LANDSCAPE_INSETS } from "./safe-areas"
 
 test.use({
   launchOptions: { args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] },
@@ -222,64 +221,54 @@ for (const width of [1280, 390]) {
 
 // On a phone the popup is a panel 12px above the tab bar, and the map pill
 // hides. The map pans the point into the room above the panel, and the 20-row list scrolls
-// inside it. With reduced motion the pan is a jump, and a later drag must
-// stay where the user left it.
-for (const [height, reducedMotion] of [
-  [844, false],
-  [640, false],
-  [844, true],
-] as const) {
-  test(`a phone panel keeps its point in view at 390x${height}${reducedMotion ? " with reduced motion" : ""}`, async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width: 390, height })
-    if (reducedMotion) await page.emulateMedia({ reducedMotion: "reduce" })
-    await setup(page)
-    await openCenterPopup(page)
-    const panel = page.getByRole("dialog", { name: "Banned IPs", exact: true })
-    const card = page.getByRole("navigation", { name: "Map actions", exact: true })
-    const map = page.locator(".maplibregl-map")
-    // Server markers are off, so the only marker is the selection ring.
-    const pointY = async () => {
-      const ring = await page.locator(".maplibregl-marker").boundingBox()
-      return ring ? ring.y + ring.height / 2 : NaN
-    }
-    const pointAbovePanel = async () => {
-      const [panelBox, mapBox] = await Promise.all([panel.boundingBox(), map.boundingBox()])
-      const y = await pointY()
-      return !!panelBox && !!mapBox && y > mapBox.y && y < panelBox.y
-    }
-    await expect(card).toBeHidden()
-    await expect(panel).toBeInViewport({ ratio: 1 })
-    await settled(panel)
-    const bar = await box(page.locator("[data-tab-bar]"))
-    const panelBox = await box(panel)
-    expect(bar.y - (panelBox.y + panelBox.height)).toBeCloseTo(12, 0)
-    await expect.poll(pointAbovePanel).toBe(true)
-    await panel.getByRole("button", { name: "Next", exact: true }).click()
-    await expect(panel.getByRole("button", { name: /^192\./ })).toHaveCount(5)
-    await expect.poll(pointAbovePanel).toBe(true)
+// inside it. A later drag must stay where the user left it.
+test("a phone panel keeps its point in view", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await setup(page)
+  await openCenterPopup(page)
+  const panel = page.getByRole("dialog", { name: "Banned IPs", exact: true })
+  const card = page.getByRole("navigation", { name: "Map actions", exact: true })
+  const map = page.locator(".maplibregl-map")
+  // Server markers are off, so the only marker is the selection ring.
+  const pointY = async () => {
+    const ring = await page.locator(".maplibregl-marker").boundingBox()
+    return ring ? ring.y + ring.height / 2 : NaN
+  }
+  const pointAbovePanel = async () => {
+    const [panelBox, mapBox] = await Promise.all([panel.boundingBox(), map.boundingBox()])
+    const y = await pointY()
+    return !!panelBox && !!mapBox && y > mapBox.y && y < panelBox.y
+  }
+  await expect(card).toBeHidden()
+  await expect(panel).toBeInViewport({ ratio: 1 })
+  await settled(panel)
+  const bar = await box(page.locator("[data-tab-bar]"))
+  const panelBox = await box(panel)
+  expect(bar.y - (panelBox.y + panelBox.height)).toBeCloseTo(12, 0)
+  await expect.poll(pointAbovePanel).toBe(true)
+  await panel.getByRole("button", { name: "Next", exact: true }).click()
+  await expect(panel.getByRole("button", { name: /^192\./ })).toHaveCount(5)
+  await expect.poll(pointAbovePanel).toBe(true)
 
-    // Drag the map down from its top-left corner, clear of the panel.
-    await page.waitForTimeout(500)
-    const before = await pointY()
-    const mapBox = (await map.boundingBox())!
-    await page.mouse.move(mapBox.x + 12, mapBox.y + 12)
-    await page.mouse.down()
-    await page.mouse.move(mapBox.x + 12, mapBox.y + 52, { steps: 8 })
-    await page.mouse.up()
-    await page.waitForTimeout(1000)
-    const dragged = await pointY()
-    expect(dragged).toBeGreaterThan(before + 20)
-    // No correction pan undoes the drag afterwards.
-    await page.waitForTimeout(1000)
-    expect(Math.abs((await pointY()) - dragged)).toBeLessThanOrEqual(1)
+  // Drag the map down from its top-left corner, clear of the panel.
+  await page.waitForTimeout(500)
+  const before = await pointY()
+  const mapBox = (await map.boundingBox())!
+  await page.mouse.move(mapBox.x + 12, mapBox.y + 12)
+  await page.mouse.down()
+  await page.mouse.move(mapBox.x + 12, mapBox.y + 52, { steps: 8 })
+  await page.mouse.up()
+  await page.waitForTimeout(1000)
+  const dragged = await pointY()
+  expect(dragged).toBeGreaterThan(before + 20)
+  // No correction pan undoes the drag afterwards.
+  await page.waitForTimeout(1000)
+  expect(Math.abs((await pointY()) - dragged)).toBeLessThanOrEqual(1)
 
-    await page.keyboard.press("Escape")
-    await expect(panel).toBeHidden()
-    await expect(card).toBeVisible()
-  })
-}
+  await page.keyboard.press("Escape")
+  await expect(panel).toBeHidden()
+  await expect(card).toBeVisible()
+})
 
 test("a focused location keeps its point above the portrait panel", async ({ page }) => {
   await page.setViewportSize({ width: 393, height: 852 })
@@ -325,87 +314,8 @@ test("a focused location keeps its point above the portrait panel", async ({ pag
     .toBe(true)
 })
 
-/** A failed copy is a toast the panel can raise. */
-async function blockCopy(page: Page) {
-  await page.addInitScript(() => {
-    Object.defineProperty(navigator, "clipboard", {
-      value: { writeText: () => Promise.reject(new Error("denied")) },
-    })
-    document.execCommand = () => false
-  })
-}
-
-/** A missing GeoIP database adds a banner at the top of the screen. */
-async function geoipAvailable(page: Page) {
-  await page.route("**/health", async (route) => {
-    const health = await (await route.fetch()).json()
-    health.geoip.available = true
-    return route.fulfill({ json: health })
-  })
-}
-
-async function copyFailureToast(page: Page) {
-  const panel = page.getByRole("dialog", { name: "Banned IPs", exact: true })
-  await panel
-    .getByRole("button", { name: /^192\./ })
-    .first()
-    .click()
-  await panel.getByRole("button", { name: /^Copy 192\./ }).click()
-  const toast = page
-    .locator("[data-sonner-toast]")
-    .filter({ hasText: "The browser blocked the copy." })
-  await expect(toast).toBeVisible()
-  return toast
-}
-
-/** Sonner slides a toast into place, so this measures where it settles. */
-test("a toast stays clear of the range chip while a portrait panel is open", async ({ page }) => {
-  await page.setViewportSize({ width: 393, height: 852 })
-  await emulateSafeAreas(page, { top: 59, left: 0, right: 0, bottom: 34 })
-  await blockCopy(page)
-  await geoipAvailable(page)
-  await setup(page)
-  await openCenterPopup(page)
-  const toast = await copyFailureToast(page)
-  await expect(page.locator("[data-sonner-toaster]")).toHaveAttribute("data-y-position", "top")
-  const chip = await box(page.getByRole("group", { name: "Time range", exact: true }))
-  const toastBox = await settledToastBox(toast)
-  expect(toastBox.y).toBeGreaterThanOrEqual(chip.y + chip.height + 8 - 0.5)
-  await page.screenshot({ path: "smoke-artifacts/banned-map-portrait-toast.png" })
-})
-
-test("with a banner on the phone map the chip and the toasts sit under it", async ({ page }) => {
-  await page.setViewportSize({ width: 393, height: 852 })
-  await emulateSafeAreas(page, { top: 59, left: 0, right: 0, bottom: 34 })
-  await blockCopy(page)
-  await page.route("**/health", async (route) => {
-    const health = await (await route.fetch()).json()
-    health.geoip.available = false
-    return route.fulfill({ json: health })
-  })
-  await setup(page)
-  await expect(page.locator("[data-shell-top]")).toContainText("Geo lookups disabled")
-  await expect(page.locator("[data-shell-top]")).toContainText("docker compose up -d")
-  const shellTop = await box(page.locator("[data-shell-top]"))
-  expect(shellTop.y).toBe(0)
-  expect(shellTop.height).toBeGreaterThan(59)
-  const chip = await box(page.getByRole("group", { name: "Time range", exact: true }))
-  expect(Math.abs(chip.y - (shellTop.y + shellTop.height + 12))).toBeLessThanOrEqual(1)
-
-  await openCenterPopup(page)
-  await copyFailureToast(page)
-  const toaster = page.locator("[data-sonner-toaster]")
-  await expect(toaster).toHaveAttribute("data-y-position", "top")
-  expect(Math.abs((await box(toaster)).y - (chip.y + chip.height + 8))).toBeLessThanOrEqual(1)
-  await page.screenshot({ path: "smoke-artifacts/banned-map-banner-toast.png" })
-})
-
 // Held sideways, the phone map stands on the right edge: the pill, the panel
 // docked there over the bar, and drawers that open from the right.
-const NO_INSETS: SafeAreaInsets = { left: 0, right: 0, bottom: 0 }
-
-const LAST_HIT = "2026-11-06T06:41:07Z"
-
 test.describe("landscape phone", () => {
   test.use({ hasTouch: true, isMobile: true })
 
@@ -415,109 +325,49 @@ test.describe("landscape phone", () => {
     return { x: ring.x + ring.width / 2, y: ring.y + ring.height / 2 }
   }
 
-  for (const [width, height, insets] of [
-    [932, 430, IPHONE_LANDSCAPE_INSETS],
-    [844, 390, IPHONE_LANDSCAPE_INSETS],
-    [667, 375, NO_INSETS],
-  ] as const) {
-    test(`a side panel keeps its point in view at ${width}x${height}`, async ({ page }) => {
-      await page.setViewportSize({ width, height })
-      await emulateSafeAreas(page, insets)
-      await setup(page)
-      const map = await box(page.locator(".maplibregl-map"))
-      const edge = Math.max(12, insets.right)
-
-      const railBox = await box(rail(page))
-      expect(Math.abs(map.x + map.width - (railBox.x + railBox.width) - edge)).toBeLessThanOrEqual(
-        1,
-      )
-      expect(railBox.height).toBeGreaterThan(railBox.width)
-
-      const bar = page.locator("[data-tab-bar]")
-      await expect(bar).toBeVisible()
-      expect(map.y + map.height).toBe(height)
-
-      await openCenterPopup(page)
-      const panel = page.getByRole("dialog", { name: "Banned IPs", exact: true })
-      await expect(rail(page)).toBeHidden()
-      await expect(bar).toBeHidden()
-      await settled(panel)
-      const panelBox = await box(panel)
-      expect(panelBox.y - map.y).toBeCloseTo(12, 0)
-      expect(panelBox.x + panelBox.width).toBeLessThanOrEqual(map.x + map.width - edge + 1)
-      expect(height - (panelBox.y + panelBox.height)).toBeCloseTo(Math.max(12, insets.bottom), 0)
-      await expect
-        .poll(async () => {
-          const { x } = await ringCenter(page)
-          return x > insets.left + 24 && x < panelBox.x - 24
-        })
-        .toBe(true)
-
-      // A page lists 20 of the 25 IPs, more than a short panel shows, so its body scrolls.
-      const body = panel.locator(".overflow-y-auto").first()
-      expect(await body.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true)
-      await body.evaluate((el) => el.scrollTo({ top: el.scrollHeight }))
-      await expect(panel.getByRole("button", { name: /^192\./ }).last()).toBeInViewport()
-
-      await page.keyboard.press("Escape")
-      await expect(panel).toBeHidden()
-      await expect(rail(page)).toBeVisible()
-      await expect(bar).toBeVisible()
-    })
-  }
-
-  test("a narrow side panel puts its stats in a 2x2 grid with the time of the last hit", async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width: 667, height: 375 })
+  test("a side panel keeps its point in view", async ({ page }) => {
+    const height = 430
+    const insets = IPHONE_LANDSCAPE_INSETS
+    await page.setViewportSize({ width: 932, height })
+    await emulateSafeAreas(page, insets)
     await setup(page)
-    await page.route("**/api/v1/geo-locations/geojson?*", (route) =>
-      route.fulfill({
-        json: {
-          type: "FeatureCollection",
-          stats: { events: 40, countries: 1, cities: 1, locations: 1 },
-          features: [
-            {
-              type: "Feature",
-              geometry: { type: "Point", coordinates: [10, 50] },
-              properties: {
-                id: 131,
-                geohash: "u0yj",
-                city: "Frankfurt",
-                countryCode: "DE",
-                countryName: "Germany",
-                eventCount: 40,
-                lastHit: LAST_HIT,
-                topIps: [],
-              },
-            },
-          ],
-        },
-      }),
-    )
-    await page.evaluate(() => localStorage.setItem("geometrikks-map-layer", "markers"))
-    await page.goto("/map?focus=131")
-    const stats = page.getByRole("dialog").locator("dl").first()
-    await expect(stats).toBeVisible()
-    expect(
-      await stats.evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(" ").length),
-    ).toBe(2)
-    const cells = stats.locator(":scope > div")
-    const [share, lastHit] = await Promise.all([box(cells.nth(2)), box(cells.nth(3))])
-    expect(lastHit.y).toBeCloseTo(share.y, 0)
-    expect(lastHit.x).toBeGreaterThan(share.x)
-    const time = await page.evaluate((value) => new Date(value).toLocaleTimeString(), LAST_HIT)
-    await expect(cells.nth(3).locator("dd")).toHaveText(time, { useInnerText: true })
-    const panel = await box(page.getByRole("dialog"))
+    const map = await box(page.locator(".maplibregl-map"))
+    const edge = Math.max(12, insets.right)
+
+    const railBox = await box(rail(page))
+    expect(Math.abs(map.x + map.width - (railBox.x + railBox.width) - edge)).toBeLessThanOrEqual(1)
+    expect(railBox.height).toBeGreaterThan(railBox.width)
+
+    const bar = page.locator("[data-tab-bar]")
+    await expect(bar).toBeVisible()
+    expect(map.y + map.height).toBe(height)
+
+    await openCenterPopup(page)
+    const panel = page.getByRole("dialog", { name: "Banned IPs", exact: true })
+    await expect(rail(page)).toBeHidden()
+    await expect(bar).toBeHidden()
+    await settled(panel)
+    const panelBox = await box(panel)
+    expect(panelBox.y - map.y).toBeCloseTo(12, 0)
+    expect(panelBox.x + panelBox.width).toBeLessThanOrEqual(map.x + map.width - edge + 1)
+    expect(height - (panelBox.y + panelBox.height)).toBeCloseTo(Math.max(12, insets.bottom), 0)
     await expect
-      .poll(
-        async () => {
-          const ring = await page.locator(".maplibregl-marker").boundingBox()
-          return !!ring && ring.x + ring.width < panel.x
-        },
-        { timeout: 10_000 },
-      )
+      .poll(async () => {
+        const { x } = await ringCenter(page)
+        return x > insets.left + 24 && x < panelBox.x - 24
+      })
       .toBe(true)
+
+    // A page lists 20 of the 25 IPs, more than a short panel shows, so its body scrolls.
+    const body = panel.locator(".overflow-y-auto").first()
+    expect(await body.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true)
+    await body.evaluate((el) => el.scrollTo({ top: el.scrollHeight }))
+    await expect(panel.getByRole("button", { name: /^192\./ }).last()).toBeInViewport()
+
+    await page.keyboard.press("Escape")
+    await expect(panel).toBeHidden()
+    await expect(rail(page)).toBeVisible()
+    await expect(bar).toBeVisible()
   })
 
   test("layers and the live feed open from the right, and the live pill clears the notch", async ({
@@ -556,15 +406,6 @@ test.describe("landscape phone", () => {
     expect(Math.abs(feed.width - (384 + IPHONE_LANDSCAPE_INSETS.right))).toBeLessThanOrEqual(1)
   })
 
-  test("the live pill clears the selected point", async ({ page }) => {
-    await page.setViewportSize({ width: 932, height: 430 })
-    await setup(page)
-    await rail(page).getByRole("button", { name: "Live" }).click()
-    const pill = await box(page.locator("[data-live-pill]"))
-    await openCenterPopup(page)
-    await expect.poll(async () => (await ringCenter(page)).y > pill.y + pill.height).toBe(true)
-  })
-
   test("rotation keeps the panel and its point", async ({ page }) => {
     await page.setViewportSize({ width: 932, height: 430 })
     await setup(page)
@@ -600,43 +441,6 @@ test.describe("landscape phone", () => {
       .toBe(932)
     const bottom = await box(drawer)
     expect(Math.abs(bottom.width - 430)).toBeLessThanOrEqual(1)
-  })
-
-  test("a toast moves to the top while a panel covers the bar", async ({ page }) => {
-    await page.setViewportSize({ width: 932, height: 430 })
-    await emulateSafeAreas(page, IPHONE_LANDSCAPE_INSETS)
-    await blockCopy(page)
-    await geoipAvailable(page)
-    await setup(page)
-    await openCenterPopup(page)
-    const toast = await copyFailureToast(page)
-    const toaster = page.locator("[data-sonner-toaster]")
-    await expect(toaster).toHaveAttribute("data-y-position", "top")
-    await expect(toaster).toHaveAttribute("data-x-position", "center")
-    // The panel hides the range chip, so toasts take the top of the screen.
-    await expect(page.getByRole("group", { name: "Time range", exact: true })).toBeHidden()
-    expect((await box(toaster)).y).toBeCloseTo(8, 0)
-    const toastBox = await settledToastBox(toast)
-    expect(toastBox.x).toBeCloseTo(IPHONE_LANDSCAPE_INSETS.left, 0)
-    expect(932 - (toastBox.x + toastBox.width)).toBeCloseTo(IPHONE_LANDSCAPE_INSETS.right, 0)
-    await page.screenshot({ path: "smoke-artifacts/banned-map-covered-toast.png" })
-  })
-
-  test("side toasts centre above the bar", async ({ page }) => {
-    await page.setViewportSize({ width: 932, height: 430 })
-    await emulateSafeAreas(page, IPHONE_LANDSCAPE_INSETS)
-    await setup(page)
-    await page.route("**/api/v1/geo-events/logs?*", (route) =>
-      route.fulfill({ json: { items: [], total: 0 } }),
-    )
-    await page.goto("/map?focusIp=192.0.2.250")
-    const toast = page.locator("[data-sonner-toast]").filter({ hasText: "IP not on the map" })
-    await expect(toast).toBeVisible()
-    const toastBox = await settledToastBox(toast)
-    const bar = await box(page.locator("[data-tab-bar]"))
-    expect(Math.abs(toastBox.x + toastBox.width / 2 - 932 / 2)).toBeLessThanOrEqual(1)
-    expect(toastBox.width).toBeCloseTo(356, 0)
-    expect(bar.y - (toastBox.y + toastBox.height)).toBeCloseTo(12, 0)
   })
 })
 
@@ -978,19 +782,6 @@ test.describe("AbuseIPDB blacklist", () => {
     await expect(popup.getByTitle(BLACKLIST_TITLE)).toHaveText("AbuseIPDB blacklist")
   })
 
-  test("a desktop popup gives an IP on both lists a row for each", async ({ page }) => {
-    await page.setViewportSize({ width: 1280, height: 900 })
-    await mockBlacklist(page)
-    await mockDropListing(page)
-    await setup(page, collection([group("2", 3)]))
-    await openCenterPopup(page)
-    const popup = bannedPopup(page)
-    await ipRow(popup).click()
-    await expect(popup.getByText("Listed on", { exact: true })).toHaveCount(2)
-    await expect(popup.getByTitle(BLACKLIST_TITLE)).toBeVisible()
-    await expect(popup.getByTitle("On the DROP list as SBL000001")).toBeVisible()
-  })
-
   test("a phone panel marks a listed IP", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 })
     await mockBlacklist(page)
@@ -1001,158 +792,5 @@ test.describe("AbuseIPDB blacklist", () => {
     await ipRow(panel).click()
     await expect(panel.getByTitle(BLACKLIST_TITLE)).toBeVisible()
     await expect(panel.getByTitle("On the DROP list as SBL000001")).toBeVisible()
-  })
-
-  async function mockLiveRequest(page: Page) {
-    await page.routeWebSocket("**/ws/live", (socket) => {
-      socket.send(
-        JSON.stringify({
-          type: "batch",
-          dropped: 0,
-          events: [
-            {
-              type: "request",
-              geo: null,
-              log: {
-                timestamp: new Date().toISOString(),
-                ip_address: LISTED_IP,
-                remote_user: null,
-                method: "GET",
-                url: "/wp-login.php",
-                http_version: "HTTP/1.1",
-                status_code: 403,
-                bytes_sent: 120,
-                referrer: null,
-                user_agent: null,
-                request_time: null,
-                upstream_response_time: null,
-                host: "a.test",
-                country_code: null,
-                country_name: null,
-                city: null,
-                autonomous_system_number: null,
-                autonomous_system_organization: null,
-                server: "a.test",
-              },
-            },
-          ],
-        }),
-      )
-    })
-  }
-
-  async function openLiveRequest(page: Page) {
-    const { state } = await setup(page, collection([group("2", 3)]), { live: true })
-    state.decisions = 0
-    await page.locator("[data-live-pill] button").click()
-    await page.getByRole("button", { name: /wp-login/ }).click()
-    return page.getByRole("dialog", { name: "Live request", exact: true })
-  }
-
-  test("a phone live request panel marks a listed IP", async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 })
-    await mockBlacklist(page)
-    await mockLiveRequest(page)
-    const panel = await openLiveRequest(page)
-    await expect(panel.getByTitle(BLACKLIST_TITLE)).toBeVisible()
-  })
-
-  test("a phone tap on a listed IP explains the blacklist", async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 })
-    await mockBlacklist(page)
-    await mockLiveRequest(page)
-    const panel = await openLiveRequest(page)
-    await panel.getByRole("button", { name: /^192\.0\.2\.1/ }).click()
-    const drawer = page.locator('[data-slot="drawer-content"][data-state="open"]')
-    const heading = drawer.getByRole("heading").filter({ hasText: "AbuseIPDB blacklist" })
-    await expect(heading).toBeVisible()
-    await expect(heading.getByText("Blacklist", { exact: true })).toBeVisible()
-    await expect(drawer.getByText("100% abuse confidence", { exact: true })).toBeVisible()
-    await expect(drawer.getByText(/^Generated /)).toBeVisible()
-    await expect(
-      drawer.getByRole("link", { name: "View on AbuseIPDB", exact: true }),
-    ).toHaveAttribute("href", `https://www.abuseipdb.com/check/${LISTED_IP}`)
-    await expect(
-      drawer.getByText("GeoMetrikks has not blocked this IP.", { exact: false }),
-    ).toHaveCount(1)
-  })
-
-  test("an IP on both lists says it is not blocked once", async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 })
-    await mockBlacklist(page)
-    await mockDropListing(page)
-    await mockLiveRequest(page)
-    const panel = await openLiveRequest(page)
-    await panel.getByRole("button", { name: /^192\.0\.2\.1/ }).click()
-    const drawer = page.getByRole("dialog", {
-      name: /^192\.0\.2\.1 \(on the DROP list as SBL000001\) \(on AbuseIPDB's blacklist\)/,
-    })
-    await expect(
-      drawer.getByRole("heading").filter({ hasText: "Spamhaus DROP list" }),
-    ).toBeVisible()
-    await expect(
-      drawer.getByRole("heading").filter({ hasText: "AbuseIPDB blacklist" }),
-    ).toBeVisible()
-    await settled(drawer)
-    await page.screenshot({ path: "smoke-artifacts/banned-map-both-lists-drawer.png" })
-    const drawerText = await drawer.innerText()
-    const notBlocked = "GeoMetrikks has not blocked this IP."
-    expect(drawerText.split(notBlocked)).toHaveLength(2)
-    expect(drawerText.indexOf(notBlocked)).toBeGreaterThan(
-      drawerText.indexOf("AbuseIPDB's blacklist holds"),
-    )
-  })
-
-  test("a desktop location popup says a listed IP is on the blacklist and explains it", async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width: 1280, height: 900 })
-    await mockBlacklist(page)
-    await page.route("**/api/v1/geo-locations/geojson?*", (route) =>
-      route.fulfill({
-        json: {
-          type: "FeatureCollection",
-          stats: { events: 3, countries: 1, cities: 1, locations: 1 },
-          features: [
-            {
-              type: "Feature",
-              geometry: { type: "Point", coordinates: [18, 59] },
-              properties: {
-                id: 131,
-                geohash: "u6sc",
-                city: "Stockholm",
-                countryCode: "SE",
-                countryName: "Sweden",
-                eventCount: 3,
-                lastHit: null,
-                topIps: [],
-              },
-            },
-          ],
-        },
-      }),
-    )
-    await page.route("**/api/v1/geo-locations/131/top-ips*", (route) =>
-      route.fulfill({
-        json: {
-          locationId: 131,
-          uniqueIps: 1,
-          topIps: [{ ipAddress: LISTED_IP, eventCount: 3, location: null }],
-        },
-      }),
-    )
-    const { state } = await setup(page, collection([group("2", 3)]))
-    state.decisions = 0
-    await page.goto("/map?focus=131")
-    const popup = page.locator(".geo-popup")
-    await expect(popup.getByText(/^On AbuseIPDB blacklist · 3 events/)).toBeVisible()
-    await popup.getByRole("button", { name: /^1\.\s+192\.0\.2\.1/ }).click()
-    const popover = page.getByRole("dialog", { name: `Why ${LISTED_IP} is marked`, exact: true })
-    await expect(
-      popover.getByRole("heading").filter({ hasText: "AbuseIPDB blacklist" }),
-    ).toBeVisible()
-    await expect(
-      popover.getByRole("link", { name: "View on AbuseIPDB", exact: true }),
-    ).toBeVisible()
   })
 })

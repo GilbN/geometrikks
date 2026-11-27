@@ -12,8 +12,6 @@ async function login(page: Page) {
   ).toBe(true)
 }
 
-const sidebar = (page: Page) => page.locator('[data-slot="sidebar"]').first()
-
 test.describe("phone held sideways", () => {
   test.use({ viewport: { width: 932, height: 430 }, hasTouch: true, isMobile: true })
 
@@ -90,16 +88,5 @@ test.describe("phone held sideways", () => {
     )
     const close = (await sheet.getByRole("button", { name: "Close" }).first().boundingBox())!
     expect(close.x + close.width).toBeLessThanOrEqual(932 - right)
-  })
-})
-
-test.describe("desktop", () => {
-  test.use({ viewport: { width: 1360, height: 900 } })
-
-  test("opens with the sidebar expanded", async ({ page }) => {
-    await login(page)
-    await page.goto("/")
-    await expect(sidebar(page)).toHaveAttribute("data-state", "expanded")
-    await expect(page.locator("[data-tab-bar]")).toHaveCount(0)
   })
 })

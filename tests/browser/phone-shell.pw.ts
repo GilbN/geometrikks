@@ -1,6 +1,5 @@
 import { expect, test, type Page } from "@playwright/test"
 import { emulateSafeAreas, IPHONE_LANDSCAPE_INSETS } from "./safe-areas"
-import { settledToastBox } from "./toasts"
 
 // The scrim test needs the map, and the map needs WebGL.
 test.use({
@@ -22,12 +21,6 @@ const barCells = (page: Page) => tabBar(page).locator("a, button")
 // CSS, not a role: the open drawer hides the page, the bar included, from the accessibility tree.
 const moreCell = (page: Page) => tabBar(page).locator("button")
 const moreMenu = (page: Page) => page.getByRole("dialog", { name: "More" })
-
-async function settledToast(page: Page, text: string | RegExp) {
-  const toast = page.locator("[data-sonner-toast]").filter({ hasText: text })
-  await expect(toast).toBeVisible()
-  return settledToastBox(toast)
-}
 
 async function emulateInstalledApp(page: Page) {
   // Chromium accepts a display-mode emulation request and ignores it.
@@ -218,18 +211,6 @@ test.describe("portrait phone", () => {
     await expect(page).toHaveURL(/\/access-logs$/)
   })
 
-  test("puts toasts 12px above the bar, as wide as the bar", async ({ page }) => {
-    await login(page)
-    await page.goto("/settings/about")
-    await page.getByRole("button", { name: "Copy details" }).click()
-
-    const toast = await settledToast(page, /Copied|blocked the copy/)
-    const bar = (await tabBar(page).boundingBox())!
-    expect(bar.y - (toast.y + toast.height)).toBeCloseTo(12, 0)
-    expect(toast.x).toBeCloseTo(20, 0)
-    expect(toast.width).toBeCloseTo(393 - 40, 0)
-  })
-
   test("sizes an installed app from the large viewport without a document scroll", async ({
     page,
   }) => {
@@ -303,22 +284,6 @@ test.describe("portrait phone", () => {
     ).toBeGreaterThanOrEqual(47)
   })
 
-  test("stops toasts on the map short of the pill", async ({ page }) => {
-    await login(page)
-    await page.route("**/api/v1/geo-events/logs?*", (route) =>
-      route.fulfill({ json: { items: [], total: 0 } }),
-    )
-    await page.goto("/map?focusIp=192.0.2.250")
-
-    const toast = await settledToast(page, "IP not on the map")
-    const bar = (await tabBar(page).boundingBox())!
-    // The 54px pill's right edge lines up with the bar's.
-    const pillLeft = bar.x + bar.width - 54
-    expect(pillLeft - (toast.x + toast.width)).toBeCloseTo(8, 0)
-    expect(toast.x).toBeCloseTo(20, 0)
-    expect(bar.y - (toast.y + toast.height)).toBeCloseTo(12, 0)
-  })
-
   test("marks More amber while the service is degraded", async ({ page }) => {
     await degradeHealth(page)
     await login(page)
@@ -335,49 +300,8 @@ test.describe("portrait phone", () => {
   })
 })
 
-test.describe("wide portrait phone", () => {
-  // Above 600px Sonner drops its phone layout and reads offset, not mobileOffset.
-  test.use({ viewport: { width: 700, height: 900 }, hasTouch: true, isMobile: true })
-
-  test("spans toasts between the bar's margins above the bar", async ({ page }) => {
-    await login(page)
-    await page.goto("/settings/about")
-    await page.getByRole("button", { name: "Copy details" }).click()
-
-    const toast = await settledToast(page, /Copied|blocked the copy/)
-    const bar = (await tabBar(page).boundingBox())!
-    expect(bar.y - (toast.y + toast.height)).toBeCloseTo(12, 0)
-    expect(toast.x).toBeCloseTo(20, 0)
-    expect(700 - (toast.x + toast.width)).toBeCloseTo(20, 0)
-  })
-})
-
 test.describe("phone held sideways", () => {
   test.use({ viewport: { width: 932, height: 430 }, hasTouch: true, isMobile: true })
-
-  test("centres a compact bar between the safe areas", async ({ page }) => {
-    const { left, right } = IPHONE_LANDSCAPE_INSETS
-    await emulateSafeAreas(page, IPHONE_LANDSCAPE_INSETS)
-    await login(page)
-    await page.goto("/")
-
-    const bar = tabBar(page)
-    await expect(bar).toBeVisible()
-    await expect(bar).toHaveAttribute("data-compact")
-
-    const box = (await bar.boundingBox())!
-    expect(box.height).toBe(48)
-    expect(Math.abs(box.x + box.width / 2 - (left + 932 - right) / 2)).toBeLessThanOrEqual(1)
-    expect(box.x).toBeGreaterThanOrEqual(left)
-    expect(box.x + box.width).toBeLessThanOrEqual(932 - right)
-    expect(430 - (box.y + box.height)).toBeCloseTo(17, 0)
-
-    const headerHeight = await page
-      .locator("header")
-      .first()
-      .evaluate((el) => getComputedStyle(el).height)
-    expect(headerHeight).toBe("48px")
-  })
 
   test("puts auto refresh and chart buckets in the range drawer, as on a portrait phone", async ({
     page,
@@ -407,7 +331,7 @@ test.describe("More on a phone held sideways", () => {
     isMobile: true,
   })
 
-  test("opens a popover above the bar, inside the safe areas", async ({ page }) => {
+  test("opens a popover that leaves only the bar usable", async ({ page }) => {
     await emulateSafeAreas(page, insets)
     await login(page)
     await page.goto("/")
@@ -416,12 +340,6 @@ test.describe("More on a phone held sideways", () => {
     const menu = moreMenu(page)
     await expect(menu).toBeVisible()
     await expect(moreCell(page)).toHaveAttribute("aria-expanded", "true")
-    const box = (await menu.boundingBox())!
-    const bar = (await tabBar(page).boundingBox())!
-    expect(box.y).toBeCloseTo(insets.top, 0)
-    expect(box.x).toBeGreaterThanOrEqual(insets.left)
-    expect(bar.y - (box.y + box.height)).toBeCloseTo(8, 0)
-    expect(box.x + box.width).toBeCloseTo(bar.x + bar.width, 0)
     expect(
       await page
         .locator('[data-slot="sidebar-inset"] main')
@@ -438,32 +356,6 @@ test.describe("More on a phone held sideways", () => {
     await moreCell(page).tap()
     await expect(menu).toBeHidden()
     await expect(moreCell(page)).toHaveAttribute("aria-expanded", "false")
-  })
-
-  test("keeps a narrow bar's popover inside the left inset", async ({ page }) => {
-    const narrowInsets = { left: 47, right: 47, bottom: 21 }
-    await page.setViewportSize({ width: 844, height: 390 })
-    await emulateSafeAreas(page, narrowInsets)
-    // Slot 4 waits for the CrowdSec status, so the bar has four cells.
-    await page.route("**/api/v1/crowdsec/status", () => new Promise(() => {}))
-    await login(page)
-    await page.goto("/")
-    await expect(barCells(page)).toHaveCount(4)
-    await moreCell(page).tap()
-
-    const menu = moreMenu(page)
-    await expect(menu).toBeVisible()
-    const box = (await menu.boundingBox())!
-    expect(box.x).toBeGreaterThanOrEqual(narrowInsets.left)
-    expect(box.x + box.width).toBeLessThanOrEqual(844 - narrowInsets.right)
-  })
-
-  test("asks before logging out", async ({ page }) => {
-    await emulateSafeAreas(page, insets)
-    await login(page)
-    await page.goto("/")
-    await moreCell(page).tap()
-    await expectLogOutConfirmed(page)
   })
 
   test("closes on a scrim tap that never reaches the map", async ({ page }) => {

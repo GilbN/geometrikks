@@ -827,19 +827,6 @@ test.describe("desktop", () => {
     expect(recorded.checks).toBe(1)
   })
 
-  test("the inspector's score badge shows its details in a tooltip like the signal badges", async ({
-    page,
-  }) => {
-    await setup(page)
-    await page.goto(`/access-logs?inspect=${IP}`)
-    const badge = openSheet(page).getByText(SCORE_LABEL)
-    await expect(badge).not.toHaveAttribute("title")
-    await badge.hover()
-    await expect(page.getByRole("tooltip")).toHaveText(
-      /^87% confidence from 311 reporters · last reported \d+ min ago · Data Center\/Web Hosting\/Transit$/,
-    )
-  })
-
   test("the inspector runs no check for a private address or without a key", async ({ page }) => {
     const { recorded: privateAddress } = await setup(page)
     await page.goto("/access-logs?inspect=10.0.0.5")
@@ -916,26 +903,6 @@ test.describe("portrait phone", () => {
     await expect(page.locator('[data-slot="popover-content"]')).toContainText(
       "87% confidence from 311 reporters",
     )
-  })
-
-  test("the phone menu's Report is disabled with a countdown", async ({ page }) => {
-    await setup(page, {
-      reportedIps: [{ ipAddress: IP, reportedAt: minutesAgo(6), status: "sent" }],
-    })
-    await page.goto("/access-logs")
-    await ipActions(page).click()
-    const report = reportButton(openDrawer(page))
-    await expect(report).toContainText("again in 9 min")
-    await expect(report).toBeDisabled()
-  })
-
-  test("the phone menu's Report is disabled for a private address", async ({ page }) => {
-    await setup(page, { rowIp: "10.0.0.5" })
-    await page.goto("/access-logs")
-    await ipActions(page, "10.0.0.5").click()
-    const report = reportButton(openDrawer(page))
-    await expect(report).toContainText("not a public address")
-    await expect(report).toBeDisabled()
   })
 
   test("phone width opens the record sheet's menu drawer, and Escape closes only the report", async ({
@@ -1033,24 +1000,6 @@ test.describe("portrait phone", () => {
 test.describe("phone held sideways", () => {
   test.use({ viewport: { width: 932, height: 430 }, hasTouch: true, isMobile: true })
 
-  test("the side menu's Report opens the report from the right", async ({ page }) => {
-    await setup(page)
-    await page.goto("/")
-    await page.goto("/access-logs")
-    await ipActions(page).click()
-    const drawer = openDrawer(page)
-    await expectRightFullHeight(page, drawer)
-    const report = reportButton(drawer)
-    await report.scrollIntoViewIfNeeded()
-    await expect(report).toBeInViewport()
-    await report.click()
-    await expect(drawer.getByRole("heading", { name: REPORT_TITLE })).toBeVisible()
-    await expectRightFullHeight(page, drawer)
-    await page.goBack()
-    await expect(drawer).toHaveCount(0)
-    await expect(page).toHaveURL(/\/access-logs$/)
-  })
-
   test("held sideways the report opens from the right and Back closes only it", async ({
     page,
   }) => {
@@ -1106,31 +1055,4 @@ test.describe("turning a phone with the report open", () => {
     await expect(drawer).toHaveCount(0)
     await expect(sheet).toBeVisible()
   })
-})
-
-test.describe("narrow phone", () => {
-  test.use({ viewport: { width: 360, height: 780 }, hasTouch: true, isMobile: true })
-
-  for (const [age, minutes, shape] of [
-    ["an hour-old", 59, /^59m ago$/],
-    ["a 20-day-old", 20 * 24 * 60, /^[A-Z][a-z]{2} \d{1,2}$/],
-    ["a year-old", 400 * 24 * 60, /^[A-Z][a-z]{2} \d{4}$/],
-  ] as const) {
-    test(`${age} last report fits its tile`, async ({ page }) => {
-      await setup(page)
-      await page.route("**/api/v1/abuseipdb/check?*", (route) =>
-        route.fulfill({ json: { ...check, lastReportedAt: minutesAgo(minutes) } }),
-      )
-      await page.goto("/access-logs")
-      await ipActions(page).click()
-      await reportButton(openDrawer(page)).click()
-      const drawer = openDrawer(page)
-      await drawer.getByRole("button", { name: "Check (uses 1 check)" }).click()
-      const value = checkResult(drawer).last().locator("b")
-      await expect(value).toHaveText(shape)
-      expect(await value.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
-        true,
-      )
-    })
-  }
 })

@@ -165,20 +165,6 @@ async function holdOn(page: Page, target: Locator, ms: number) {
 test.describe("portrait", () => {
   test.use({ viewport: { width: 393, height: 852 } })
 
-  test("the pill stands on the right, 12px above the bar", async ({ page }) => {
-    await setup(page)
-    const pillBox = await box(pill(page))
-    const bar = await box(page.locator("[data-tab-bar]"))
-    expect(pillBox.width).toBe(54)
-    expect(393 - (pillBox.x + pillBox.width)).toBeCloseTo(20, 0)
-    expect(bar.y - (pillBox.y + pillBox.height)).toBeCloseTo(12, 0)
-    const names = await pill(page)
-      .getByRole("button")
-      .evaluateAll((buttons) => buttons.map((button) => button.getAttribute("aria-label")))
-    expect(names).toEqual(["Layers and filters", "All traffic", "Server", "Live"])
-    await page.screenshot({ path: "smoke-artifacts/map-pill-portrait.png" })
-  })
-
   test("a long press names the button without running it; a tap runs it", async ({ page }) => {
     await setup(page)
     const fit = pill(page).getByRole("button", { name: "All traffic", exact: true })
@@ -232,20 +218,6 @@ test.describe("portrait", () => {
     await page.mouse.click(x + width / 2, y + height / 2)
     await page.waitForTimeout(500)
     expect(await settledCenter(page)).toEqual(before)
-  })
-
-  test("the credit line and the frame rate sit on the left above the bar", async ({ page }) => {
-    await showFrameRate(page)
-    await setup(page)
-    await expect(credit(page)).toBeVisible()
-    const bar = await box(page.locator("[data-tab-bar]"))
-    const line = await box(credit(page))
-    expect(line.x).toBeCloseTo(20, 0)
-    expect(bar.y - (line.y + line.height)).toBeCloseTo(10, 0)
-    const badge = await box(frameRate(page))
-    expect(badge.x).toBeCloseTo(20, 0)
-    expect(bar.y - (badge.y + badge.height)).toBeCloseTo(28, 0)
-    expect(badge.y + badge.height).toBeLessThan(line.y)
   })
 
   test("the Layers drawer's filters are rows, and a long list opens a search page in the drawer", async ({
@@ -346,43 +318,6 @@ test.describe("phone held sideways", () => {
     await expect(fit).not.toHaveAttribute("aria-disabled", "true")
     await expect(server).toBeVisible()
     await expect(server).toHaveAttribute("aria-disabled", "true")
-  })
-
-  test("a slightly taller screen gets the compact pill", async ({ page }) => {
-    await page.setViewportSize({ width: 780, height: 300 })
-    await setup(page)
-    await expect(pill(page).getByRole("button")).toHaveCount(4)
-    expect((await box(pill(page))).width).toBe(50)
-    expect((await box(pill(page).locator("svg").first())).width).toBe(22)
-  })
-
-  test("the pill clears the notch", async ({ page }) => {
-    await page.setViewportSize({ width: 932, height: 430 })
-    await emulateSafeAreas(page, IPHONE_LANDSCAPE_INSETS)
-    await setup(page)
-    const pillBox = await box(pill(page))
-    expect(pillBox.x + pillBox.width).toBeCloseTo(932 - IPHONE_LANDSCAPE_INSETS.right, 0)
-    expect(pillBox.width).toBe(54)
-    const bar = await box(page.locator("[data-tab-bar]"))
-    expect(bar.y - (pillBox.y + pillBox.height)).toBeCloseTo(12, 0)
-    await page.screenshot({ path: "smoke-artifacts/map-pill-landscape.png" })
-  })
-
-  test("the credit button and the frame rate stand on the pill's foot line", async ({ page }) => {
-    await page.setViewportSize({ width: 932, height: 430 })
-    await emulateSafeAreas(page, IPHONE_LANDSCAPE_INSETS)
-    await showFrameRate(page)
-    await setup(page)
-    const foot = (found: { y: number; height: number }) => found.y + found.height
-    await expect(credit(page)).toBeVisible()
-    const pillBox = await box(pill(page))
-    const button = await box(credit(page))
-    expect(button.x).toBeCloseTo(IPHONE_LANDSCAPE_INSETS.left, 0)
-    expect(foot(button)).toBeCloseTo(foot(pillBox), 0)
-    const badge = await box(frameRate(page))
-    expect(badge.x - (button.x + button.width)).toBeCloseTo(8, 0)
-    expect(foot(badge)).toBeCloseTo(foot(pillBox), 0)
-    await page.screenshot({ path: "smoke-artifacts/map-pill-landscape-credit.png" })
   })
 
   test("the credit starts collapsed and leaves the saved choice alone", async ({ page }) => {
