@@ -200,13 +200,6 @@ export function agentMoreProblemsText(moreCount: number): string | null {
   return `And ${moreCount} more ${moreCount === 1 ? "problem" : "problems"}.`
 }
 
-/** The bottom Status grid holds Recent errors after the optional Agents and
- *  Server locations cards. Spanning both columns only when those pair up
- *  keeps a hole out of either row. */
-export function recentErrorsFillsRow(cardsBefore: number): boolean {
-  return cardsBefore % 2 === 0
-}
-
 export function databaseState(health: HealthResponse | undefined): CardState {
   if (!health) return { tone: "muted", label: "Unknown" }
   if (!health.database.reachable) {
@@ -584,4 +577,277 @@ export function schedulerSummary(
     label: parts.filter(Boolean).join(", "),
     detail: nextRun ? `Next ${relativeTime(nextRun, now)}` : undefined,
   }
+}
+
+// ---- The desktop status board ----------------------------------------------
+
+/** What the board needs to know about one row to order and open it. */
+export interface BoardSignal {
+  id: string
+  tone: LedTone
+  /** False for Agents and Recent errors, which do not say this instance is
+   *  broken. They still sort up, but the verdict leaves them out. */
+  counts: boolean
+  /** False for Recent errors, which moves up with the problems but stays
+   *  closed. Its errors usually repeat another row's problem. */
+  autoOpen?: boolean
+  /** False for a problem that is a setting, such as login turned off. It
+   *  does not close the rows the page opens on load. */
+  closesDefault?: boolean
+}
+
+export function isProblemTone(tone: LedTone): tone is "red" | "amber" {
+  return tone === "red" || tone === "amber"
+}
+
+/** Problems first, red before amber, each group in the given order. Rows in
+ *  `stillUp` are problems whose state could not be read, and sort with amber. */
+export function boardOrder(
+  signals: readonly BoardSignal[],
+  stillUp: readonly string[] = [],
+): string[] {
+  const rank = ({ id, tone }: BoardSignal) =>
+    tone === "red" ? 0 : tone === "amber" || stillUp.includes(id) ? 1 : 2
+  return signals
+    .map((signal, index) => ({ signal, index }))
+    .sort((a, b) => rank(a.signal) - rank(b.signal) || a.index - b.index)
+    .map(({ signal }) => signal.id)
+}
+
+export interface BoardState {
+  /** Row ids in display order. */
+  order: string[]
+  /** The problem rows the order was sorted for. */
+  orderedFor: string[]
+  open: string[]
+  /** Problem rows the board or the user has already acted on. */
+  seen: string[]
+  /** Rows the board opened itself and the user has not touched since. */
+  autoOpened: string[]
+  /** Rows open because the page opens them on load, untouched since. */
+  defaultOpened: string[]
+}
+
+export const EMPTY_BOARD: BoardState = {
+  order: [],
+  orderedFor: [],
+  open: [],
+  seen: [],
+  autoOpened: [],
+  defaultOpened: [],
+}
+
+function sameSet(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((id) => b.includes(id))
+}
+
+/** Folds the latest row states into the board. A row opens by itself only
+ *  when it turns into a problem, so a user who closes it keeps it closed for
+ *  as long as the problem lasts. A muted row, whose state could not be read,
+ *  has not recovered, so it keeps that memory. A row the board opened closes
+ *  again when it recovers. The order changes only when the set of problems
+ *  or rows does, so an ordinary poll never moves anything. Returns the same
+ *  object when nothing changed. */
+export function boardObserve(state: BoardState, signals: readonly BoardSignal[]): BoardState {
+  const ids = signals.map((signal) => signal.id)
+  const toneOf = new Map(signals.map((signal) => [signal.id, signal.tone]))
+  const problems = signals.filter((signal) => isProblemTone(signal.tone)).map((signal) => signal.id)
+  const unknown = signals.filter((signal) => signal.tone === "muted").map((signal) => signal.id)
+  const appeared = problems.filter((id) => !state.seen.includes(id))
+  const opening = appeared.filter(
+    (id) => signals.find((signal) => signal.id === id)?.autoOpen !== false,
+  )
+  const recovered = state.seen.filter(
+    (id) => toneOf.has(id) && !problems.includes(id) && !unknown.includes(id),
+  )
+  const closeOnRecovery = recovered.filter((id) => state.autoOpened.includes(id))
+  // A new problem makes room for itself. Rows that are open only because the
+  // page opened them on load close, unless they are problems themselves.
+  const closesDefault = new Set(
+    signals.filter((signal) => signal.closesDefault !== false).map((signal) => signal.id),
+  )
+  // Any problem on another row, new or still there, makes room for itself.
+  // Remembered problems whose state could not be read this poll count too.
+  const activeProblems = [...problems, ...unknown.filter((id) => state.seen.includes(id))]
+  const newProblem = activeProblems.some(
+    (id) => closesDefault.has(id) && !state.defaultOpened.includes(id),
+  )
+  // A default-open row with its own problem, or one whose state could not be
+  // read, stays open and tracked, so it closes once it has recovered.
+  const keepOpen = (id: string) =>
+    problems.includes(id) || (unknown.includes(id) && state.seen.includes(id))
+  const closeForProblem = newProblem ? state.defaultOpened.filter((id) => !keepOpen(id)) : []
+  const defaultOpened = newProblem ? state.defaultOpened.filter(keepOpen) : state.defaultOpened
+  const open = [
+    ...state.open.filter(
+      (id) => ids.includes(id) && !closeOnRecovery.includes(id) && !closeForProblem.includes(id),
+    ),
+    ...opening.filter((id) => !state.open.includes(id)),
+  ]
+  const autoOpened = [
+    ...state.autoOpened.filter((id) => problems.includes(id) || unknown.includes(id)),
+    ...opening.filter((id) => !state.open.includes(id)),
+  ]
+  const seen = [
+    ...state.seen.filter((id) => problems.includes(id) || unknown.includes(id)),
+    ...appeared,
+  ]
+  // A problem whose state could not be read for a poll keeps its place.
+  const stillProblems = [...problems, ...state.orderedFor.filter((id) => unknown.includes(id))]
+  const reorder = !sameSet(state.orderedFor, stillProblems) || !sameSet(state.order, ids)
+  const order = reorder ? boardOrder(signals, stillProblems) : state.order
+  if (
+    !reorder &&
+    sameSet(open, state.open) &&
+    sameSet(autoOpened, state.autoOpened) &&
+    sameSet(seen, state.seen) &&
+    sameSet(defaultOpened, state.defaultOpened)
+  ) {
+    return state
+  }
+  return {
+    order,
+    orderedFor: reorder ? stillProblems : state.orderedFor,
+    open,
+    seen,
+    autoOpened,
+    defaultOpened,
+  }
+}
+
+/** The board on page load: `defaultOpen` rows start open while nothing is
+ *  wrong. The first problem closes them, unless the user has touched them. */
+export function initialBoard(
+  signals: readonly BoardSignal[],
+  defaultOpen: readonly string[],
+): BoardState {
+  const ids = signals.map((signal) => signal.id)
+  const rows = defaultOpen.filter((id) => ids.includes(id))
+  return boardObserve({ ...EMPTY_BOARD, open: rows, defaultOpened: rows }, signals)
+}
+
+/** The user opens or closes a row; the board stops managing it. Toggling a
+ *  problem row counts as having seen it, so it does not open again by itself
+ *  when a held update applies. */
+export function boardToggle(state: BoardState, id: string, isProblem = false): BoardState {
+  const open = state.open.includes(id)
+    ? state.open.filter((openId) => openId !== id)
+    : [...state.open, id]
+  const seen = isProblem && !state.seen.includes(id) ? [...state.seen, id] : state.seen
+  return {
+    ...state,
+    open,
+    seen,
+    autoOpened: state.autoOpened.filter((autoId) => autoId !== id),
+    defaultOpened: state.defaultOpened.filter((defaultId) => defaultId !== id),
+  }
+}
+
+export type VerdictIcon = "healthy" | "warning" | "down" | "loading"
+
+export interface BoardVerdict extends CardState {
+  icon: VerdictIcon
+}
+
+/** The line on top of the board. Rows that count and are amber or red make
+ *  it Degraded with a count. Otherwise it follows the overall state, which
+ *  already carries advisories and agents. */
+export function boardVerdict(overall: CardState, signals: readonly BoardSignal[]): BoardVerdict {
+  if (overall.label === "Unreachable") return { ...overall, icon: "down" }
+  if (overall.label === "Loading") return { ...overall, icon: "loading" }
+  const total = signals.length
+  const broken = signals.filter((signal) => signal.counts && isProblemTone(signal.tone)).length
+  if (broken > 0) {
+    return {
+      tone: "amber",
+      icon: "warning",
+      label: "Degraded",
+      detail: `${broken} of ${total} components ${broken === 1 ? "is" : "are"} not operational.`,
+    }
+  }
+  if (overall.tone !== "emerald") return { ...overall, icon: "warning" }
+  return { ...overall, icon: "healthy", detail: `All ${total} components operational.` }
+}
+
+/** "21d old" for a database build date. */
+export function ageLabel(iso: string, nowMs: number): string {
+  return relativeTime(iso, nowMs).replace(/ ago$/, " old")
+}
+
+/** "2 sources", or "1 of 2 sources missing" when some cannot be read. */
+export function sourcesPhrase(total: number, unavailable: number, word: string): string {
+  const noun = total === 1 ? "source" : "sources"
+  if (total === 0) return "No sources"
+  if (unavailable === 0) return `${total} ${noun}`
+  return `${unavailable} of ${total} ${noun} ${word}`
+}
+
+/** One word for why ingestion's unavailable sources are down, for the row. */
+export function unavailableSourcesWord(health: HealthResponse | undefined): string {
+  const sources = unavailableSources(health)
+  if (sources.length > 0 && sources.every((source) => source.reason === "missing")) {
+    return "missing"
+  }
+  if (sources.length > 0 && sources.every((source) => source.reason === "unreadable")) {
+    return "not readable"
+  }
+  return "unavailable"
+}
+
+export function unavailableSourceCount(health: HealthResponse | undefined): number {
+  return unavailableSources(health).length
+}
+
+/** The scheduler row's fact: the job that runs next, and when. */
+export function nextSchedulerJob(
+  jobs: readonly SchedulerJobView[] | undefined,
+): SchedulerJobView | null {
+  const waiting = (jobs ?? []).filter((job) => !job.running && job.nextRunTime)
+  waiting.sort((a, b) => Date.parse(a.nextRunTime!) - Date.parse(b.nextRunTime!))
+  return waiting[0] ?? null
+}
+
+/** "edge 50.11, 8.68 · homelab 59.91, 10.75" */
+export function locationsFact(rows: readonly ServerLocationRow[]): string {
+  return rows.map((row) => `${row.server} ${row.coords}`).join(" · ")
+}
+
+/** Where the locations come from: "auto", "override", or a count of each. */
+export function locationsSource(rows: readonly ServerLocationRow[]): string {
+  const overrides = rows.filter((row) => row.source === "override").length
+  if (overrides === 0) return "auto"
+  if (overrides === rows.length) return "override"
+  return `${rows.length - overrides} auto, ${overrides} override`
+}
+
+/** A time of day for today, a short date and time for any other day. */
+export function clockOrDate(iso: string, nowMs: number): string {
+  const date = new Date(iso)
+  if (date.toDateString() === new Date(nowMs).toDateString()) return date.toLocaleTimeString()
+  return date.toLocaleString(undefined, {
+    day: "numeric",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+  })
+}
+
+/** "3.2x" for one hypertable, "-" before its first compressed chunk. */
+export function compressionRatio(table: HypertableStatsView): string {
+  const { beforeCompressionBytes: before, afterCompressionBytes: after } = table
+  if (!before || !after) return "-"
+  return `${(before / after).toFixed(1)}x`
+}
+
+/** "3s ago" for a time in the past, never "in 0s" when a poll brings a time
+ *  newer than the last tick. */
+export function sinceLabel(iso: string | null | undefined, nowMs: number): string {
+  if (iso && Math.abs(Date.parse(iso) - nowMs) < 1000) return "0s ago"
+  return relativeTime(iso, nowMs)
+}
+
+/** "in 4s" for a time ahead, "now" once it is due, so a run the last poll has
+ *  not caught up with never reads as "1s ago". */
+export function untilLabel(iso: string, nowMs: number): string {
+  return Date.parse(iso) - nowMs < 1000 ? "now" : relativeTime(iso, nowMs)
 }

@@ -30,23 +30,14 @@ import {
 } from "@/lib/queries"
 import { useLiveEvents, useLiveFeedStatus } from "@/lib/live-feed-context"
 import { cn } from "@/lib/utils"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { MonoChip, StateLine, StatusLed } from "@/components/settings/status-led"
 import { StatusPhone, type StatusTile } from "@/components/settings/status-phone"
+import { DesktopStatus, useLiveFeedSettled } from "@/components/settings/status-board-rows"
 import { useIsMobile } from "@/hooks/use-mobile"
 import {
   agentAdvisoryCards,
@@ -74,7 +65,6 @@ import {
   loginMethodBadges,
   oidcState,
   overallState,
-  recentErrorsFillsRow,
   relativeTime,
   schedulerJobState,
   schedulerSummary,
@@ -114,7 +104,6 @@ function ServerLocationLine({ row }: { row: ServerLocationRow }) {
   // On a phone this line sits in a vaul drawer, whose bundled Radix copy
   // keeps focus out of a nested AlertDialog, so the confirmation is inline.
   const isMobile = useIsMobile()
-  const removeLocation = () => remove.mutate(row.server, { onSettled: () => setConfirming(false) })
   // The inline confirmation stays open on a failed removal, so it can say so,
   // and puts focus on Keep, since disabling Remove while it ran dropped it.
   // A 404 means the location is already gone, which is what was asked for.
@@ -186,27 +175,6 @@ function ServerLocationLine({ row }: { row: ServerLocationRow }) {
           >
             <Trash2 />
           </Button>
-          <AlertDialog open={!isMobile && confirming} onOpenChange={setConfirming}>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Remove the location for {row.server}?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Its beacon leaves the map and live routes stop flying to it. If an agent still
-                  ingests as {row.server}, the location comes back at that agent's next refresh.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Keep</AlertDialogCancel>
-                <AlertDialogAction
-                  variant="destructive"
-                  disabled={remove.isPending}
-                  onClick={removeLocation}
-                >
-                  Remove
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
         </>
       )}
       {/* Outside the auto/override branch: a 409 refetch turns the row into an
@@ -258,21 +226,66 @@ function ServerLocationLine({ row }: { row: ServerLocationRow }) {
   )
 }
 
+const BOARD_WAIT_MS = 3_000
+
+/** Failed, or retrying after failing with nothing read yet. A retry with no
+ *  data resets the query to pending, which would flip its row between
+ *  Unavailable and Loading on every poll. */
+function failedSoFar(query: { isError: boolean; data: unknown; errorUpdateCount: number }) {
+  return query.isError || (query.data === undefined && query.errorUpdateCount > 0)
+}
+
 export function StatusOverview() {
-  const { data: health, isError: healthError, isLoading: healthLoading } = useHealth()
+  const {
+    data: health,
+    isError: healthQueryError,
+    isLoading: healthLoading,
+    errorUpdateCount: healthErrorCount,
+  } = useHealth()
+  // A retry with no data resets the query to pending, which would flip the
+  // verdict from Unreachable to Loading and back on every poll.
+  const healthError = healthQueryError || (health === undefined && healthErrorCount > 0)
   const { data: stats, isError: statsError } = useStats()
-  const { data: crowdsec, isError: crowdsecError } = useCrowdsecStatus()
-  const { data: me, isError: meError } = useMe()
-  const { data: oidc, isError: oidcError } = useOidcStatus()
+  const crowdsecQuery = useCrowdsecStatus()
+  const { data: crowdsec, isError: crowdsecError, isLoading: crowdsecLoading } = crowdsecQuery
+  const { data: me, isError: meError, isLoading: meLoading } = useMe()
+  const { data: oidc, isError: oidcError, isLoading: oidcLoading } = useOidcStatus()
   const { data: crowdsecStats } = useCrowdsecStats()
   const { data: files, isError: filesError } = useLogFiles()
-  const { data: schedulerData, isError: jobsError } = useSchedulerJobs()
+  const jobsQuery = useSchedulerJobs()
+  const { data: schedulerData, isError: jobsError, isLoading: jobsLoading } = jobsQuery
   const jobs = schedulerData?.jobs
   const { data: dbInfo } = useDatabaseInfo()
-  const { data: logRecords, isError: logsError } = useRecentErrors()
+  const logsQuery = useRecentErrors()
+  const { data: logRecords, isError: logsError, isLoading: logsLoading } = logsQuery
   const { data: serverLocations } = useServerLocations()
-  const { data: instances, isError: instancesError } = useInstances()
+  const { data: instances, isError: instancesError, isLoading: instancesLoading } = useInstances()
+  // The desktop board decides which rows start open from its first look, so
+  // it waits for the first answer of every query that can turn a row amber or
+  // red, instead of opening Ingestion and closing it when a slower one does.
+  const boardLoading =
+    healthLoading ||
+    crowdsecLoading ||
+    meLoading ||
+    oidcLoading ||
+    jobsLoading ||
+    logsLoading ||
+    instancesLoading
+  // Once shown, the board stays. A retry after a failed first read sets
+  // isLoading again, and unmounting would drop focus and the open rows.
+  const boardShown = useRef(false)
+  // A query that hangs on its first answer must not hide the page, so the
+  // board shows what has answered after a few seconds.
+  const [waitedLong, setWaitedLong] = useState(false)
+  useEffect(() => {
+    const id = setTimeout(() => setWaitedLong(true), BOARD_WAIT_MS)
+    return () => clearTimeout(id)
+  }, [])
+  if (!boardLoading || waitedLong) boardShown.current = true
   const feedStatus = useLiveFeedStatus()
+  // Started here, not in the board, so the grace period runs while the
+  // queries load.
+  const liveFeedSettled = useLiveFeedSettled(feedStatus)
   const isMobile = useIsMobile()
   // Probe the live WebSocket while this page is open: the client is
   // per-tab and lazy, so without our own subscription the card could
@@ -296,9 +309,8 @@ export function StatusOverview() {
     healthError,
     instancesError ? 0 : agentsNeedingAttention(instances).length,
   )
-  const bottomCardsBefore = (agentOverview ? 1 : 0) + (locationRows.length > 0 ? 1 : 0)
 
-  // Card bodies, shared by the desktop cards and the phone tiles' drawers.
+  // Card bodies for the phone tiles' drawers.
   const authBody = (
     <>
       <StateLine state={authState(me, meError)} />
@@ -554,7 +566,8 @@ export function StatusOverview() {
     </>
   )
 
-  if (healthLoading) {
+  if (!boardShown.current && !isMobile) return <Skeleton className="h-[476px] w-full rounded-xl" />
+  if (healthLoading && isMobile) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-20 w-full" />
@@ -767,177 +780,36 @@ export function StatusOverview() {
         )
       })}
 
-      {/* Overall state and Authentication share the banner row: the subsystem
-          grid below holds an even number of cards, so putting Authentication
-          there instead would leave a hole in its last row. */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-3">
-                <StatusLed tone={overall.tone} pulse={overall.tone !== "muted"} />
-                <CardTitle>{overall.label}</CardTitle>
-              </div>
-              {health && (
-                <span className="text-xs text-muted-foreground">
-                  {uptime && `${uptime} · `}
-                  Updated {new Date(health.timestamp).toLocaleTimeString()}
-                </span>
-              )}
-            </div>
-            {overall.detail && <CardDescription>{overall.detail}</CardDescription>}
-          </CardHeader>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-3">
-              <SectionIcon icon={ShieldUser} />
-              <CardTitle className="text-base">Authentication</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-2">{authBody}</CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-3">
-              <SectionIcon icon={Activity} />
-              <div>
-                <CardTitle className="text-base">Ingestion</CardTitle>
-                <CardDescription>Access log tailing and parsing pipeline</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-3">{ingestionBody}</CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-3">
-              <SectionIcon icon={Database} />
-              <div>
-                <CardTitle className="text-base">Database</CardTitle>
-                <CardDescription>TimescaleDB connection</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-3">{databaseBody}</CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-3">
-              <SectionIcon icon={Globe} />
-              <div>
-                <CardTitle className="text-base">GeoIP</CardTitle>
-                <CardDescription>MaxMind GeoLite2 databases</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-2">{geoipBody}</CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-3">
-              <SectionIcon icon={ShieldCheck} />
-              <div>
-                <CardTitle className="text-base">CrowdSec</CardTitle>
-                <CardDescription>LAPI integration for viewing and managing bans</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-2">{crowdsecBody}</CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-3">
-              <SectionIcon icon={CalendarClock} />
-              <div>
-                <CardTitle className="text-base">Scheduler</CardTitle>
-                <CardDescription>
-                  Background jobs ·{" "}
-                  <Link to="/settings/scheduler" className="tap-area underline underline-offset-2">
-                    details
-                  </Link>
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-2">{schedulerBody}</CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-3">
-              <SectionIcon icon={Radio} />
-              <div>
-                <CardTitle className="text-base">Live feed</CardTitle>
-                <CardDescription>
-                  WebSocket stream for the map and live views, probed while this page is open
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>{liveFeedBody}</CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        {agentOverview && (
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center gap-3">
-                <SectionIcon icon={Network} />
-                <div>
-                  <CardTitle className="text-base">Agents</CardTitle>
-                  <CardDescription>Other instances writing to this database</CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>{agentsBody}</CardContent>
-          </Card>
-        )}
-
-        {locationRows.length > 0 && (
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center gap-3">
-                <SectionIcon icon={MapPin} />
-                <div>
-                  <CardTitle className="text-base">Server locations</CardTitle>
-                  <CardDescription>
-                    Where each server sits on the map and where its live routes land
-                  </CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-2">{locationsBody}</CardContent>
-          </Card>
-        )}
-
-        <Card className={recentErrorsFillsRow(bottomCardsBefore) ? "md:col-span-2" : undefined}>
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-3">
-              <SectionIcon icon={TriangleAlert} />
-              <div>
-                <CardTitle className="text-base">Recent errors</CardTitle>
-                <CardDescription>
-                  Latest error-level events from the application log ·{" "}
-                  <Link to="/settings/logs" className="tap-area underline underline-offset-2">
-                    open Logs
-                  </Link>
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-2">{recentErrorsBody}</CardContent>
-        </Card>
-      </div>
+      <DesktopStatus
+        data={{
+          health,
+          healthError,
+          stats,
+          statsError,
+          crowdsec,
+          crowdsecError: failedSoFar(crowdsecQuery),
+          crowdsecStats,
+          me,
+          meError,
+          oidc,
+          oidcError,
+          accessFiles: access,
+          filesLoaded: files !== undefined,
+          filesError,
+          jobs,
+          jobsError: failedSoFar(jobsQuery),
+          dbInfo,
+          recentErrors,
+          logsLoaded: logRecords !== undefined,
+          logsError: failedSoFar(logsQuery),
+          locationRows,
+          agentOverview,
+          instancesError,
+          feedStatus,
+          liveFeedSettled,
+          overall,
+        }}
+      />
     </div>
   )
 }
