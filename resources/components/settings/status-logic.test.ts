@@ -1065,6 +1065,7 @@ describe("the status board", () => {
         open: [],
         seen: [],
         autoOpened: [],
+        defaultOpened: [],
       })
     })
 
@@ -1202,13 +1203,37 @@ describe("the status board", () => {
       expect(state.open).toEqual([])
     })
 
-    it("starts with default-open rows open, and keeps them open through a recovery", () => {
+    it("starts with default-open rows open while nothing is wrong", () => {
       const state = initialBoard([signal("ingestion"), signal("database")], ["ingestion", "gone"])
       expect(state.open).toEqual(["ingestion"])
+    })
+
+    it("starts default-open rows closed when another row has a problem", () => {
+      const state = initialBoard([signal("ingestion"), signal("crowdsec", "red")], ["ingestion"])
+      expect(state.open).toEqual(["crowdsec"])
+    })
+
+    it("closes an untouched default-open row when a problem appears later", () => {
+      const state = initialBoard([signal("ingestion"), signal("crowdsec", "muted")], ["ingestion"])
+      expect(state.open).toEqual(["ingestion"])
+      const failing = boardObserve(state, [signal("ingestion"), signal("crowdsec", "red")])
+      expect(failing.open).toEqual(["crowdsec"])
+    })
+
+    it("keeps a default-open row open when the problem is its own", () => {
+      const state = initialBoard([signal("ingestion"), signal("database")], ["ingestion"])
       const failing = boardObserve(state, [signal("ingestion", "amber"), signal("database")])
+      expect(failing.open).toEqual(["ingestion"])
       expect(boardObserve(failing, [signal("ingestion"), signal("database")]).open).toEqual([
         "ingestion",
       ])
+    })
+
+    it("leaves a default-open row the user reopened alone when a problem appears", () => {
+      const state = initialBoard([signal("ingestion"), signal("crowdsec")], ["ingestion"])
+      const touched = boardToggle(boardToggle(state, "ingestion"), "ingestion")
+      const failing = boardObserve(touched, [signal("ingestion"), signal("crowdsec", "red")])
+      expect(failing.open).toEqual(["ingestion", "crowdsec"])
     })
 
     it("reorders when a row appears or goes", () => {

@@ -621,6 +621,8 @@ export interface BoardState {
   seen: string[]
   /** Rows the board opened itself and the user has not touched since. */
   autoOpened: string[]
+  /** Rows open because the page opens them on load, untouched since. */
+  defaultOpened: string[]
 }
 
 export const EMPTY_BOARD: BoardState = {
@@ -629,6 +631,7 @@ export const EMPTY_BOARD: BoardState = {
   open: [],
   seen: [],
   autoOpened: [],
+  defaultOpened: [],
 }
 
 function sameSet(a: readonly string[], b: readonly string[]): boolean {
@@ -655,8 +658,15 @@ export function boardObserve(state: BoardState, signals: readonly BoardSignal[])
     (id) => toneOf.has(id) && !problems.includes(id) && !unknown.includes(id),
   )
   const closeOnRecovery = recovered.filter((id) => state.autoOpened.includes(id))
+  // A new problem makes room for itself. Rows that are open only because the
+  // page opened them on load close, unless they are problems themselves.
+  const closeForProblem =
+    appeared.length > 0 ? state.defaultOpened.filter((id) => !problems.includes(id)) : []
+  const defaultOpened = appeared.length > 0 ? [] : state.defaultOpened
   const open = [
-    ...state.open.filter((id) => ids.includes(id) && !closeOnRecovery.includes(id)),
+    ...state.open.filter(
+      (id) => ids.includes(id) && !closeOnRecovery.includes(id) && !closeForProblem.includes(id),
+    ),
     ...opening.filter((id) => !state.open.includes(id)),
   ]
   const autoOpened = [
@@ -675,24 +685,30 @@ export function boardObserve(state: BoardState, signals: readonly BoardSignal[])
     !reorder &&
     sameSet(open, state.open) &&
     sameSet(autoOpened, state.autoOpened) &&
-    sameSet(seen, state.seen)
+    sameSet(seen, state.seen) &&
+    sameSet(defaultOpened, state.defaultOpened)
   ) {
     return state
   }
-  return { order, orderedFor: reorder ? stillProblems : state.orderedFor, open, seen, autoOpened }
+  return {
+    order,
+    orderedFor: reorder ? stillProblems : state.orderedFor,
+    open,
+    seen,
+    autoOpened,
+    defaultOpened,
+  }
 }
 
-/** The board on page load: `defaultOpen` rows start open as if the user had
- *  opened them, so a recovery never closes them. */
+/** The board on page load: `defaultOpen` rows start open while nothing is
+ *  wrong. The first problem closes them, unless the user has touched them. */
 export function initialBoard(
   signals: readonly BoardSignal[],
   defaultOpen: readonly string[],
 ): BoardState {
   const ids = signals.map((signal) => signal.id)
-  return boardObserve(
-    { ...EMPTY_BOARD, open: defaultOpen.filter((id) => ids.includes(id)) },
-    signals,
-  )
+  const rows = defaultOpen.filter((id) => ids.includes(id))
+  return boardObserve({ ...EMPTY_BOARD, open: rows, defaultOpened: rows }, signals)
 }
 
 /** The user opens or closes a row; the board stops managing it. Toggling a
@@ -708,6 +724,7 @@ export function boardToggle(state: BoardState, id: string, isProblem = false): B
     open,
     seen,
     autoOpened: state.autoOpened.filter((autoId) => autoId !== id),
+    defaultOpened: state.defaultOpened.filter((defaultId) => defaultId !== id),
   }
 }
 
