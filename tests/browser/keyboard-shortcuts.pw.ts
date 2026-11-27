@@ -139,6 +139,9 @@ test("J and K move through rows, and I, C and F act on them", async ({ page, con
   await expect(page).toHaveURL(/inspect=192\.0\.2\.31/)
   await page.keyboard.press("Escape")
   await expect(page).not.toHaveURL(/inspect=/)
+  // The inspector's closing sheet still covers the table for a moment, so a
+  // hover before it is gone lands on the sheet and F has no cell to act on.
+  await expect(page.getByRole("dialog")).toBeHidden()
 
   await page.locator('tr[data-index="4"] td[data-filter-noun="IP"]').hover()
   await page.keyboard.press("f")
