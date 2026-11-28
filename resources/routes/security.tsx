@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { createFileRoute, useLocation, useNavigate } from "@tanstack/react-router"
 import { ShieldBan } from "lucide-react"
+import { z } from "zod"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -12,6 +13,7 @@ import { DropNetworksCard } from "@/components/security/drop-networks-card"
 import { LapiPill, SecuritySummary } from "@/components/security/security-summary"
 import { ErrorBanner } from "@/components/error-banner"
 import { PageHeader } from "@/components/page-header"
+import { recordSearchShape, type RecordSearch } from "@/lib/record-search"
 import { CROWDSEC_DOCS_URL } from "@/lib/docs-links"
 import { dropNetworksLoaded } from "@/lib/drop-lists"
 import {
@@ -27,13 +29,17 @@ import {
   type SecurityTab,
 } from "@/lib/security-tabs"
 
-interface SecuritySearch {
+interface SecuritySearch extends RecordSearch {
   tab?: string
 }
 
+const securityRecordSchema = z.object({ record: recordSearchShape.record })
+
 export const Route = createFileRoute("/security")({
-  validateSearch: (search: Record<string, unknown>): SecuritySearch =>
-    typeof search.tab === "string" ? { tab: search.tab } : {},
+  validateSearch: (search: Record<string, unknown>): SecuritySearch => ({
+    ...(typeof search.tab === "string" ? { tab: search.tab } : {}),
+    ...securityRecordSchema.parse(search),
+  }),
   component: SecurityPage,
 })
 

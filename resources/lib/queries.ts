@@ -34,8 +34,10 @@ import {
   fetchTopUserAgents,
   fetchCumulativeTimeSeries,
   fetchAccessLogs,
+  fetchAccessLogLine,
   fetchAccessLogFacets,
   fetchGeoLogs,
+  fetchGeoLogRecord,
   fetchGeoLogSummary,
   fetchGeoLogTimeSeries,
   fetchGeoLogTopIps,
@@ -110,6 +112,7 @@ import {
   type BannedIp,
   type BannedRangeView,
   fetchAccessLogDebug,
+  fetchAccessLogDebugLine,
   fetchAccessLogDebugStats,
   type AccessLogDebugPage,
   type AccessLogDebugSortField,
@@ -155,6 +158,7 @@ import { CLOSE_TRY_AGAIN_LATER } from "./websocket"
 import { ALERT_PAGE_SIZE } from "./crowdsec-alerts"
 import { refreshCrowdsecAfterWrite } from "./crowdsec-refresh"
 import { isClientError } from "./crowdsec-errors"
+import type { GeoRecordKey } from "./record-search"
 import {
   DEFAULT_MUTED_SCOPE,
   currentWriteSequence,
@@ -173,6 +177,12 @@ import type { CreateMutedIpPayload } from "@/generated/api/types.gen"
 // ============================================================================
 
 export const queryKeys = {
+  records: {
+    accessLog: (id: number, at: string) => ["records", "access-log", id, at] as const,
+    debugLine: (id: number, at: string) => ["records", "debug-line", id, at] as const,
+    geoLog: (key: GeoRecordKey) =>
+      ["records", "geo-log", key.locationId, key.ip, key.from, key.to] as const,
+  },
   settings: ["settings"] as const,
   mutedIps: ["muted-ips"] as const,
   auth: {
@@ -920,6 +930,43 @@ export function useCrowdsecAlert(id: number | null) {
     queryFn: () => fetchCrowdsecAlert(id!),
     enabled: id !== null,
     staleTime: 30 * 1000,
+  })
+}
+
+// A record from a link does not change, and a 4xx means the link is wrong
+// or retention removed the row, which a retry would only repeat.
+const RECORD_QUERY = {
+  staleTime: Infinity,
+  retry: (failureCount: number, error: unknown) => !isClientError(error) && failureCount < 1,
+} as const
+
+/** The access log line a record link names. */
+export function useAccessLogLine(key: { id: number; at: string } | null) {
+  return useQuery({
+    queryKey: queryKeys.records.accessLog(key?.id ?? 0, key?.at ?? ""),
+    queryFn: () => fetchAccessLogLine(key!.id, key!.at),
+    enabled: key !== null,
+    ...RECORD_QUERY,
+  })
+}
+
+/** The stored raw line a record link names. */
+export function useAccessLogDebugLine(key: { id: number; at: string } | null) {
+  return useQuery({
+    queryKey: queryKeys.records.debugLine(key?.id ?? 0, key?.at ?? ""),
+    queryFn: () => fetchAccessLogDebugLine(key!.id, key!.at),
+    enabled: key !== null,
+    ...RECORD_QUERY,
+  })
+}
+
+/** The Geo Logs row a record link names, over the link's own range. */
+export function useGeoLogRecord(key: GeoRecordKey | null) {
+  return useQuery({
+    queryKey: queryKeys.records.geoLog(key ?? { locationId: 0, ip: "", from: "", to: "" }),
+    queryFn: () => fetchGeoLogRecord(key!),
+    enabled: key !== null,
+    ...RECORD_QUERY,
   })
 }
 

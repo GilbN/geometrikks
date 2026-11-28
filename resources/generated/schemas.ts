@@ -25,6 +25,9 @@ import type {
   ApiV1AbuseipdbReportsListReportsResponses,
   ApiV1AbuseipdbStatusGetAbuseipdbStatusData,
   ApiV1AbuseipdbStatusGetAbuseipdbStatusResponses,
+  ApiV1AccessLogDebugLineIdGetAccessLogDebugData,
+  ApiV1AccessLogDebugLineIdGetAccessLogDebugErrors,
+  ApiV1AccessLogDebugLineIdGetAccessLogDebugResponses,
   ApiV1AccessLogDebugListAccessLogDebugData,
   ApiV1AccessLogDebugListAccessLogDebugErrors,
   ApiV1AccessLogDebugListAccessLogDebugResponses,
@@ -39,6 +42,9 @@ import type {
   ApiV1AccessLogsListAccessLogsData,
   ApiV1AccessLogsListAccessLogsErrors,
   ApiV1AccessLogsListAccessLogsResponses,
+  ApiV1AccessLogsLogIdGetAccessLogData,
+  ApiV1AccessLogsLogIdGetAccessLogErrors,
+  ApiV1AccessLogsLogIdGetAccessLogResponses,
   ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesData,
   ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesErrors,
   ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesResponses,
@@ -285,6 +291,8 @@ export type OperationName =
   | 'get_abuse_contact'
   | 'get_abuse_report'
   | 'get_abuseipdb_status'
+  | 'get_access_log'
+  | 'get_access_log_debug'
   | 'get_access_log_debug_stats'
   | 'get_access_log_facets'
   | 'get_alert'
@@ -382,6 +390,8 @@ export interface OperationDataTypes {
   'get_abuse_contact': ApiV1ReportsAbuseContactGetAbuseContactData
   'get_abuse_report': ApiV1ReportsAbuseGetAbuseReportData
   'get_abuseipdb_status': ApiV1AbuseipdbStatusGetAbuseipdbStatusData
+  'get_access_log': ApiV1AccessLogsLogIdGetAccessLogData
+  'get_access_log_debug': ApiV1AccessLogDebugLineIdGetAccessLogDebugData
   'get_access_log_debug_stats': ApiV1AccessLogDebugStatsGetAccessLogDebugStatsData
   'get_access_log_facets': ApiV1AccessLogsFacetsGetAccessLogFacetsData
   'get_alert': ApiV1CrowdsecAlertsAlertIdGetAlertData
@@ -480,6 +490,8 @@ export interface OperationResponseTypes {
   'get_abuse_contact': ApiV1ReportsAbuseContactGetAbuseContactResponses
   'get_abuse_report': ApiV1ReportsAbuseGetAbuseReportResponses
   'get_abuseipdb_status': ApiV1AbuseipdbStatusGetAbuseipdbStatusResponses
+  'get_access_log': ApiV1AccessLogsLogIdGetAccessLogResponses
+  'get_access_log_debug': ApiV1AccessLogDebugLineIdGetAccessLogDebugResponses
   'get_access_log_debug_stats': ApiV1AccessLogDebugStatsGetAccessLogDebugStatsResponses
   'get_access_log_facets': ApiV1AccessLogsFacetsGetAccessLogFacetsResponses
   'get_alert': ApiV1CrowdsecAlertsAlertIdGetAlertResponses
@@ -578,6 +590,8 @@ export interface OperationErrorTypes {
   'get_abuse_contact': ApiV1ReportsAbuseContactGetAbuseContactErrors
   'get_abuse_report': ApiV1ReportsAbuseGetAbuseReportErrors
   'get_abuseipdb_status': never
+  'get_access_log': ApiV1AccessLogsLogIdGetAccessLogErrors
+  'get_access_log_debug': ApiV1AccessLogDebugLineIdGetAccessLogDebugErrors
   'get_access_log_debug_stats': ApiV1AccessLogDebugStatsGetAccessLogDebugStatsErrors
   'get_access_log_facets': never
   'get_alert': ApiV1CrowdsecAlertsAlertIdGetAlertErrors

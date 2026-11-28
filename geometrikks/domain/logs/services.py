@@ -3,7 +3,12 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from advanced_alchemy.filters import FilterTypes, LimitOffset
+from advanced_alchemy.filters import (
+    CollectionFilter,
+    FilterTypes,
+    LimitOffset,
+    OnBeforeAfter,
+)
 from advanced_alchemy.repository import SQLAlchemyAsyncRepository
 from advanced_alchemy.service import SQLAlchemyAsyncRepositoryService
 from sqlalchemy import func, select, text
@@ -49,6 +54,10 @@ class AccessLogService(SQLAlchemyAsyncRepositoryService[AccessLog]):
     # service, not the Repo: the service ClassVar is passed to the repository
     # constructor and overrides any repository-level attribute.
     count_with_window_function = False
+
+    async def get_line(self, log_id: int, timestamp: datetime) -> AccessLog | None:
+        """One line by its primary key. The timestamp keeps the read to one chunk."""
+        return await self.get_one_or_none(AccessLog.id == log_id, AccessLog.timestamp == timestamp)
 
     async def get_facets(self) -> AccessLogFacets:
         """Distinct country/city/host/server/log-format/ASN values, for filter dropdowns.
@@ -155,6 +164,14 @@ class AccessLogDebugService(SQLAlchemyAsyncRepositoryService[AccessLogDebug]):
         model_type = AccessLogDebug
 
     repository_type = Repo
+
+    async def get_entry(self, line_id: int, created_at: datetime) -> AccessLogDebugEntry | None:
+        """One stored line by its primary key. ``created_at`` keeps the read to one chunk."""
+        rows, _ = await self.list_entries(
+            CollectionFilter("id", [line_id]),
+            OnBeforeAfter("created_at", on_or_after=created_at, on_or_before=created_at),
+        )
+        return rows[0] if rows else None
 
     async def list_entries(
         self,

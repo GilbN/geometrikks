@@ -3,6 +3,7 @@
 import { z } from "zod"
 import { GEO_LOGS_PAGE_SIZES } from "@/components/geo-logs/geo-logs-table"
 import type { GeoLogFilterState } from "@/lib/geo-log-filters-context"
+import { NO_RECORD, recordSearchShape } from "@/lib/record-search"
 import { arrayParam } from "@/lib/url-filters"
 
 // Absent keys mean "default"; navigate() writes undefined for defaults so
@@ -39,6 +40,7 @@ export const geoLogsSearchSchema = z.object({
     .optional()
     .catch(undefined),
   sort: z.enum(["asc", "desc"]).optional().catch(undefined),
+  ...recordSearchShape,
 })
 
 export type GeoLogsSearch = z.infer<typeof geoLogsSearchSchema>
@@ -67,5 +69,5 @@ export function encodeGeoLogFilters(filters: GeoLogFilterState): Partial<GeoLogs
   }
 }
 
-/** Filter changes always return to page 1. */
-export const GEO_LOGS_RESET_ON_CHANGE: Partial<GeoLogsSearch> = { page: undefined }
+/** Filter changes always return to page 1, and close the open record. */
+export const GEO_LOGS_RESET_ON_CHANGE: Partial<GeoLogsSearch> = { page: undefined, ...NO_RECORD }

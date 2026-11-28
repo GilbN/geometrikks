@@ -51,6 +51,8 @@ import { useNarrowLayout } from "@/components/data/narrow-layout"
 import { IpFilterTargetsProvider } from "@/components/ip-actions/ip-actions-menu"
 import { singleFilterTarget, type IpRowValues } from "@/lib/ip-filter-targets"
 import { AlertDetailSheet } from "@/components/security/alert-detail-sheet"
+import { useRecordLink } from "@/hooks/use-record-link"
+import { alertRecord, parseAlertRecord } from "@/lib/record-search"
 
 // The short labels fit the tabs and Filters on one row of a 320px phone.
 const SINCE_OPTIONS = [
@@ -114,7 +116,15 @@ export function AlertsTable() {
     isPlaceholderData,
     kind,
   })
-  const [selected, setSelected] = useState<AlertView | null>(null)
+  const recordLink = useRecordLink()
+  const selectedId = parseAlertRecord(recordLink.search)
+  const selected = alerts?.find((alert) => alert.id === selectedId) ?? null
+  const openAlert = useCallback(
+    (alert: AlertView) => {
+      if (alert.id !== null) recordLink.open(alertRecord(alert.id), { tab: "alerts" })
+    },
+    [recordLink],
+  )
   const [layoutRef, narrow] = useNarrowLayout<HTMLDivElement>()
   const [expandedAlertKeys, setExpandedAlertKeys] = useState<ReadonlySet<string>>(() => new Set())
 
@@ -304,7 +314,7 @@ export function AlertsTable() {
                           onToggle={() =>
                             setExpandedAlertKeys((current) => toggleRun(current, alertRun))
                           }
-                          onOpenAlert={setSelected}
+                          onOpenAlert={openAlert}
                         />
                       ))}
                     </IpFilterTargetsProvider>
@@ -368,8 +378,9 @@ export function AlertsTable() {
       </CardContent>
       <IpFilterTargetsProvider targetsFor={filterTargetsFor}>
         <AlertDetailSheet
+          alertId={selectedId}
           alert={selected}
-          onOpenChange={(open) => !open && setSelected(null)}
+          onOpenChange={(open) => !open && recordLink.close()}
           onFilterScenario={showOnlyScenario}
         />
       </IpFilterTargetsProvider>

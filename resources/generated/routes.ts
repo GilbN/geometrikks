@@ -37,6 +37,8 @@ export type RouteName =
   | 'get_abuse_contact'
   | 'get_abuse_report'
   | 'get_abuseipdb_status'
+  | 'get_access_log'
+  | 'get_access_log_debug'
   | 'get_access_log_debug_stats'
   | 'get_access_log_facets'
   | 'get_alert'
@@ -144,6 +146,12 @@ export interface RoutePathParams {
   'get_abuse_contact': Record<string, never>;
   'get_abuse_report': Record<string, never>;
   'get_abuseipdb_status': Record<string, never>;
+  'get_access_log': {
+    log_id: number;
+  };
+  'get_access_log_debug': {
+    line_id: number;
+  };
   'get_access_log_debug_stats': Record<string, never>;
   'get_access_log_facets': Record<string, never>;
   'get_alert': {
@@ -268,6 +276,12 @@ export interface RouteQueryParams {
     startDate: DateTime;
   };
   'get_abuseipdb_status': Record<string, never>;
+  'get_access_log': {
+    at: DateTime;
+  };
+  'get_access_log_debug': {
+    at: DateTime;
+  };
   'get_access_log_debug_stats': {
     fromTimestamp?: DateTime;
     toTimestamp?: DateTime;
@@ -808,6 +822,20 @@ export const routeDefinitions = {
     method: 'get',
     pathParams: [] as const,
     queryParams: [] as const,
+  },
+  'get_access_log': {
+    path: '/api/v1/access-logs/{log_id}',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: ['log_id'] as const,
+    queryParams: ['at'] as const,
+  },
+  'get_access_log_debug': {
+    path: '/api/v1/access-log-debug/{line_id}',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: ['line_id'] as const,
+    queryParams: ['at'] as const,
   },
   'get_access_log_debug_stats': {
     path: '/api/v1/access-log-debug/stats',

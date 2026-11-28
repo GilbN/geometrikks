@@ -4392,6 +4392,188 @@
         "title": "GeoLogTimeSeriesResponse",
         "type": "object"
       },
+      "GetAccessLogAccessLogResponseBody": {
+        "properties": {
+          "autonomousSystemNumber": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "autonomousSystemOrganization": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "bytesSent": {
+            "default": 0,
+            "type": "integer"
+          },
+          "city": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "countryCode": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "countryName": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "host": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "httpVersion": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "type": "integer"
+          },
+          "ipAddress": {
+            "type": "string"
+          },
+          "logFormat": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "method": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "referrer": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "remoteUser": {
+            "type": "string"
+          },
+          "requestTime": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "server": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "statusCode": {
+            "type": "integer"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "upstreamResponseTime": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "url": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "userAgent": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "ipAddress",
+          "statusCode",
+          "timestamp"
+        ],
+        "title": "GetAccessLogAccessLogResponseBody",
+        "type": "object"
+      },
       "GlobalTopIPsResponse": {
         "description": "The client IPs with the most events, each at the location where it had the most.",
         "properties": {
@@ -10460,6 +10642,111 @@
         ]
       }
     },
+    "/api/v1/access-log-debug/{line_id}": {
+      "get": {
+        "deprecated": false,
+        "description": "Returns one stored raw line by its `id` and `createdAt`, as the list returns them, with the access log line it produced. Lines are stored by the time GeoMetrikks stored them, so that time is part of the line's key.",
+        "operationId": "ApiV1AccessLogDebugLineIdGetAccessLogDebug",
+        "parameters": [
+          {
+            "deprecated": false,
+            "description": "The line's `id`.",
+            "in": "path",
+            "name": "line_id",
+            "required": true,
+            "schema": {
+              "description": "The line's `id`.",
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "The line's `createdAt`, as ISO 8601 with a timezone.",
+            "in": "query",
+            "name": "at",
+            "required": true,
+            "schema": {
+              "description": "The line's `createdAt`, as ISO 8601 with a timezone.",
+              "format": "date-time",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessLogDebugEntry"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "code": "validation_failed",
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code",
+                    "code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "No line has this id at this time, or retention removed it."
+          }
+        },
+        "summary": "Get one stored raw log line",
+        "tags": [
+          "Access Log Debug"
+        ]
+      }
+    },
     "/api/v1/access-logs": {
       "get": {
         "deprecated": false,
@@ -11183,6 +11470,111 @@
           }
         },
         "summary": "Search the filter values by name",
+        "tags": [
+          "Access Logs"
+        ]
+      }
+    },
+    "/api/v1/access-logs/{log_id}": {
+      "get": {
+        "deprecated": false,
+        "description": "Returns one parsed access log line by its `id` and its `timestamp`, as the list returns them. Lines are stored by time, so the timestamp is part of the line's key. Muted IPs are not hidden here.",
+        "operationId": "ApiV1AccessLogsLogIdGetAccessLog",
+        "parameters": [
+          {
+            "deprecated": false,
+            "description": "The line's `id`.",
+            "in": "path",
+            "name": "log_id",
+            "required": true,
+            "schema": {
+              "description": "The line's `id`.",
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "The line's `timestamp`, as ISO 8601 with a timezone.",
+            "in": "query",
+            "name": "at",
+            "required": true,
+            "schema": {
+              "description": "The line's `timestamp`, as ISO 8601 with a timezone.",
+              "format": "date-time",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetAccessLogAccessLogResponseBody"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "code": "validation_failed",
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code",
+                    "code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "No line has this id at this time, or retention removed it."
+          }
+        },
+        "summary": "Get one access log line",
         "tags": [
           "Access Logs"
         ]

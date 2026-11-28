@@ -6,7 +6,12 @@
 import { useEffect, useRef, useState } from "react"
 import { AlertTriangle, Check, Copy } from "lucide-react"
 import { CountryLabel } from "@/components/country-flag"
-import { DetailField, DetailSheet } from "@/components/data/detail-sheet"
+import {
+  DetailField,
+  DetailSheet,
+  RecordPending,
+  type RecordStatus,
+} from "@/components/data/detail-sheet"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -132,22 +137,28 @@ function RawLineBlock({
 }
 
 export function DebugLogDetailSheet({
+  open,
   entry,
+  status,
   onOpenChange,
 }: {
+  open: boolean
   entry: AccessLogDebugEntry | null
+  status: RecordStatus
   onOpenChange: (open: boolean) => void
 }) {
   const contentRef = useRef<HTMLDivElement>(null)
   const ip = ipValues(entry)
   return (
     <DetailSheet
-      open={entry !== null}
+      open={open}
       onOpenChange={onOpenChange}
+      historyEntry={false}
       title={entry ? `Debug line #${entry.id}` : "Debug line details"}
       description={entry ? `Captured ${new Date(entry.createdAt).toLocaleString()}` : undefined}
-      footer={ip && <DetailIpActions values={ip} onNavigate={() => onOpenChange(false)} />}
+      footer={ip && <DetailIpActions values={ip} onFilter={() => onOpenChange(false)} />}
     >
+      {!entry && <RecordPending status={status} noun="debug line" />}
       {entry && (
         <div ref={contentRef} className="space-y-6">
           {ip && <DetailIpBlock values={ip} />}

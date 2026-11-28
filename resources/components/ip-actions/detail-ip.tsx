@@ -63,14 +63,17 @@ export function DetailIpBlock({
   )
 }
 
-/** Footer row for a DetailSheet. `onNavigate` closes the sheet; the inspector
- *  and the map both take over from it. */
+/** Footer row for a DetailSheet. `onNavigate` closes the sheet, as the
+ *  inspector and the map take over from it, and `onFilter` closes it after a
+ *  filter. A sheet whose record lives in the URL passes neither when those
+ *  navigations drop the record themselves. */
 export function DetailIpActions({
   values,
   locationId,
   showOnMap = true,
   muteToggle = false,
   onNavigate,
+  onFilter = onNavigate,
 }: {
   values: IpRowValues
   /** Where the inspector starts and where Show on map lands. */
@@ -78,7 +81,8 @@ export function DetailIpActions({
   showOnMap?: boolean
   /** Offers Mute IP in the menu. */
   muteToggle?: boolean
-  onNavigate: () => void
+  onNavigate?: () => void
+  onFilter?: () => void
 }) {
   const { open: inspect } = useIpInspectorActions()
   const navigate = useNavigate()
@@ -90,7 +94,7 @@ export function DetailIpActions({
         className="min-w-0 flex-1"
         onClick={() => {
           inspect(values.ip, locationId)
-          onNavigate()
+          onNavigate?.()
         }}
       >
         <ScanSearch data-icon="inline-start" />
@@ -109,7 +113,7 @@ export function DetailIpActions({
                 ...flyToSearch(values.ip, locationId),
               }),
             })
-            onNavigate()
+            onNavigate?.()
           }}
         >
           <LocateFixed data-icon="inline-start" />
@@ -121,7 +125,7 @@ export function DetailIpActions({
         locationId={locationId}
         footer
         muteToggle={muteToggle}
-        onFilter={onNavigate}
+        onFilter={onFilter}
       />
     </div>
   )

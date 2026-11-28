@@ -6,7 +6,8 @@
  * GeoLogFiltersContext like everything else on the page. Selecting a row
  * opens GeoLogDetailSheet.
  */
-import { memo, useEffect, useMemo, useState } from "react"
+import { memo, useCallback, useEffect, useMemo } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { CountryFlag, CountryLabel } from "@/components/country-flag"
 import { TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useNarrowLayout } from "@/components/data/narrow-layout"
@@ -33,12 +34,15 @@ import {
   type GeoLogCombinedColumn,
 } from "@/components/geo-logs/columns"
 import { GeoLogDetailSheet } from "@/components/geo-logs/geo-log-detail-sheet"
+import { recordStatus } from "@/components/data/detail-sheet"
+import { useRecordLink } from "@/hooks/use-record-link"
+import { geoRecord, parseGeoRecord } from "@/lib/record-search"
 import type { GeoLogEntry } from "@/generated/api/types.gen"
-import { formatNumber, type GeoLogSortField, type GeoLogSortOrder } from "@/lib/api"
+import { formatNumber, parseTimeRange, type GeoLogSortField, type GeoLogSortOrder } from "@/lib/api"
 import { IpActionsMenu, IpFilterTargetsProvider } from "@/components/ip-actions/ip-actions-menu"
 import { IpLabel } from "@/components/ip-actions/ip-label"
 import { geoLogFilterTargets, type IpRowValues } from "@/lib/ip-filter-targets"
-import { useGeoLogs } from "@/lib/queries"
+import { queryKeys, useGeoLogRecord, useGeoLogs } from "@/lib/queries"
 import { pageToClamp } from "@/lib/use-muted-page"
 import { cn } from "@/lib/utils"
 import { useColumnVisibility } from "@/lib/column-visibility"
@@ -317,10 +321,28 @@ export function GeoLogsTable({
   onPageSizeChange: (pageSize: number) => void
   onSortChange: (sortField: GeoLogSortField, sortOrder: GeoLogSortOrder) => void
 }) {
-  const [selected, setSelected] = useState<GeoLogEntry | null>(null)
   const [layoutRef, narrow] = useNarrowLayout<HTMLDivElement>()
   const isMobile = useIsMobile()
   const { range, customRange } = useTimeRange()
+  const queryClient = useQueryClient()
+  const recordLink = useRecordLink()
+  const recordKey = useMemo(() => parseGeoRecord(recordLink.search), [recordLink.search])
+  const recordQuery = useGeoLogRecord(recordKey)
+  const openRecord = useCallback(
+    (entry: GeoLogEntry) => {
+      // The range resolves now, so the link shows these numbers whenever it opens.
+      const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
+      const key = {
+        locationId: entry.locationId,
+        ip: entry.ipAddress,
+        from: startDate,
+        to: endDate,
+      }
+      queryClient.setQueryData(queryKeys.records.geoLog(key), entry)
+      recordLink.open(geoRecord(key))
+    },
+    [queryClient, recordLink, range, customRange],
+  )
   const { filters, setFilters, muted } = useGeoLogFilters()
   const filterTargetsFor = useMemo(
     () => geoLogFilterTargets(filters, setFilters),
@@ -352,10 +374,6 @@ export function GeoLogsTable({
     if (target !== null) onPageChange(target)
   }, [data, isPlaceholderData, page, pageCount, onPageChange])
 
-  // A changed hidden set can leave the open row off the list.
-  useEffect(() => {
-    setSelected(null)
-  }, [muted.flag, muted.version])
   const state = dataState(isLoading, isError, rows.length)
 
   function toggleSort(field: GeoLogSortField) {
@@ -509,13 +527,18 @@ export function GeoLogsTable({
               layout={layout}
               narrow={narrow}
               timeFormat={timeFormat}
-              onSelect={setSelected}
+              onSelect={openRecord}
             />
           </VirtualTable>
         </DataTableFrame>
       </div>
 
-      <GeoLogDetailSheet entry={selected} onOpenChange={(open) => !open && setSelected(null)} />
+      <GeoLogDetailSheet
+        open={recordKey !== null}
+        entry={recordQuery.data ?? null}
+        status={recordStatus(recordQuery)}
+        onOpenChange={(open) => !open && recordLink.close()}
+      />
     </IpFilterTargetsProvider>
   )
 }

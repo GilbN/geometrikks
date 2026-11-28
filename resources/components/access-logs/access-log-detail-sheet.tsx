@@ -5,7 +5,12 @@
  */
 import { CountryLabel } from "@/components/country-flag"
 import { DetailIpActions, DetailIpBlock } from "@/components/ip-actions/detail-ip"
-import { DetailField, DetailSheet } from "@/components/data/detail-sheet"
+import {
+  DetailField,
+  DetailSheet,
+  RecordPending,
+  type RecordStatus,
+} from "@/components/data/detail-sheet"
 import { Badge } from "@/components/ui/badge"
 import { formatBytes, formatDuration, type AccessLog } from "@/lib/api"
 import type { IpRowValues } from "@/lib/ip-filter-targets"
@@ -27,32 +32,30 @@ function ipValues(entry: AccessLog): IpRowValues {
 }
 
 export function AccessLogDetailSheet({
+  open,
   entry,
+  status,
   onOpenChange,
 }: {
+  open: boolean
   entry: AccessLog | null
+  status: RecordStatus
   onOpenChange: (open: boolean) => void
 }) {
   return (
     <DetailSheet
-      open={entry !== null}
+      open={open}
       onOpenChange={onOpenChange}
+      historyEntry={false}
       title={entry ? `Request #${entry.id}` : "Request details"}
       description={
         entry
           ? `${new Date(entry.timestamp).toLocaleString()} · ${entry.method ?? "Unknown method"}`
           : undefined
       }
-      footer={
-        entry && (
-          <DetailIpActions
-            values={ipValues(entry)}
-            muteToggle
-            onNavigate={() => onOpenChange(false)}
-          />
-        )
-      }
+      footer={entry && <DetailIpActions values={ipValues(entry)} muteToggle />}
     >
+      {!entry && <RecordPending status={status} noun="request" />}
       {entry && <DetailIpBlock values={ipValues(entry)} />}
       {entry && (
         <dl>

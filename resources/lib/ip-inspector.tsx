@@ -16,6 +16,7 @@ import { useNavigate, useSearch } from "@tanstack/react-router"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import { usePhoneLayout } from "@/hooks/use-phone-map"
 import { useOverlayEntry, useOverlayHistory } from "@/lib/overlay-history"
+import { NO_RECORD } from "@/lib/record-search"
 import {
   INSPECTOR_DOCK_QUERY,
   loadInspectorDockedPreference,
@@ -70,8 +71,12 @@ export function IpInspectorProvider({ children }: { children: React.ReactNode })
   // A ref, so `open` keeps its identity and every row's menu does not
   // re-render each time the docked inspector switches IPs.
   const replaceOnOpen = useRef(false)
+  const recordOpen = useSearch({
+    strict: false,
+    select: (search) => search.record !== undefined,
+  })
   useLayoutEffect(() => {
-    replaceOnOpen.current = docked && inspectedIp !== undefined
+    replaceOnOpen.current = docked && inspectedIp !== undefined && !recordOpen
   })
 
   const open = useCallback(
@@ -80,10 +85,11 @@ export function IpInspectorProvider({ children }: { children: React.ReactNode })
       for (const listener of openListeners) listener(nextIp)
       // Pushed, not replaced: Back closes the sheet. The dock stays usable
       // while it is open, so a second IP replaces the entry and one Back
-      // still closes it.
+      // still closes it. The inspector takes over from an open record in the
+      // same step, so Back from it returns to that record.
       void navigate({
         to: ".",
-        search: (prev: Record<string, unknown>) => ({ ...prev, inspect: nextIp }),
+        search: (prev: Record<string, unknown>) => ({ ...prev, ...NO_RECORD, inspect: nextIp }),
         state: overlays.stateFor(INSPECTOR_OVERLAY),
         replace: replaceOnOpen.current,
       })

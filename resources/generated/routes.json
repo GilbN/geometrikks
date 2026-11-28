@@ -158,6 +158,38 @@
       ],
       "uri": "/api/v1/abuseipdb/status"
     },
+    "get_access_log": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "parameterTypes": {
+        "log_id": "number"
+      },
+      "parameters": [
+        "log_id"
+      ],
+      "queryParameters": {
+        "at": "DateTime"
+      },
+      "uri": "/api/v1/access-logs/{log_id}"
+    },
+    "get_access_log_debug": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "parameterTypes": {
+        "line_id": "number"
+      },
+      "parameters": [
+        "line_id"
+      ],
+      "queryParameters": {
+        "at": "DateTime"
+      },
+      "uri": "/api/v1/access-log-debug/{line_id}"
+    },
     "get_access_log_debug_stats": {
       "method": "get",
       "methods": [

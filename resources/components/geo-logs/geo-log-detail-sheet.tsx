@@ -4,7 +4,12 @@
  */
 import { CountryLabel } from "@/components/country-flag"
 import { DetailIpActions, DetailIpBlock } from "@/components/ip-actions/detail-ip"
-import { DetailField, DetailSheet } from "@/components/data/detail-sheet"
+import {
+  DetailField,
+  DetailSheet,
+  RecordPending,
+  type RecordStatus,
+} from "@/components/data/detail-sheet"
 import type { GeoLogEntry } from "@/generated/api/types.gen"
 import { formatNumber } from "@/lib/api"
 import type { IpRowValues } from "@/lib/ip-filter-targets"
@@ -21,31 +26,32 @@ function ipValues(entry: GeoLogEntry): IpRowValues {
 }
 
 export function GeoLogDetailSheet({
+  open,
   entry,
+  status,
   onOpenChange,
 }: {
+  open: boolean
   entry: GeoLogEntry | null
+  status: RecordStatus
   onOpenChange: (open: boolean) => void
 }) {
   return (
     <DetailSheet
-      open={entry !== null}
+      open={open}
       onOpenChange={onOpenChange}
+      historyEntry={false}
       title={entry ? entry.city || entry.countryName || "Location details" : "Location details"}
       description={
         entry ? `${formatNumber(entry.eventCount)} events · ${entry.ipAddress}` : undefined
       }
       footer={
         entry && (
-          <DetailIpActions
-            values={ipValues(entry)}
-            muteToggle
-            locationId={entry.locationId}
-            onNavigate={() => onOpenChange(false)}
-          />
+          <DetailIpActions values={ipValues(entry)} muteToggle locationId={entry.locationId} />
         )
       }
     >
+      {!entry && <RecordPending status={status} noun="location" />}
       {entry && <DetailIpBlock values={ipValues(entry)} />}
       {entry && (
         <dl>
