@@ -19,7 +19,10 @@ from advanced_alchemy.service import OffsetPagination
 from litestar import Controller, Request, get
 from litestar.datastructures import ResponseHeader
 from litestar.di import NamedDependency, Provide
-from litestar.params import QueryParameter, SkipValidation
+from litestar.exceptions import NotFoundException
+from litestar.openapi.datastructures import ResponseSpec
+from litestar.params import PathParameter, QueryParameter, SkipValidation
+from litestar.status_codes import HTTP_404_NOT_FOUND
 from sqlalchemy import or_
 
 from geometrikks.domain.exceptions import DomainValidationError
@@ -47,6 +50,7 @@ from geometrikks.lib.pagination import (
     order_by_provider,
 )
 from geometrikks.lib.parameters import (
+    BIGINT_MAX,
     CITY_FILTER_DESCRIPTION,
     COUNTRY_FILTER_DESCRIPTION,
     REPEAT_NOTE,
@@ -59,7 +63,9 @@ from geometrikks.lib.parameters import (
     range_end_examples,
     range_start_examples,
 )
+from geometrikks.lib.time import ensure_utc
 from geometrikks.lib.time_ranges import Window, relative_range
+from geometrikks.server.exceptions import ErrorEnvelope
 
 ACCESS_LOG_SORT_FIELDS = (
     "timestamp",
@@ -367,6 +373,35 @@ class AccessLogController(Controller):
             headers["X-Range-End"] = time_window.end.isoformat().replace("+00:00", "Z")
         request.state[RANGE_HEADERS_STATE_KEY] = headers
         return access_log_service.to_schema(results, total, filters=all_filters)
+
+    @get(
+        "/{log_id:int}",
+        summary="Get one access log line",
+        description=(
+            "Returns one parsed access log line by its `id` and its `timestamp`, as the list returns them. "
+            "Lines are stored by time, so the timestamp is part of the line's key. Muted IPs are not hidden here."
+        ),
+        responses={
+            HTTP_404_NOT_FOUND: ResponseSpec(
+                data_container=ErrorEnvelope,
+                description="No line has this id at this time, or retention removed it.",
+            ),
+        },
+    )
+    async def get_access_log(
+        self,
+        access_log_service: NamedDependency[AccessLogService],
+        log_id: Annotated[int, PathParameter(description="The line's `id`.", ge=1, le=BIGINT_MAX)],
+        at: Annotated[
+            datetime,
+            QueryParameter(description="The line's `timestamp`, as ISO 8601. A time without a timezone is UTC."),
+        ],
+    ) -> AccessLog:
+        """One line by id and time, for a link to its record."""
+        line = await access_log_service.get_line(log_id, ensure_utc(at))
+        if line is None:
+            raise NotFoundException(detail=f"No access log line {log_id} at {at.isoformat()}")
+        return line
 
     @get(
         "/facets",

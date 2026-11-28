@@ -79,6 +79,7 @@ import { scenarioText } from "@/lib/scenario-name"
 import { countryLabel, type FilterTarget, type IpRowValues } from "@/lib/ip-filter-targets"
 import { useIpInspectorActions } from "@/lib/ip-inspector"
 import { flyToSearch } from "@/lib/map-filters"
+import { NO_RECORD } from "@/lib/record-search"
 import {
   DROP_NETWORK_STATUS_UNKNOWN_TEXT,
   dropBanReason,
@@ -612,7 +613,11 @@ export function IpActionsMenu({
     run: () =>
       void navigate({
         to: "/map",
-        search: (prev: Record<string, unknown>) => ({ ...prev, ...flyToSearch(ip, locationId) }),
+        search: (prev: Record<string, unknown>) => ({
+          ...prev,
+          ...NO_RECORD,
+          ...flyToSearch(ip, locationId),
+        }),
       }),
   }
   const navigation: IpAction[] = footer ? [] : [copyAction, inspectAction, flyToAction]

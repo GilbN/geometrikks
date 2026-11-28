@@ -4350,6 +4350,184 @@ export const GeoLogTimeSeriesResponseSchema = {
   type: "object",
 } as const;
 
+export const GetAccessLogAccessLogResponseBodySchema = {
+  properties: {
+    autonomousSystemNumber: {
+      oneOf: [
+        {
+          type: "integer",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    autonomousSystemOrganization: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    bytesSent: {
+      default: 0,
+      type: "integer",
+    },
+    city: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    countryCode: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    countryName: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    host: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    httpVersion: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    id: {
+      type: "integer",
+    },
+    ipAddress: {
+      type: "string",
+    },
+    logFormat: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    method: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    referrer: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    remoteUser: {
+      type: "string",
+    },
+    requestTime: {
+      oneOf: [
+        {
+          type: "number",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    server: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    statusCode: {
+      type: "integer",
+    },
+    timestamp: {
+      format: "date-time",
+      type: "string",
+    },
+    upstreamResponseTime: {
+      oneOf: [
+        {
+          type: "number",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    url: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    userAgent: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+  },
+  required: ["id", "ipAddress", "statusCode", "timestamp"],
+  title: "GetAccessLogAccessLogResponseBody",
+  type: "object",
+} as const;
+
 export const GlobalTopIPsResponseSchema = {
   description:
     "The client IPs with the most events, each at the location where it had the most.",

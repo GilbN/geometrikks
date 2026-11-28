@@ -62,7 +62,10 @@ function plainState(state: HistoryLocation["state"]) {
 type OpenOverlay = { id: string; adopt: boolean }
 
 export function createOverlayHistory(history: RouterHistory) {
-  const registered = new Map<string, { adopt: boolean; close: () => void }>()
+  const registered = new Map<
+    string,
+    { adopt: boolean; close: () => void; openAt?: (href: string) => boolean }
+  >()
   let stack: OpenOverlay[] = []
   const pendingOpen = new Set<string>()
   const pendingClose = new Set<string>()
@@ -78,8 +81,13 @@ export function createOverlayHistory(history: RouterHistory) {
   const restampedKeys = new Set<string>()
   let last = history.location
 
-  const isStale = (id: string) =>
-    !registered.get(id)?.adopt && !stack.some((open) => open.id === id)
+  // An adopted overlay lives in the URL, so its entry is stale once the URL
+  // no longer opens it, as when a filter from a drawer above it drops it.
+  const isStale = (id: string, href: string) => {
+    const registration = registered.get(id)
+    if (registration?.adopt) return registration.openAt ? !registration.openAt(href) : false
+    return !stack.some((open) => open.id === id)
+  }
 
   function back() {
     const key = history.location.state.__TSR_key
@@ -136,7 +144,7 @@ export function createOverlayHistory(history: RouterHistory) {
     if (!id || location.state.overlay || previous.pathname !== location.pathname) return
     // At once, not in a microtask: an action that filters and then closes its
     // drawer in one click renders the close before a microtask would run.
-    if (isStale(id)) return
+    if (isStale(id, location.href)) return
     history.replace(location.href, { ...location.state, overlay: id }, { ignoreBlocker: true })
     recordRestamp()
   }
@@ -168,7 +176,7 @@ export function createOverlayHistory(history: RouterHistory) {
 
     queueMicrotask(() => {
       if (history.location.state.__TSR_key !== location.state.__TSR_key) return
-      if (entry && isStale(entry)) {
+      if (entry && isStale(entry, carriedHref ?? location.href)) {
         if (backwards && history.canGoBack()) return back()
         history.replace(carriedHref ?? location.href, plainState(location.state))
         carriedHref = undefined
@@ -186,8 +194,8 @@ export function createOverlayHistory(history: RouterHistory) {
     setActive(next: boolean) {
       active = next
     },
-    register(id: string, adopt: boolean, close: () => void) {
-      const registration = { adopt, close }
+    register(id: string, adopt: boolean, close: () => void, openAt?: (href: string) => boolean) {
+      const registration = { adopt, close, openAt }
       registered.set(id, registration)
       return () => {
         if (registered.get(id) === registration) registered.delete(id)
@@ -229,7 +237,7 @@ export function createOverlayHistory(history: RouterHistory) {
     },
     start() {
       const entry = history.location.state.overlay
-      if (entry && isStale(entry))
+      if (entry && isStale(entry, history.location.href))
         history.replace(history.location.href, plainState(history.location.state))
       last = history.location
       return history.subscribe(({ location, action }) => {
@@ -276,20 +284,25 @@ export function useOverlayHistory(): OverlayHistory {
 }
 
 /** Gives an overlay its own history entry on a phone, so Back closes it.
- *  `adopt` is for an overlay that pushes its own entry. */
+ *  `adopt` is for an overlay that pushes its own entry, and `openAt` says
+ *  whether a URL still opens it. */
 export function useOverlayEntry(
   id: string,
   open: boolean,
   close: () => void,
-  opts?: { adopt?: boolean },
+  opts?: { adopt?: boolean; openAt?: (href: string) => boolean },
 ): void {
   const overlays = useOverlayHistory()
   const adopt = opts?.adopt ?? false
+  const openAt = opts?.openAt
   const closeRef = useRef(close)
   useLayoutEffect(() => {
     closeRef.current = close
   })
-  useEffect(() => overlays.register(id, adopt, () => closeRef.current()), [overlays, id, adopt])
+  useEffect(
+    () => overlays.register(id, adopt, () => closeRef.current(), openAt),
+    [overlays, id, adopt, openAt],
+  )
   useEffect(() => {
     if (!open) return
     overlays.opened(id)

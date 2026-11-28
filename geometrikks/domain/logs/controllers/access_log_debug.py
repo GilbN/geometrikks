@@ -9,7 +9,10 @@ from advanced_alchemy.filters import FilterTypes, LimitOffset, OnBeforeAfter
 from advanced_alchemy.service import OffsetPagination
 from litestar import Controller, get
 from litestar.di import NamedDependency, Provide
-from litestar.params import QueryParameter, SkipValidation
+from litestar.exceptions import NotFoundException
+from litestar.openapi.datastructures import ResponseSpec
+from litestar.params import PathParameter, QueryParameter, SkipValidation
+from litestar.status_codes import HTTP_404_NOT_FOUND
 
 from geometrikks.domain.logs.schemas import AccessLogDebugEntry, AccessLogDebugStats
 from geometrikks.domain.logs.services import DEBUG_SORT_COLUMNS, AccessLogDebugService
@@ -20,6 +23,7 @@ from geometrikks.lib.pagination import (
     limit_offset_provider,
 )
 from geometrikks.lib.parameters import (
+    BIGINT_MAX,
     CITY_FILTER_DESCRIPTION,
     COUNTRY_FILTER_DESCRIPTION,
     IP_FILTER_NOTE,
@@ -27,6 +31,8 @@ from geometrikks.lib.parameters import (
     range_end_examples,
     range_start_examples,
 )
+from geometrikks.lib.time import ensure_utc
+from geometrikks.server.exceptions import ErrorEnvelope
 
 _STORED_FROM = "Keep only lines GeoMetrikks stored at or after this time, as ISO 8601 with a timezone."
 _STORED_TO = "Keep only lines GeoMetrikks stored at or before this time, as ISO 8601 with a timezone."
@@ -179,6 +185,36 @@ class AccessLogDebugController(Controller):
             limit=limit_offset.limit if limit_offset else len(rows),
             offset=limit_offset.offset if limit_offset else 0,
         )
+
+    @get(
+        "/{line_id:int}",
+        summary="Get one stored raw log line",
+        description=(
+            "Returns one stored raw line by its `id` and `createdAt`, as the list returns them, with the request "
+            "fields copied from the access log line it produced. Lines are stored by the time GeoMetrikks stored "
+            "them, so that time is part of the line's key."
+        ),
+        responses={
+            HTTP_404_NOT_FOUND: ResponseSpec(
+                data_container=ErrorEnvelope,
+                description="No line has this id at this time, or retention removed it.",
+            ),
+        },
+    )
+    async def get_access_log_debug(
+        self,
+        access_log_debug_service: NamedDependency[AccessLogDebugService],
+        line_id: Annotated[int, PathParameter(description="The line's `id`.", ge=1, le=BIGINT_MAX)],
+        at: Annotated[
+            datetime,
+            QueryParameter(description="The line's `createdAt`, as ISO 8601. A time without a timezone is UTC."),
+        ],
+    ) -> AccessLogDebugEntry:
+        """One stored line by id and storage time, for a link to its record."""
+        entry = await access_log_debug_service.get_entry(line_id, ensure_utc(at))
+        if entry is None:
+            raise NotFoundException(detail=f"No stored log line {line_id} at {at.isoformat()}")
+        return entry
 
     @get(
         "/stats",

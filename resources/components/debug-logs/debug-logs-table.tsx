@@ -5,6 +5,7 @@
  * dialog. Pairs with GET /api/v1/access-log-debug/.
  */
 import { memo, useCallback, useEffect, useId, useMemo, useState } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { useSearch } from "@tanstack/react-router"
 import { CountryFlag, CountryLabel } from "@/components/country-flag"
 import { FileWarning, Flag, Hash, MapPin, Search } from "lucide-react"
@@ -27,6 +28,9 @@ import { FilterBarToolsProvider } from "@/components/data/filter-bar-slot"
 import { FilterChoiceRow, FilterListRow, FilterSection } from "@/components/ui/filter-rows"
 import { FiltersDrawer } from "@/components/ui/filters-drawer"
 import { DebugLogDetailSheet } from "@/components/debug-logs/debug-log-detail-sheet"
+import { recordStatus } from "@/components/data/detail-sheet"
+import { useRecordLink } from "@/hooks/use-record-link"
+import { lineRecord, parseLineRecord } from "@/lib/record-search"
 import {
   DEBUG_LOG_COLUMNS,
   combinedDebugLogColumns,
@@ -44,7 +48,13 @@ import {
   singleFilterTarget,
   type IpRowValues,
 } from "@/lib/ip-filter-targets"
-import { useAccessLogDebug, useAccessLogFacets, useCrowdsecLiveUpdates } from "@/lib/queries"
+import {
+  queryKeys,
+  useAccessLogDebug,
+  useAccessLogDebugLine,
+  useAccessLogFacets,
+  useCrowdsecLiveUpdates,
+} from "@/lib/queries"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { countryDisplayName } from "@/lib/country-flags"
 import { ipFilterHint, isValidIpFilter } from "@/lib/ip-filter-values"
@@ -466,7 +476,17 @@ export function DebugLogsTable() {
   const combinedColumns = useMemo(() => combinedDebugLogColumns(shownColumns), [shownColumns])
 
   // Detail sheet.
-  const [selected, setSelected] = useState<AccessLogDebugEntry | null>(null)
+  const queryClient = useQueryClient()
+  const recordLink = useRecordLink()
+  const recordKey = useMemo(() => parseLineRecord(recordLink.search), [recordLink.search])
+  const recordQuery = useAccessLogDebugLine(recordKey)
+  const openRecord = useCallback(
+    (entry: AccessLogDebugEntry) => {
+      queryClient.setQueryData(queryKeys.records.debugLine(entry.id, entry.createdAt), entry)
+      recordLink.open(lineRecord({ id: entry.id, at: entry.createdAt }))
+    },
+    [queryClient, recordLink],
+  )
   const [layoutRef, narrow] = useNarrowLayout<HTMLDivElement>()
   // Under the filter bar the rows take the height the page has left.
   const fill = !phone && !narrow
@@ -847,15 +867,17 @@ export function DebugLogsTable() {
                   layout={layout}
                   narrow={narrow}
                   timeFormat={timeFormat}
-                  onSelect={setSelected}
+                  onSelect={openRecord}
                 />
               </VirtualTable>
             </DataTableFrame>
           </div>
 
           <DebugLogDetailSheet
-            entry={selected}
-            onOpenChange={(open) => !open && setSelected(null)}
+            open={recordKey !== null}
+            entry={recordQuery.data ?? null}
+            status={recordStatus(recordQuery)}
+            onOpenChange={(open) => !open && recordLink.close()}
           />
         </div>
       </IpFilterTargetsProvider>

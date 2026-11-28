@@ -1,4 +1,4 @@
-import { useId, useRef } from "react"
+import { useId, useRef, useState } from "react"
 import { XIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -9,6 +9,8 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
+import { Skeleton } from "@/components/ui/skeleton"
+import { isClientError } from "@/lib/crowdsec-errors"
 import { useOverlayEntry } from "@/lib/overlay-history"
 import { cn } from "@/lib/utils"
 
@@ -145,5 +147,42 @@ export function DetailField({
         {empty ? "Not recorded" : value}
       </dd>
     </div>
+  )
+}
+
+/** What a sheet keeps showing while it slides closed, after the URL has
+ *  already dropped its record: the record, or its status when it never loaded. */
+export function useRecordWhileClosing<T>(value: T, open: boolean): T {
+  const [shown, setShown] = useState(value)
+  if (open && value !== shown) setShown(value)
+  return open ? value : shown
+}
+
+export type RecordStatus = "loading" | "missing" | "failed"
+
+/** Where a record from a link stands while the sheet has nothing to show. A
+ *  4xx, or a lookup that found no row, means the link is wrong or retention
+ *  removed the record. */
+export function recordStatus(query: { error: unknown; data?: unknown }): RecordStatus {
+  if (query.data === null || (query.error && isClientError(query.error))) return "missing"
+  return query.error ? "failed" : "loading"
+}
+
+/** The body of a record sheet whose record is still loading or did not load,
+ *  as when it opens from a link. */
+export function RecordPending({ status, noun }: { status: RecordStatus; noun: string }) {
+  if (status === "loading")
+    return (
+      <div className="space-y-3" aria-busy="true">
+        <Skeleton className="h-14 w-full" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    )
+  return (
+    <p className="text-sm text-muted-foreground">
+      {status === "missing"
+        ? `This ${noun} is no longer stored, or the link is wrong.`
+        : `Could not load this ${noun}.`}
+    </p>
   )
 }

@@ -3,7 +3,7 @@
  */
 
 import axios from "axios"
-import type { ReportItemInput } from "@/generated/api/types.gen"
+import type { GeoLogEntry, ReportItemInput } from "@/generated/api/types.gen"
 import {
   apiV1GeoEventsFacetsGetGeoLogFacets,
   apiV1GeoEventsLogsGetGeoLogs,
@@ -1160,6 +1160,31 @@ export async function fetchGeoLogs(
   return data
 }
 
+/** One Geo Logs row, the location and IP pair over a record link's range.
+ *  Naming the IP keeps a muted one. Null when the range holds no such row. */
+export async function fetchGeoLogRecord(
+  key: { locationId: number; ip: string; from: string; to: string },
+  filters: GeoLogFilterParams,
+): Promise<GeoLogEntry | null> {
+  // Through axios, unlike fetchGeoLogs, so a 4xx reads as a client error.
+  const { data } = await api.get<{ items: GeoLogEntry[] }>("/geo-events/logs", {
+    params: {
+      fromTimestamp: key.from,
+      toTimestamp: key.to,
+      // Server and ASN filters count only some of an IP's events, so the row
+      // keeps the page's filters with the IP in place of its own.
+      ...geoLogFilterQuery({ ...filters, ips: [key.ip], ipsExclude: [], excludeMutedIps: false }),
+      // One IP has few locations; the endpoint's largest page covers them all.
+      pageSize: 500,
+    },
+  })
+  // An IPv4 filter also matches its ::ffff: twin, which can hold a row of its own.
+  return (
+    data.items.find((entry) => entry.locationId === key.locationId && entry.ipAddress === key.ip) ??
+    null
+  )
+}
+
 export async function fetchGeoLogSummary(
   params: GeoLogsWindowParams & GeoLogFilterParams & { comparePrevious?: boolean },
 ) {
@@ -1380,6 +1405,12 @@ export interface AccessLogsParams {
   excludeMutedIps?: boolean
 }
 
+/** One access log line by id and time, for a link to its record. */
+export async function fetchAccessLogLine(id: number, at: string): Promise<AccessLog> {
+  const { data } = await api.get<AccessLog>(`/access-logs/${id}`, { params: { at } })
+  return data
+}
+
 export async function fetchAccessLogs(params: AccessLogsParams): Promise<AccessLogsPage> {
   const { data } = await api.get<AccessLogsPage>("/access-logs/", {
     params: {
@@ -1531,6 +1562,15 @@ export interface AccessLogDebugParams {
   malformed?: boolean
   sortField?: AccessLogDebugSortField
   sortOrder?: SortOrder
+}
+
+/** One stored raw line by id and storage time, for a link to its record. */
+export async function fetchAccessLogDebugLine(
+  id: number,
+  at: string,
+): Promise<AccessLogDebugEntry> {
+  const { data } = await api.get<AccessLogDebugEntry>(`/access-log-debug/${id}`, { params: { at } })
+  return data
 }
 
 export async function fetchAccessLogDebug(

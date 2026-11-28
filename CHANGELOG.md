@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - On a phone, a search button in the header opens search and commands as a full-screen sheet to find IPs, run actions, change the time range or jump to a page. See [Keyboard shortcuts](https://geometrikks.dev/docs/features/keyboard-shortcuts#on-a-phone).
 - On windows 1600 px wide or wider, the IP inspector docks beside the page by default, and the page stays usable next to it. A button next to Close switches between the dock and the side sheet, and your browser remembers the choice. While docked, it marks the log table row its IP came from, and its arrows or `J` and `K` step to the next row with another IP, loading the next page at the end.
 - The three Analytics traffic charts share one cursor. Hovering on desktop, or holding or dragging sideways on a phone, marks that bucket on all three and updates all three headers. On desktop, dragging across a chart zooms the page and its top lists to those hours, and the Zoom out button steps back one zoom at a time. See [App tour](https://geometrikks.dev/docs/features/app-tour#analytics).
+- Record sheets on Access Logs, Geo Logs, Debug Logs and the Security page's Alerts tab keep the open record in the page URL, so a reload or shared link opens it and Back closes it. Geo Logs links keep the time range in effect when the record opened, and Security alert links open the alert even when it is not in the loaded list. Inspect IP in a record sheet switches to the IP inspector, and Back returns to that record.
 
 ### Changed
 

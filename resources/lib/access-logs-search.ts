@@ -3,6 +3,7 @@
 import { z } from "zod"
 import { ACCESS_LOGS_PAGE_SIZES } from "@/components/access-logs/access-logs-table"
 import type { AccessLogFilterState } from "@/lib/access-log-filters-context"
+import { NO_RECORD, recordSearchShape } from "@/lib/record-search"
 import { arrayParam } from "@/lib/url-filters"
 
 // Absent keys mean "default"; navigate() writes undefined for defaults so
@@ -42,6 +43,7 @@ export const accessLogsSearchSchema = z.object({
     .optional()
     .catch(undefined),
   order: z.enum(["asc", "desc"]).optional().catch(undefined),
+  ...recordSearchShape,
 })
 
 export type AccessLogsSearch = z.infer<typeof accessLogsSearchSchema>
@@ -86,5 +88,8 @@ export function encodeAccessLogFilters(filters: AccessLogFilterState): Partial<A
   }
 }
 
-/** Filter changes always return to page 1. */
-export const ACCESS_LOGS_RESET_ON_CHANGE: Partial<AccessLogsSearch> = { page: undefined }
+/** Filter changes always return to page 1, and close the open record. */
+export const ACCESS_LOGS_RESET_ON_CHANGE: Partial<AccessLogsSearch> = {
+  page: undefined,
+  ...NO_RECORD,
+}

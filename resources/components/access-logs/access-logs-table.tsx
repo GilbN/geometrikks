@@ -2,11 +2,12 @@
  * Historical access-logs table: server-paginated, newest-first, scoped to the
  * global time range. Sorting and pagination state live on the parent route
  * (URL search params), driven here via props and callbacks; column visibility
- * persists per browser and the selected row is local state. Filter values come from AccessLogFiltersContext
+ * persists per browser and the open record lives in the URL. Filter values come from AccessLogFiltersContext
  * (search, IP, host, server, source format, status, method, country and
  * city live in access-logs-filter-bar.tsx). Pairs with GET /api/v1/access-logs/.
  */
-import { memo, useEffect, useMemo, useState } from "react"
+import { memo, useCallback, useEffect, useMemo } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { CountryFlag, CountryLabel } from "@/components/country-flag"
 import { TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useNarrowLayout } from "@/components/data/narrow-layout"
@@ -21,6 +22,7 @@ import { DataTableFrame } from "@/components/data/data-table-frame"
 import { rowActivation } from "@/components/data/row-activation"
 import { dataState } from "@/components/data/types"
 import { AccessLogDetailSheet } from "@/components/access-logs/access-log-detail-sheet"
+import { recordStatus } from "@/components/data/detail-sheet"
 import {
   ACCESS_LOG_COLUMNS,
   ACCESS_LOG_RENAMED_COLUMN_KEYS,
@@ -33,7 +35,9 @@ import { TableViewMenu } from "@/components/data/table-view-menu"
 import { useFilterBarToolsSlot } from "@/components/data/filter-bar-slot"
 import { PaginationFooter } from "@/components/ui/pagination-footer"
 import { pageToClamp } from "@/lib/use-muted-page"
-import { useAccessLogs, useCrowdsecLiveUpdates } from "@/lib/queries"
+import { queryKeys, useAccessLogLine, useAccessLogs, useCrowdsecLiveUpdates } from "@/lib/queries"
+import { useRecordLink } from "@/hooks/use-record-link"
+import { lineRecord, parseLineRecord } from "@/lib/record-search"
 import { IpActionsMenu, IpFilterTargetsProvider } from "@/components/ip-actions/ip-actions-menu"
 import { IpLabel } from "@/components/ip-actions/ip-label"
 import { accessLogFilterTargets, type IpRowValues } from "@/lib/ip-filter-targets"
@@ -410,7 +414,17 @@ export function AccessLogsTable({
   )
   const { range, customRange } = useTimeRange()
   useCrowdsecLiveUpdates()
-  const [selected, setSelected] = useState<AccessLog | null>(null)
+  const queryClient = useQueryClient()
+  const recordLink = useRecordLink()
+  const recordKey = useMemo(() => parseLineRecord(recordLink.search), [recordLink.search])
+  const recordQuery = useAccessLogLine(recordKey)
+  const openRecord = useCallback(
+    (log: AccessLog) => {
+      queryClient.setQueryData(queryKeys.records.accessLog(log.id, log.timestamp), log)
+      recordLink.open(lineRecord({ id: log.id, at: log.timestamp }))
+    },
+    [queryClient, recordLink],
+  )
   const [layoutRef, narrow] = useNarrowLayout<HTMLDivElement>()
   const isMobile = useIsMobile()
   // Under the filter bar the rows take the height the page has left.
@@ -457,10 +471,6 @@ export function AccessLogsTable({
     if (target !== null) onPageChange(target)
   }, [data, isPlaceholderData, page, pageCount, onPageChange])
 
-  // A changed hidden set can leave the open row off the list.
-  useEffect(() => {
-    setSelected(null)
-  }, [muted.flag, muted.version])
   const state = dataState(isLoading, isError, rows.length)
 
   function toggleSort(field: AccessLogSortField) {
@@ -618,13 +628,18 @@ export function AccessLogsTable({
               layout={layout}
               narrow={narrow}
               timeFormat={timeFormat}
-              onSelect={setSelected}
+              onSelect={openRecord}
             />
           </VirtualTable>
         </DataTableFrame>
       </div>
 
-      <AccessLogDetailSheet entry={selected} onOpenChange={(open) => !open && setSelected(null)} />
+      <AccessLogDetailSheet
+        open={recordKey !== null}
+        entry={recordQuery.data ?? null}
+        status={recordStatus(recordQuery)}
+        onOpenChange={(open) => !open && recordLink.close()}
+      />
     </IpFilterTargetsProvider>
   )
 }

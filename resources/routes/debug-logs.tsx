@@ -8,11 +8,13 @@ import { z } from "zod"
 import { DebugLogsStats } from "@/components/debug-logs/debug-logs-stats"
 import { DebugLogsTable } from "@/components/debug-logs/debug-logs-table"
 import { PageHeader } from "@/components/page-header"
+import { recordSearchShape } from "@/lib/record-search"
 
 /** Deep-link filters: the IP inspector's "Debug logs" link seeds both. */
 const debugLogsSearchSchema = z.object({
   ip: z.string().optional().catch(undefined),
   malformed: z.enum(["all", "malformed", "wellformed"]).optional().catch(undefined),
+  ...recordSearchShape,
 })
 
 export const Route = createFileRoute("/debug-logs")({

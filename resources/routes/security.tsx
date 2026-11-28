@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { createFileRoute, useLocation, useNavigate } from "@tanstack/react-router"
 import { ShieldBan } from "lucide-react"
+import { z } from "zod"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -12,6 +13,7 @@ import { DropNetworksCard } from "@/components/security/drop-networks-card"
 import { LapiPill, SecuritySummary } from "@/components/security/security-summary"
 import { ErrorBanner } from "@/components/error-banner"
 import { PageHeader } from "@/components/page-header"
+import { NO_RECORD, recordSearchShape, type RecordSearch } from "@/lib/record-search"
 import { CROWDSEC_DOCS_URL } from "@/lib/docs-links"
 import { dropNetworksLoaded } from "@/lib/drop-lists"
 import {
@@ -27,13 +29,17 @@ import {
   type SecurityTab,
 } from "@/lib/security-tabs"
 
-interface SecuritySearch {
+interface SecuritySearch extends RecordSearch {
   tab?: string
 }
 
+const securityRecordSchema = z.object({ record: recordSearchShape.record })
+
 export const Route = createFileRoute("/security")({
-  validateSearch: (search: Record<string, unknown>): SecuritySearch =>
-    typeof search.tab === "string" ? { tab: search.tab } : {},
+  validateSearch: (search: Record<string, unknown>): SecuritySearch => ({
+    ...(typeof search.tab === "string" ? { tab: search.tab } : {}),
+    ...securityRecordSchema.parse(search),
+  }),
   component: SecurityPage,
 })
 
@@ -48,7 +54,9 @@ function SecurityPage() {
   const { data: status, isLoading, isError } = useCrowdsecStatus()
   const { data: abuseIpdbStatus, isLoading: abuseIpdbLoading } = useAbuseIpdbStatus()
   const { data: about, isLoading: aboutLoading } = useAbout()
-  const { tab: requestedTab } = Route.useSearch()
+  // Only the tab: opening an alert puts it in the URL too, and the page needs
+  // no re-render for that.
+  const requestedTab = Route.useSearch({ select: (search) => search.tab })
   const hash = useLocation({ select: (location) => location.hash })
   const navigate = useNavigate({ from: "/security" })
   useCrowdsecLiveUpdates()
@@ -154,7 +162,11 @@ function SecurityPage() {
         value={activeTab}
         onValueChange={(value) =>
           navigate({
-            search: (previous) => ({ ...previous, tab: value === tabs[0] ? undefined : value }),
+            search: (previous) => ({
+              ...previous,
+              ...NO_RECORD,
+              tab: value === tabs[0] ? undefined : value,
+            }),
             hash: "",
             replace: true,
             resetScroll: false,

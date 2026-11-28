@@ -259,7 +259,7 @@ function alertIpValues(alert: AlertDetailView | undefined): IpRowValues | null {
   }
 }
 
-function AlertBody({ alert, onNavigate }: { alert: AlertDetailView; onNavigate: () => void }) {
+function AlertBody({ alert, onNavigate }: { alert: AlertDetailView; onNavigate?: () => void }) {
   const isIp = alert.scope === "Ip"
   const http = hasHttpEvents(alert.events)
   const { challenge, rest: context } = challengeContext(alert.context)
@@ -398,6 +398,7 @@ function AlertSheet({
   errorFallback,
   showFlyTo = true,
   onFilterScenario,
+  recordInUrl = false,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -407,12 +408,17 @@ function AlertSheet({
   errorFallback: string
   showFlyTo?: boolean
   onFilterScenario?: (scenario: string) => void
+  /** The alert lives in the URL, so a link out of the sheet leaves it in
+   *  history rather than closing it, and Back returns to it. */
+  recordInUrl?: boolean
 }) {
   const ip = alertIpValues(detail.data)
+  const onNavigate = recordInUrl ? undefined : () => onOpenChange(false)
   return (
     <DetailSheet
       open={open}
       onOpenChange={onOpenChange}
+      historyEntry={!recordInUrl}
       title={
         scenario ? (
           <ScenarioTitle scenario={scenario} />
@@ -426,7 +432,8 @@ function AlertSheet({
           <DetailIpActions
             values={ip}
             showOnMap={showFlyTo}
-            onNavigate={() => onOpenChange(false)}
+            onNavigate={onNavigate}
+            onFilter={() => onOpenChange(false)}
           />
         )
       }
@@ -462,31 +469,36 @@ function AlertSheet({
           {crowdsecErrorMessage(detail.error, errorFallback)}
         </p>
       )}
-      {detail.data && <AlertBody alert={detail.data} onNavigate={() => onOpenChange(false)} />}
+      {detail.data && <AlertBody alert={detail.data} onNavigate={onNavigate} />}
     </DetailSheet>
   )
 }
 
 /** Opened from an Alert history row. */
 export function AlertDetailSheet({
+  alertId,
   alert,
   onOpenChange,
   onFilterScenario,
 }: {
+  alertId: number | null
+  /** The row it opened from. A link has none, so the sheet reads the alert itself. */
   alert: AlertView | null
   onOpenChange: (open: boolean) => void
   onFilterScenario?: (scenario: string) => void
 }) {
-  const detail = useCrowdsecAlert(alert?.id ?? null)
+  const detail = useCrowdsecAlert(alertId)
+  const summary = alert ?? detail.data
   return (
     <AlertSheet
-      open={alert !== null}
+      open={alertId !== null}
       onOpenChange={onOpenChange}
-      scenario={alert?.scenario}
-      description={alert ? alertDescription(alert) : undefined}
+      scenario={summary?.scenario}
+      description={summary ? alertDescription(summary) : undefined}
       detail={detail}
       errorFallback="Could not load this alert."
       onFilterScenario={onFilterScenario}
+      recordInUrl
     />
   )
 }

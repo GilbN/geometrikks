@@ -484,13 +484,19 @@ for (const fixture of [
     await expect(dialog).toHaveCount(0)
     await expect(actions).toBeFocused()
 
-    // Replacing a record sheet with the inspector still returns to its row.
+    // The inspector takes over from a record sheet. On a phone, closing it is
+    // Back, which returns to the record. Either way focus ends on the row.
     await lastRow.focus()
     await page.keyboard.press("Enter")
     await dialog.getByRole("button", { name: "Inspect IP", exact: true }).click()
     await expect(dialog).toHaveCount(1)
     await expect(dialog.getByRole("heading", { level: 2 })).toContainText("192.0.2.1")
     await page.keyboard.press("Escape")
+    if ("mobile" in fixture) {
+      await expect(dialog).toHaveCount(1)
+      await expect(dialog.getByRole("button", { name: "Inspect IP", exact: true })).toBeVisible()
+      await page.keyboard.press("Escape")
+    }
     await expect(dialog).toHaveCount(0)
     await expect(lastRow).toBeFocused()
 

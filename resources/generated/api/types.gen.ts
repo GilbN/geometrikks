@@ -2231,6 +2231,33 @@ export type GeoLogTimeSeriesResponse = {
 };
 
 /**
+ * GetAccessLogAccessLogResponseBody
+ */
+export type GetAccessLogAccessLogResponseBody = {
+  autonomousSystemNumber?: number | null;
+  autonomousSystemOrganization?: string | null;
+  bytesSent?: number;
+  city?: string | null;
+  countryCode?: string | null;
+  countryName?: string | null;
+  host?: string | null;
+  httpVersion?: string | null;
+  id: number;
+  ipAddress: string;
+  logFormat?: string | null;
+  method?: string | null;
+  referrer?: string | null;
+  remoteUser?: string;
+  requestTime?: number | null;
+  server?: string | null;
+  statusCode: number;
+  timestamp: string;
+  upstreamResponseTime?: number | null;
+  url?: string | null;
+  userAgent?: string | null;
+};
+
+/**
  * GlobalTopIPsResponse
  *
  * The client IPs with the most events, each at the location where it had the most.
@@ -5080,6 +5107,60 @@ export type ApiV1AccessLogDebugStatsGetAccessLogDebugStatsResponses = {
 export type ApiV1AccessLogDebugStatsGetAccessLogDebugStatsResponse =
   ApiV1AccessLogDebugStatsGetAccessLogDebugStatsResponses[keyof ApiV1AccessLogDebugStatsGetAccessLogDebugStatsResponses];
 
+export type ApiV1AccessLogDebugLineIdGetAccessLogDebugData = {
+  body?: never;
+  path: {
+    /**
+     * The line's `id`.
+     */
+    line_id: number;
+  };
+  query: {
+    /**
+     * The line's `createdAt`, as ISO 8601. A time without a timezone is UTC.
+     */
+    at: string;
+  };
+  url: "/api/v1/access-log-debug/{line_id}";
+};
+
+export type ApiV1AccessLogDebugLineIdGetAccessLogDebugErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+  /**
+   * No line has this id at this time, or retention removed it.
+   */
+  404: ErrorEnvelope;
+};
+
+export type ApiV1AccessLogDebugLineIdGetAccessLogDebugError =
+  ApiV1AccessLogDebugLineIdGetAccessLogDebugErrors[keyof ApiV1AccessLogDebugLineIdGetAccessLogDebugErrors];
+
+export type ApiV1AccessLogDebugLineIdGetAccessLogDebugResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: AccessLogDebugEntry;
+};
+
+export type ApiV1AccessLogDebugLineIdGetAccessLogDebugResponse =
+  ApiV1AccessLogDebugLineIdGetAccessLogDebugResponses[keyof ApiV1AccessLogDebugLineIdGetAccessLogDebugResponses];
+
 export type ApiV1AccessLogsListAccessLogsData = {
   body?: never;
   path?: never;
@@ -5292,6 +5373,60 @@ export type ApiV1AccessLogsFacetsSearchSearchAccessLogFacetsResponses = {
 
 export type ApiV1AccessLogsFacetsSearchSearchAccessLogFacetsResponse =
   ApiV1AccessLogsFacetsSearchSearchAccessLogFacetsResponses[keyof ApiV1AccessLogsFacetsSearchSearchAccessLogFacetsResponses];
+
+export type ApiV1AccessLogsLogIdGetAccessLogData = {
+  body?: never;
+  path: {
+    /**
+     * The line's `id`.
+     */
+    log_id: number;
+  };
+  query: {
+    /**
+     * The line's `timestamp`, as ISO 8601. A time without a timezone is UTC.
+     */
+    at: string;
+  };
+  url: "/api/v1/access-logs/{log_id}";
+};
+
+export type ApiV1AccessLogsLogIdGetAccessLogErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+  /**
+   * No line has this id at this time, or retention removed it.
+   */
+  404: ErrorEnvelope;
+};
+
+export type ApiV1AccessLogsLogIdGetAccessLogError =
+  ApiV1AccessLogsLogIdGetAccessLogErrors[keyof ApiV1AccessLogsLogIdGetAccessLogErrors];
+
+export type ApiV1AccessLogsLogIdGetAccessLogResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: GetAccessLogAccessLogResponseBody;
+};
+
+export type ApiV1AccessLogsLogIdGetAccessLogResponse =
+  ApiV1AccessLogsLogIdGetAccessLogResponses[keyof ApiV1AccessLogsLogIdGetAccessLogResponses];
 
 export type ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesData = {
   body?: never;

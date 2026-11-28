@@ -151,6 +151,55 @@ describe("createOverlayHistory", () => {
     expect(history.location.state.__TSR_index).toBe(1)
   })
 
+  it("skips an adopted overlay's entry once a filter in a drawer above it drops it from the URL", async () => {
+    const { history, overlays, entry } = setup(["/", "/debug-logs"])
+    overlays.register("record", true, vi.fn(), (href) => href.includes("record="))
+    history.push("/debug-logs?record=1", { overlay: "record" })
+    overlays.opened("record")
+    entry("actions")
+    overlays.opened("actions")
+    await settle()
+    expect(history.location.state.__TSR_index).toBe(3)
+
+    history.replace("/debug-logs", {})
+    overlays.closed("actions")
+    await settle()
+    expect(history.location.state.__TSR_index).toBe(1)
+    expect(history.location.href).toBe("/debug-logs")
+    expect(history.location.state.overlay).toBeUndefined()
+  })
+
+  it("carries the filtered URL past an adopted overlay's dropped entry", async () => {
+    const { history, overlays, entry } = setup(["/", "/access-logs"])
+    overlays.register("record", true, vi.fn(), (href) => href.includes("record="))
+    history.push("/access-logs?record=1", { overlay: "record" })
+    overlays.opened("record")
+    entry("actions")
+    overlays.opened("actions")
+    await settle()
+
+    history.replace("/access-logs?ip=1", {})
+    overlays.closed("actions")
+    await settle()
+    expect(history.location.state.__TSR_index).toBe(1)
+    expect(history.location.href).toBe("/access-logs?ip=1")
+  })
+
+  it("keeps an adopted overlay's entry while the URL still opens it", async () => {
+    const { history, overlays } = setup(["/", "/access-logs"])
+    overlays.register("record", true, vi.fn(), (href) => href.includes("record="))
+    history.push("/access-logs?record=1", { overlay: "record" })
+    overlays.opened("record")
+    history.push("/map", {})
+    await settle()
+
+    history.back()
+    await settle()
+    expect(history.location.state.__TSR_index).toBe(2)
+    expect(history.location.href).toBe("/access-logs?record=1")
+    expect(history.location.state.overlay).toBe("record")
+  })
+
   it("skips the entry of a lower overlay that closed under an open one", async () => {
     const { history, overlays, entry } = setup(["/", "/map"])
     entry("layers")

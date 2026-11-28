@@ -88,6 +88,7 @@ UNDESCRIBABLE_PARAMETERS = frozenset(
 # SQLAlchemyDTO transfer models have no docstring to carry into the schema.
 UNDESCRIBABLE_COMPONENTS = frozenset(
     {
+        "GetAccessLogAccessLogResponseBody",
         "ListAccessLogsAccessLogResponseBody",
         "ListGeoEventsGeoEventGeoLocationResponseBody",
         "ListGeoEventsGeoEventResponseBody",

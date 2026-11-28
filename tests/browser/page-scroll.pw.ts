@@ -331,7 +331,7 @@ test.describe("desktop", () => {
 test.describe("portrait phone", () => {
   test.use({ viewport: { width: 393, height: 852 }, hasTouch: true, isMobile: true })
 
-  test("Back past a sheet's entry left by Show on map restores the scroll once the rows load", async ({
+  test("Back from Show on map reopens the record and restores the scroll once the rows load", async ({
     page,
   }) => {
     test.slow()
@@ -379,10 +379,9 @@ test.describe("portrait phone", () => {
     await page.getByRole("button", { name: "Refresh data" }).filter({ visible: true }).click()
 
     await page.goBack()
-    await expect(page).toHaveURL(/\/access-logs$/)
-    await expect(sheet).toHaveCount(0)
-    // Back lands on the sheet's entry, and the history manager skips it.
-    await expect.poll(() => page.evaluate(() => history.state?.overlay)).toBeUndefined()
+    // The record lives in the URL, so Back returns to it.
+    await expect(page).toHaveURL(/\/access-logs\?.*record=/)
+    await expect(sheet).toBeVisible()
     releaseRows()
     await expect(firstRow(page)).toBeVisible()
     await expect
