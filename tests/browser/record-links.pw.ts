@@ -25,6 +25,7 @@ async function login(page: Page) {
 const path = (route: Route) => new URL(route.request().url()).pathname.replace(/\/$/, "")
 const sheet = (page: Page) => page.locator('[data-slot="sheet-content"][data-state="open"]')
 const dock = (page: Page) => page.locator('[data-slot="inspector-dock"]')
+const recordDock = (page: Page) => page.locator('[data-slot="record-dock"]')
 
 // Microseconds on purpose: the link carries the time exactly as the list gave it.
 const accessLog = (id: number): AccessLog => ({
@@ -124,42 +125,91 @@ test.describe("Access Logs", () => {
 test.describe("Access Logs, docked", () => {
   test.use({ viewport: { width: 1920, height: 1080 } })
 
-  test("Inspect IP in a record hands over to the inspector, and Back returns to the record", async ({
+  async function openDocked(page: Page, index: number) {
+    await page
+      .locator(`table tr[data-index='${index}']`)
+      .getByText(`/request/${index + 1}`)
+      .click()
+    await expect(recordDock(page)).toHaveAccessibleName(`Request #${index + 1}`)
+  }
+
+  test("a record docks beside the page, another row replaces it, and one Back closes the dock", async ({
     page,
   }) => {
     await login(page)
     await routeAccessLogs(page)
-    await openAccessLogRecord(page, 2)
-    await sheet(page).getByRole("button", { name: "Inspect IP" }).click()
-    await expect(dock(page)).toHaveAccessibleName(/^198\.51\.100\.3/)
+    await page.goto("/access-logs")
+    await openDocked(page, 0)
     await expect(sheet(page)).toHaveCount(0)
-    await expect(page).not.toHaveURL(/record=/)
+    await openDocked(page, 1)
+    await expect(recordDock(page)).toContainText("/request/2")
+    await expect(page).toHaveURL(/record=2/)
 
     await page.goBack()
-    await expect(dock(page)).toHaveCount(0)
-    await expect(sheet(page)).toContainText("Request #3")
-    await expect(page).toHaveURL(/record=3/)
+    await expect(recordDock(page)).toHaveCount(0)
+    await expect(page).toHaveURL(/\/access-logs$/)
   })
 
-  test("with the inspector already docked, Back from Inspect IP still returns to the record", async ({
+  test("Inspect IP swaps the dock to the inspector, and its link back and Back return to the record", async ({
+    page,
+  }) => {
+    await login(page)
+    await routeAccessLogs(page)
+    await page.goto("/access-logs")
+    await openDocked(page, 2)
+    await recordDock(page).getByRole("button", { name: "Inspect IP" }).click()
+    await expect(dock(page)).toHaveAccessibleName(/^198\.51\.100\.3/)
+    await expect(recordDock(page)).toHaveCount(0)
+    await expect(page).not.toHaveURL(/record=/)
+
+    await dock(page).getByRole("button", { name: "Back to Request #3" }).click()
+    await expect(recordDock(page)).toHaveAccessibleName("Request #3")
+    await expect(dock(page)).toHaveCount(0)
+    await expect(page).toHaveURL(/record=3/)
+
+    // The link back comes with the inspector's entry.
+    await page.goForward()
+    await expect(dock(page).getByRole("button", { name: "Back to Request #3" })).toBeVisible()
+    await page.goBack()
+    await expect(recordDock(page)).toHaveAccessibleName("Request #3")
+  })
+
+  test("a record takes the dock from the inspector, and Back returns to the inspector", async ({
     page,
   }) => {
     await login(page)
     await routeAccessLogs(page)
     await page.goto("/access-logs?inspect=198.51.100.1")
     await expect(dock(page)).toHaveAccessibleName(/^198\.51\.100\.1/)
-    await page.locator("table tr[data-index='2']").getByText("/request/3").click()
-    await expect(sheet(page)).toContainText("Request #3")
-    await sheet(page).getByRole("button", { name: "Inspect IP" }).click()
-    await expect(dock(page)).toHaveAccessibleName(/^198\.51\.100\.3/)
-    await expect(sheet(page)).toHaveCount(0)
+    // An IP opened without a record has no link back.
+    await expect(dock(page).getByRole("button", { name: /^Back to / })).toHaveCount(0)
+    await openDocked(page, 2)
+    await expect(dock(page)).toHaveCount(0)
+    await expect(page).not.toHaveURL(/inspect=/)
 
     await page.goBack()
-    await expect(sheet(page)).toContainText("Request #3")
-    // The modal record hides the dock from the accessibility tree, so check the URL.
-    await expect(page).toHaveURL(
-      /inspect=198\.51\.100\.1&.*record=3|record=3&.*inspect=198\.51\.100\.1/,
-    )
+    await expect(dock(page)).toHaveAccessibleName(/^198\.51\.100\.1/)
+    await expect(recordDock(page)).toHaveCount(0)
+  })
+
+  test("Undock moves the record over the page, and Dock brings it back", async ({ page }) => {
+    await login(page)
+    await routeAccessLogs(page)
+    await page.goto("/access-logs")
+    await openDocked(page, 0)
+    await recordDock(page).getByRole("button", { name: "Undock the record" }).click()
+    await expect(sheet(page)).toContainText("Request #1")
+    await expect(recordDock(page)).toHaveCount(0)
+    // One choice for the dock, so the inspector opens over the page too.
+    await sheet(page).getByRole("button", { name: "Inspect IP" }).click()
+    await expect(sheet(page)).toContainText("198.51.100.1")
+    await expect(sheet(page).getByRole("button", { name: "Back to Request #1" })).toBeVisible()
+    await expect(dock(page)).toHaveCount(0)
+
+    await page.goBack()
+    await sheet(page).getByRole("button", { name: "Dock the record beside the page" }).click()
+    await expect(recordDock(page)).toHaveAccessibleName("Request #1")
+    await expect(recordDock(page).getByRole("button", { name: "Undock the record" })).toBeFocused()
   })
 })
 
@@ -406,6 +456,15 @@ test("an alert opens from its link, with or without its row", async ({ page }) =
   // A link to an alert the LAPI no longer holds says so.
   await page.goto("/security?tab=alerts&record=99")
   await expect(sheet(page)).toContainText("No CrowdSec alert with id 99")
+
+  // From 1600 px the alert docks, and the inspector links back to it.
+  await page.setViewportSize({ width: 1920, height: 1080 })
+  await page.goto("/security?tab=alerts&record=14")
+  await expect(recordDock(page)).toContainText("Alert #14")
+  await recordDock(page).getByRole("button", { name: "Inspect IP" }).click()
+  await expect(dock(page)).toHaveAccessibleName(/^198\.51\.100\.77/)
+  await dock(page).getByRole("button", { name: "Back to Alert #14" }).click()
+  await expect(recordDock(page)).toContainText("Alert #14")
 })
 
 test("a Geo Logs link opens its own location and IP, or says it is gone", async ({ page }) => {

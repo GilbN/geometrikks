@@ -152,12 +152,14 @@ export function DebugLogDetailSheet({
   const status = useRecordWhileClosing(liveStatus, open)
   const contentRef = useRef<HTMLDivElement>(null)
   const ip = ipValues(entry)
+  const title = entry ? `Debug line #${entry.id}` : "Debug line details"
   return (
     <DetailSheet
       open={open}
       onOpenChange={onOpenChange}
       historyEntry={false}
-      title={entry ? `Debug line #${entry.id}` : "Debug line details"}
+      dock={{ label: title }}
+      title={title}
       description={entry ? `Captured ${new Date(entry.createdAt).toLocaleString()}` : undefined}
       footer={ip && <DetailIpActions values={ip} onFilter={() => onOpenChange(false)} />}
     >

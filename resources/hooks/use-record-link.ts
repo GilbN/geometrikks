@@ -1,10 +1,13 @@
 /**
  * Opens and closes a page's record through the URL, the way the IP inspector
  * does with `?inspect=`: opening pushes an entry, so Back closes the record,
- * and a link or a reload opens it again.
+ * and a link or a reload opens it again. A record takes the dock from the
+ * inspector, and another record replaces a docked one's entry, so one Back
+ * still closes the dock.
  */
-import { useCallback, useMemo } from "react"
+import { useCallback, useLayoutEffect, useMemo, useRef } from "react"
 import { useNavigate, useSearch } from "@tanstack/react-router"
+import { useIpInspectorDock } from "@/lib/ip-inspector"
 import { useOverlayEntry, useOverlayHistory } from "@/lib/overlay-history"
 import { NO_RECORD, type RecordSearch } from "@/lib/record-search"
 
@@ -32,13 +35,26 @@ export function useRecordLink() {
     select: (search) => ({ record: search.record, at: search.at }),
     structuralSharing: true,
   })
+  const { docked } = useIpInspectorDock()
+  // A ref, so `open` keeps its identity while records change.
+  const replaceOnOpen = useRef(false)
+  useLayoutEffect(() => {
+    replaceOnOpen.current = docked && current.record !== undefined
+  })
 
   const open = useCallback(
     (next: RecordSearch, extra?: Record<string, unknown>) => {
       void navigate({
         to: ".",
-        search: (prev: Record<string, unknown>) => ({ ...prev, ...extra, ...NO_RECORD, ...next }),
+        search: (prev: Record<string, unknown>) => ({
+          ...prev,
+          ...extra,
+          ...NO_RECORD,
+          inspect: undefined,
+          ...next,
+        }),
         state: overlays.stateFor(RECORD_OVERLAY),
+        replace: replaceOnOpen.current,
       })
     },
     [navigate, overlays],

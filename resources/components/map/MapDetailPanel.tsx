@@ -216,9 +216,8 @@ export function MapDetailPanel({
   // a layer that closes on this press still reads as open here.
   const onEscape = useEffectEvent((event: KeyboardEvent) => {
     if (event.key !== "Escape" || document.querySelector(OPEN_LAYER)) return
-    // The docked IP inspector is not an overlay, so OPEN_LAYER misses it.
-    if (event.target instanceof Element && event.target.closest('[data-slot="inspector-dock"]'))
-      return
+    // The dock is not an overlay, so OPEN_LAYER misses it.
+    if (event.target instanceof Element && event.target.closest("[data-dock]")) return
     // An inline card shares its page with filters and tables, which keep their own Escape.
     const active = document.activeElement
     if (inline && !panelRef.current?.contains(active) && !mapRef?.getContainer().contains(active))

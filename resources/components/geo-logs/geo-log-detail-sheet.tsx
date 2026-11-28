@@ -39,12 +39,14 @@ export function GeoLogDetailSheet({
 }) {
   const entry = useRecordWhileClosing(liveEntry, open)
   const status = useRecordWhileClosing(liveStatus, open)
+  const title = (entry && (entry.city || entry.countryName)) || "Location details"
   return (
     <DetailSheet
       open={open}
       onOpenChange={onOpenChange}
       historyEntry={false}
-      title={entry ? entry.city || entry.countryName || "Location details" : "Location details"}
+      dock={{ label: title }}
+      title={title}
       description={
         entry ? `${formatNumber(entry.eventCount)} events · ${entry.ipAddress}` : undefined
       }
