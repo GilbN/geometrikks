@@ -45,12 +45,14 @@ export function AccessLogDetailSheet({
 }) {
   const entry = useRecordWhileClosing(liveEntry, open)
   const status = useRecordWhileClosing(liveStatus, open)
+  const title = entry ? `Request #${entry.id}` : "Request details"
   return (
     <DetailSheet
       open={open}
       onOpenChange={onOpenChange}
       historyEntry={false}
-      title={entry ? `Request #${entry.id}` : "Request details"}
+      dock={{ label: title }}
+      title={title}
       description={
         entry
           ? `${new Date(entry.timestamp).toLocaleString()} · ${entry.method ?? "Unknown method"}`

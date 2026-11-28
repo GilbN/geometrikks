@@ -82,6 +82,7 @@ async function inspectRow(page: Page, index: number) {
 }
 
 const dock = (page: Page) => page.locator('[data-slot="inspector-dock"]')
+const recordDock = (page: Page) => page.locator('[data-slot="record-dock"]')
 const startsWith = (ip: string) => new RegExp(`^${ip.replaceAll(".", "\\.")}`)
 const marked = (page: Page) => page.locator('table[data-density] tr[aria-current="true"]')
 const next = (page: Page) => dock(page).getByRole("button", { name: "Next IP in the table" })
@@ -212,10 +213,9 @@ test("without a row to step from, J and K move row focus as usual", async ({ pag
 test("Inspect IP in a row's record marks that row", async ({ page }) => {
   await openAccessLogs(page)
   await page.locator('table[data-density] tr[data-index="4"]').click()
-  const record = page.getByRole("dialog")
-  await record.getByRole("button", { name: "Inspect IP" }).click()
+  await recordDock(page).getByRole("button", { name: "Inspect IP" }).click()
   await expect(dock(page)).toHaveAccessibleName(startsWith(ipFor(4)))
-  await expect(record).toHaveCount(0)
+  await expect(recordDock(page)).toHaveCount(0)
   await expect(marked(page)).toHaveAttribute("data-index", "4")
 })
 
@@ -254,8 +254,9 @@ test("Inspect IP in the record of the row already shown keeps its mark", async (
   await page.keyboard.press("i")
   await expect(marked(page)).toHaveAttribute("data-index", "0")
   await page.keyboard.press("Enter")
-  await page.getByRole("dialog").getByRole("button", { name: "Inspect IP" }).click()
-  await expect(page.getByRole("dialog")).toHaveCount(0)
+  await expect(dock(page)).toHaveCount(0)
+  await recordDock(page).getByRole("button", { name: "Inspect IP" }).click()
+  await expect(recordDock(page)).toHaveCount(0)
   await expect(marked(page)).toHaveAttribute("data-index", "0")
   await expect(next(page)).toBeVisible()
 })

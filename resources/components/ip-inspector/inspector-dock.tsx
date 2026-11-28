@@ -3,10 +3,12 @@ import { PanelRight, XIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
-/** The inspector beside the page on a wide screen. It is a column of the app
- *  shell rather than an overlay, so the page stays usable. Laid out like a
- *  DetailSheet. */
+/** The inspector or a record beside the page on a wide screen. It is a column
+ *  of the app shell rather than an overlay, so the page stays usable. Laid out
+ *  like a DetailSheet. */
 export function InspectorDock({
+  kind = "inspector",
+  topLine,
   title,
   description,
   actions,
@@ -17,6 +19,9 @@ export function InspectorDock({
   contentKey,
   children,
 }: {
+  kind?: "inspector" | "record"
+  /** A row above the title. */
+  topLine?: ReactNode
   title: ReactNode
   description?: ReactNode
   actions?: ReactNode
@@ -64,7 +69,8 @@ export function InspectorDock({
   return (
     <aside
       ref={asideRef}
-      data-slot="inspector-dock"
+      data-slot={`${kind}-dock`}
+      data-dock=""
       aria-labelledby={titleId}
       aria-describedby={description ? descriptionId : undefined}
       className="flex h-(--app-height) w-[31rem] shrink-0 min-[120rem]:w-[32.5rem] flex-col border-l border-border/50 bg-panel text-sm"
@@ -78,6 +84,7 @@ export function InspectorDock({
       }}
     >
       <header className="grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 border-b border-border/50 p-4">
+        {topLine && <div className="col-span-2">{topLine}</div>}
         <h2 id={titleId} className="font-medium text-foreground">
           {title}
         </h2>
@@ -107,16 +114,18 @@ export function InspectorDock({
   )
 }
 
-/** Moves the inspector between the dock and the overlay. Shown only where
- *  the viewport is wide enough to dock. */
+/** Moves the inspector or a record between the dock and the overlay. Shown
+ *  only where the viewport is wide enough to dock. */
 export function DockToggle({
   docked,
   onDockedChange,
+  noun = "inspector",
 }: {
   docked: boolean
   onDockedChange: (docked: boolean) => void
+  noun?: "inspector" | "record"
 }) {
-  const label = docked ? "Undock the inspector" : "Dock the inspector beside the page"
+  const label = docked ? `Undock the ${noun}` : `Dock the ${noun} beside the page`
   return (
     <Button
       variant="ghost"
@@ -133,7 +142,7 @@ export function DockToggle({
 }
 
 export const OUTSIDE_PAGE = [
-  '[data-slot="inspector-dock"]',
+  "[data-dock]",
   '[role="dialog"]',
   '[role="alertdialog"]',
   '[role="menu"]',

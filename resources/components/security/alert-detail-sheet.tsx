@@ -398,7 +398,7 @@ function AlertSheet({
   errorFallback,
   showFlyTo = true,
   onFilterScenario,
-  recordInUrl = false,
+  recordInUrl,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -409,8 +409,9 @@ function AlertSheet({
   showFlyTo?: boolean
   onFilterScenario?: (scenario: string) => void
   /** The alert lives in the URL, so a link out of the sheet leaves it in
-   *  history rather than closing it, and Back returns to it. */
-  recordInUrl?: boolean
+   *  history rather than closing it, Back returns to it, and it can dock.
+   *  `label` names it in the inspector's link back. */
+  recordInUrl?: { label: string }
 }) {
   const ip = alertIpValues(detail.data)
   const onNavigate = recordInUrl ? undefined : () => onOpenChange(false)
@@ -419,6 +420,7 @@ function AlertSheet({
       open={open}
       onOpenChange={onOpenChange}
       historyEntry={!recordInUrl}
+      dock={recordInUrl}
       title={
         scenario ? (
           <ScenarioTitle scenario={scenario} />
@@ -498,7 +500,7 @@ export function AlertDetailSheet({
       detail={detail}
       errorFallback="Could not load this alert."
       onFilterScenario={onFilterScenario}
-      recordInUrl
+      recordInUrl={{ label: alertId === null ? "Alert" : `Alert #${alertId}` }}
     />
   )
 }

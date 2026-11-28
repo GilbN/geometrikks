@@ -8,8 +8,9 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react"
-import { Link } from "@tanstack/react-router"
+import { Link, useRouter, useRouterState } from "@tanstack/react-router"
 import {
+  ArrowLeft,
   BarChart3,
   Bug,
   ChevronDown,
@@ -177,6 +178,8 @@ export function IpInspectorSheet() {
       {valid && <SheetRangeControls beforeZoom={beforeZoom} onRestore={restore} />}
     </span>
   )
+  const fromRecord = useRouterState({ select: (state) => state.location.state.fromRecord })
+  const topLine = fromRecord ? <BackToRecord label={fromRecord} /> : undefined
   const description = valid ? undefined : "Not a valid IP address"
   const footer = valid ? <IpInspectorFooter ip={ip} /> : undefined
   const body = valid ? (
@@ -191,6 +194,7 @@ export function IpInspectorSheet() {
         historyEntry={false}
         open={open && !docked}
         onOpenChange={(next) => !next && close()}
+        topLine={topLine}
         title={title}
         description={description}
         footer={footer}
@@ -202,6 +206,7 @@ export function IpInspectorSheet() {
       </DetailSheet>
       {open && docked && (
         <InspectorDock
+          topLine={topLine}
           title={title}
           description={description}
           footer={footer}
@@ -220,6 +225,26 @@ export function IpInspectorSheet() {
         </InspectorDock>
       )}
     </>
+  )
+}
+
+/** Back to the record the inspector took over from, the entry below this one. */
+function BackToRecord({ label }: { label: string }) {
+  const router = useRouter()
+  return (
+    <div className="-mt-1 -ml-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-6 gap-1 bg-muted/60 px-1.5 text-xs font-normal text-foreground"
+        aria-label={`Back to ${label}`}
+        onClick={() => router.history.back()}
+      >
+        <ArrowLeft className="size-3.5" />
+        {label}
+      </Button>
+      <span aria-hidden="true">Back returns here</span>
+    </div>
   )
 }
 

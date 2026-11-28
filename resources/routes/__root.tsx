@@ -31,7 +31,7 @@ import { ErrorBanner } from "@/components/error-banner"
 import { Button } from "@/components/ui/button"
 import { ChevronLeft, RefreshCw, Home } from "lucide-react"
 import { inspectSearchSchema } from "@/lib/ip-inspector-search"
-import { IpInspectorProvider } from "@/lib/ip-inspector"
+import { IpInspectorProvider, useIpInspectorDock } from "@/lib/ip-inspector"
 import { RecordOverlayEntry } from "@/hooks/use-record-link"
 import { OverlayHistoryProvider } from "@/lib/overlay-history"
 import { IpInspectorSheet } from "@/components/ip-inspector/ip-inspector-sheet"
@@ -269,6 +269,12 @@ function PageInset(props: ComponentProps<typeof SidebarInset>) {
   return <SidebarInset {...props} inert={moreOpen && phoneSide} />
 }
 
+/** Where a page's docked record renders, beside the page like the inspector. */
+function RecordDockSlot() {
+  const { setSlot } = useIpInspectorDock()
+  return <div ref={setSlot} className="contents" />
+}
+
 function RootLayout() {
   const isChromeless = useRouterState({
     select: (state) => isChromelessRoute(state.location.pathname),
@@ -360,6 +366,7 @@ function RootLayout() {
                       </main>
                     </PageInset>
                     {phone && <TabBar compact={phoneSide} />}
+                    <RecordDockSlot />
                     <IpInspectorSheet />
                     <KeyboardShortcuts />
                     <CommandPalette />

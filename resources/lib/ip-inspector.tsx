@@ -2,6 +2,9 @@
  * Which IP the inspector shows lives in the URL (`?inspect=`), declared on
  * the root route so every page inherits it. Where it was opened from (a map
  * location id) is React state only: a pasted link has no origin.
+ *
+ * The provider also owns the dock, the one column beside the page. It shows
+ * the inspector or a page's record, never both.
  */
 import {
   createContext,
@@ -12,7 +15,7 @@ import {
   useRef,
   useState,
 } from "react"
-import { useNavigate, useSearch } from "@tanstack/react-router"
+import { useNavigate, useRouter, useSearch } from "@tanstack/react-router"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import { usePhoneLayout } from "@/hooks/use-phone-map"
 import { useOverlayEntry, useOverlayHistory } from "@/lib/overlay-history"
@@ -28,6 +31,13 @@ interface ActionsState {
   close: () => void
 }
 
+declare module "@tanstack/history" {
+  interface HistoryState {
+    /** The record the inspector took over from, which the entry below shows. */
+    fromRecord?: string
+  }
+}
+
 const ActionsContext = createContext<ActionsState | null>(null)
 const OriginContext = createContext<number | null | undefined>(undefined)
 
@@ -37,9 +47,15 @@ interface DockState {
   /** The inspector shows docked beside the page rather than over it. */
   docked: boolean
   setDocked: (docked: boolean) => void
+  /** The app shell's column that a docked record renders into. */
+  slot: HTMLElement | null
+  setSlot: (slot: HTMLElement | null) => void
 }
 
 const DockContext = createContext<DockState | null>(null)
+
+// The label of the record on screen, which the inspector's link back names.
+const ShownRecordContext = createContext<{ current: string | undefined } | null>(null)
 
 const INSPECTOR_OVERLAY = "inspector"
 
@@ -54,6 +70,7 @@ export function onIpInspectorOpen(listener: (ip: string) => void): () => void {
 
 export function IpInspectorProvider({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate()
+  const router = useRouter()
   const overlays = useOverlayHistory()
   const inspectedIp = useInspectedIp()
   const [originLocationId, setOrigin] = useState<number | null>(null)
@@ -67,16 +84,20 @@ export function IpInspectorProvider({ children }: { children: React.ReactNode })
     setDockPreferred(next)
     saveInspectorDockedPreference(next)
   }, [])
+  const [slot, setSlot] = useState<HTMLElement | null>(null)
+  const shownRecord = useRef<string | undefined>(undefined)
 
   // A ref, so `open` keeps its identity and every row's menu does not
   // re-render each time the docked inspector switches IPs.
   const replaceOnOpen = useRef(false)
+  const recordOpenRef = useRef(false)
   const recordOpen = useSearch({
     strict: false,
     select: (search) => search.record !== undefined,
   })
   useLayoutEffect(() => {
     replaceOnOpen.current = docked && inspectedIp !== undefined && !recordOpen
+    recordOpenRef.current = recordOpen
   })
 
   const open = useCallback(
@@ -87,14 +108,19 @@ export function IpInspectorProvider({ children }: { children: React.ReactNode })
       // while it is open, so a second IP replaces the entry and one Back
       // still closes it. The inspector takes over from an open record in the
       // same step, so Back from it returns to that record.
+      const fromRecord = recordOpenRef.current
+        ? shownRecord.current
+        : replaceOnOpen.current
+          ? router.history.location.state.fromRecord
+          : undefined
       void navigate({
         to: ".",
         search: (prev: Record<string, unknown>) => ({ ...prev, ...NO_RECORD, inspect: nextIp }),
-        state: overlays.stateFor(INSPECTOR_OVERLAY),
+        state: { ...overlays.stateFor(INSPECTOR_OVERLAY), fromRecord },
         replace: replaceOnOpen.current,
       })
     },
-    [navigate, overlays, setOrigin],
+    [navigate, router, overlays, setOrigin],
   )
 
   const close = useCallback(() => {
@@ -110,11 +136,16 @@ export function IpInspectorProvider({ children }: { children: React.ReactNode })
   useOverlayEntry(INSPECTOR_OVERLAY, inspectedIp !== undefined, close, { adopt: true })
 
   const actions = useMemo(() => ({ open, close }), [open, close])
-  const dock = useMemo(() => ({ canDock, docked, setDocked }), [canDock, docked, setDocked])
+  const dock = useMemo(
+    () => ({ canDock, docked, setDocked, slot, setSlot }),
+    [canDock, docked, setDocked, slot],
+  )
   return (
     <ActionsContext.Provider value={actions}>
       <OriginContext.Provider value={originLocationId}>
-        <DockContext.Provider value={dock}>{children}</DockContext.Provider>
+        <DockContext.Provider value={dock}>
+          <ShownRecordContext.Provider value={shownRecord}>{children}</ShownRecordContext.Provider>
+        </DockContext.Provider>
       </OriginContext.Provider>
     </ActionsContext.Provider>
   )
@@ -138,6 +169,19 @@ export function useIpInspectorDock() {
   const dock = useContext(DockContext)
   if (!dock) throw new Error("useIpInspectorDock must be used within an IpInspectorProvider")
   return dock
+}
+
+/** Names the record on screen while `label` is set, so an inspector opened
+ *  from it can link back. */
+export function useShownRecord(label: string | undefined) {
+  const shown = useContext(ShownRecordContext)
+  useLayoutEffect(() => {
+    if (!shown || label === undefined) return
+    shown.current = label
+    return () => {
+      if (shown.current === label) shown.current = undefined
+    }
+  }, [shown, label])
 }
 
 /** The `inspect` value for a link out of the sheet. Below `sm` the sheet fills

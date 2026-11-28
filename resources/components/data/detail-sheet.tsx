@@ -1,4 +1,6 @@
-import { useId, useRef, useState } from "react"
+import { useEffect, useId, useRef, useState } from "react"
+import { createPortal } from "react-dom"
+import { useSearch } from "@tanstack/react-router"
 import { XIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -10,7 +12,13 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Skeleton } from "@/components/ui/skeleton"
+import {
+  DockToggle,
+  InspectorDock,
+  useLastPageFocus,
+} from "@/components/ip-inspector/inspector-dock"
 import { isClientError } from "@/lib/crowdsec-errors"
+import { useIpInspectorDock, useShownRecord } from "@/lib/ip-inspector"
 import { useOverlayEntry } from "@/lib/overlay-history"
 import { cn } from "@/lib/utils"
 
@@ -19,10 +27,12 @@ import { cn } from "@/lib/utils"
 const sheetOpeners = new WeakMap<EventTarget, HTMLElement[]>()
 
 /** Right-side record viewer: full-screen on phones, a bounded panel from
- * `sm` up. The body scrolls; the header and the optional footer stay. */
+ * `sm` up. The body scrolls; the header and the optional footer stay. A
+ * record given `dock` shows in the dock beside the page where it fits. */
 export function DetailSheet({
   open,
   onOpenChange,
+  topLine,
   title,
   description,
   children,
@@ -31,9 +41,12 @@ export function DetailSheet({
   className,
   historyEntry = true,
   returnFocus,
+  dock,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
+  /** A row above the title. */
+  topLine?: React.ReactNode
   title: React.ReactNode
   description?: React.ReactNode
   children: React.ReactNode
@@ -45,11 +58,57 @@ export function DetailSheet({
   historyEntry?: boolean
   /** Where focus goes on close when every element that opened the sheet is gone. */
   returnFocus?: () => HTMLElement | null
+  /** A page's record from the URL, which shares the dock with the inspector.
+   *  `label` names it in the inspector's link back. */
+  dock?: { label: string }
 }) {
   const openerRef = useRef<HTMLElement[]>([])
   const contentRef = useRef<HTMLDivElement>(null)
   const overlayId = useId()
   useOverlayEntry(`detail-sheet-${overlayId}`, historyEntry && open, () => onOpenChange(false))
+  const shared = useIpInspectorDock()
+  // A hand-made link can name an IP and a record; the inspector keeps the dock.
+  const inspecting = useSearch({ strict: false, select: (search) => search.inspect !== undefined })
+  const dockable = dock !== undefined && shared.canDock
+  const docked = dockable && shared.docked && !inspecting ? shared.slot : null
+  const [focusDockToggle, setFocusDockToggle] = useState(false)
+  useEffect(() => {
+    if (!open) setFocusDockToggle(false)
+  }, [open])
+  useShownRecord(open ? dock?.label : undefined)
+
+  if (docked)
+    return open
+      ? createPortal(
+          <DockedRecord
+            label={dock?.label}
+            topLine={topLine}
+            title={title}
+            description={description}
+            footer={footer}
+            actions={
+              <>
+                {actions}
+                <DockToggle
+                  noun="record"
+                  docked
+                  onDockedChange={() => {
+                    setFocusDockToggle(false)
+                    shared.setDocked(false)
+                  }}
+                />
+              </>
+            }
+            onClose={() => onOpenChange(false)}
+            returnFocus={returnFocus}
+            focusToggle={focusDockToggle}
+          >
+            {children}
+          </DockedRecord>,
+          docked,
+        )
+      : null
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
@@ -82,11 +141,22 @@ export function DetailSheet({
         }}
       >
         <SheetHeader className="grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 border-b border-border/50">
+          {topLine && <div className="col-span-2 mb-1.5">{topLine}</div>}
           <SheetTitle>{title}</SheetTitle>
           {/* Spans the description row too, so it centres on the whole header. The negative margins
               stop it from making a title-only header taller. */}
           <div className={cn("flex items-center gap-1", description && "row-span-2")}>
             {actions}
+            {dockable && !inspecting && (
+              <DockToggle
+                noun="record"
+                docked={false}
+                onDockedChange={() => {
+                  setFocusDockToggle(true)
+                  shared.setDocked(true)
+                }}
+              />
+            )}
             <SheetClose asChild>
               <Button
                 variant="ghost"
@@ -118,6 +188,34 @@ export function DetailSheet({
         )}
       </SheetContent>
     </Sheet>
+  )
+}
+
+/** A record in the dock. Focus leaving with it goes back to the row it came
+ *  from, or to whatever on the page had focus last. */
+function DockedRecord({
+  label,
+  returnFocus,
+  ...props
+}: Omit<React.ComponentProps<typeof InspectorDock>, "kind" | "contentKey" | "returnFocus"> & {
+  label: string | undefined
+  returnFocus?: () => HTMLElement | null
+}) {
+  const lastPageFocus = useLastPageFocus()
+  const [opener] = useState(() =>
+    document.activeElement instanceof HTMLElement && document.activeElement !== document.body
+      ? document.activeElement
+      : null,
+  )
+  return (
+    <InspectorDock
+      {...props}
+      kind="record"
+      contentKey={label}
+      returnFocus={() =>
+        lastPageFocus() ?? (opener?.isConnected ? opener : null) ?? returnFocus?.() ?? null
+      }
+    />
   )
 }
 
