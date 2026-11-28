@@ -50,6 +50,7 @@ from geometrikks.lib.pagination import (
     order_by_provider,
 )
 from geometrikks.lib.parameters import (
+    BIGINT_MAX,
     CITY_FILTER_DESCRIPTION,
     COUNTRY_FILTER_DESCRIPTION,
     REPEAT_NOTE,
@@ -390,7 +391,7 @@ class AccessLogController(Controller):
     async def get_access_log(
         self,
         access_log_service: NamedDependency[AccessLogService],
-        log_id: Annotated[int, PathParameter(description="The line's `id`.")],
+        log_id: Annotated[int, PathParameter(description="The line's `id`.", ge=1, le=BIGINT_MAX)],
         at: Annotated[
             datetime,
             QueryParameter(description="The line's `timestamp`, as ISO 8601. A time without a timezone is UTC."),

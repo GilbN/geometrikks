@@ -39,6 +39,9 @@ describe("geo records", () => {
     expect(parseGeoRecord({ record: "41@", at: `${key.from}/${AT}` })).toBeNull()
     expect(parseGeoRecord({ record: "41@1.2.3.4", at: key.from })).toBeNull()
     expect(parseGeoRecord({ record: "41@1.2.3.4", at: `${key.from}/${AT}/x` })).toBeNull()
+    expect(
+      parseGeoRecord({ record: `99999999999999999999@1.2.3.4`, at: `${key.from}/${AT}` }),
+    ).toBeNull()
   })
 })
 

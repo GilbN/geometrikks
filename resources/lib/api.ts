@@ -1164,15 +1164,16 @@ export async function fetchGeoLogs(
  *  Naming the IP keeps a muted one. Null when the range holds no such row. */
 export async function fetchGeoLogRecord(
   key: { locationId: number; ip: string; from: string; to: string },
-  servers: string[],
+  filters: GeoLogFilterParams,
 ): Promise<GeoLogEntry | null> {
   // Through axios, unlike fetchGeoLogs, so a 4xx reads as a client error.
   const { data } = await api.get<{ items: GeoLogEntry[] }>("/geo-events/logs", {
     params: {
       fromTimestamp: key.from,
       toTimestamp: key.to,
-      ipAddressIn: [key.ip],
-      serverIn: servers.length ? servers : undefined,
+      // Server and ASN filters count only some of an IP's events, so the row
+      // keeps the page's filters with the IP in place of its own.
+      ...geoLogFilterQuery({ ...filters, ips: [key.ip], ipsExclude: [], excludeMutedIps: false }),
       // One IP has few locations; the endpoint's largest page covers them all.
       pageSize: 500,
     },

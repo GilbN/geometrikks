@@ -44,6 +44,8 @@ def local_days_edge_note(start_name: str, end_name: str) -> str:
     )
 
 
+# The largest id a Postgres BIGINT column holds.
+BIGINT_MAX = 2**63 - 1
 REPEAT_NOTE = "Repeat the parameter to pass more than one."
 IP_FILTER_NOTE = (
     "Each value is an address or a CIDR range such as `203.0.113.0/24`. A range with host bits set, "

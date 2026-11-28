@@ -183,9 +183,12 @@ test.describe("on a phone", () => {
     await expect(sheet(page)).toContainText("Request #2")
   })
 
-  test("a filter from the record's actions drawer closes the record", async ({ page }) => {
+  test("a filter from the record's actions drawer closes the record, and Back leaves the page", async ({
+    page,
+  }) => {
     await login(page)
     await routeAccessLogs(page)
+    await page.goto("/settings")
     await openAccessLogRecord(page, 0)
     await sheet(page).getByRole("button", { name: "Actions for 198.51.100.1" }).click()
     await page.getByRole("radio", { name: "Filter by IP" }).click()
@@ -193,13 +196,18 @@ test.describe("on a phone", () => {
     await expect(page.getByRole("dialog")).toHaveCount(0)
     await expect(page).toHaveURL(/ip=%5B%22198\.51\.100\.1%22%5D/)
     await expect(page).not.toHaveURL(/record=/)
+
+    // The record's entry goes with it, so Back leaves Access Logs.
+    await page.goBack()
+    await expect(page).toHaveURL(/\/settings/)
   })
 
-  test("a Debug Logs filter from the record's actions drawer closes the record", async ({
+  test("a Debug Logs filter from the record's actions drawer closes the record, and Back leaves the page", async ({
     page,
   }) => {
     await login(page)
     await routeDebugLine(page)
+    await page.goto("/settings")
     await page.goto("/debug-logs")
     await page.locator("table tr[data-index='0']").click()
     await expect(sheet(page)).toContainText("Debug line #4000")
@@ -208,6 +216,9 @@ test.describe("on a phone", () => {
     await expect(sheet(page)).toHaveCount(0)
     await expect(page.getByRole("dialog")).toHaveCount(0)
     await expect(page).not.toHaveURL(/record=/)
+
+    await page.goBack()
+    await expect(page).toHaveURL(/\/settings/)
   })
 })
 
@@ -235,12 +246,17 @@ test("a Geo Logs record keeps its location, IP and range in the link", async ({ 
   await page.route("**/api/v1/geo-events/logs?*", (route) => {
     const query = new URL(route.request().url()).searchParams
     const window = `${query.get("fromTimestamp")}/${query.get("toTimestamp")}`
-    if (query.get("ipAddressIn")) lookups.push(`${window} ${query.getAll("serverIn").join(",")}`)
+    if (query.get("ipAddressIn"))
+      lookups.push(
+        `${window} ${query.getAll("serverIn").join(",")} ${query.getAll("asnIn").join(",")}`,
+      )
     else tableWindows.push(window)
     return route.fulfill({ json: { items: [row], total: 1, limit: 50, offset: 0 } })
   })
-  // A server filter changes the row's count, so the lookup sends it too.
-  await page.goto(`/geo-logs?server=${encodeURIComponent('["edge"]')}`)
+  // Server and ASN filters change the row's count, so the lookup sends them too.
+  await page.goto(
+    `/geo-logs?server=${encodeURIComponent('["edge"]')}&asn=${encodeURIComponent("[64496]")}`,
+  )
   await page.locator("table[data-density] tr[data-index='0']").click()
   await expect(sheet(page)).toContainText("528 events")
   const url = new URL(page.url())
@@ -251,7 +267,7 @@ test("a Geo Logs record keeps its location, IP and range in the link", async ({ 
 
   await page.reload()
   await expect(sheet(page)).toContainText("528 events")
-  expect(lookups).toEqual([`${range} edge`])
+  expect(lookups).toEqual([`${range} edge 64496`])
 })
 
 const DEBUG_LINE: AccessLogDebugEntry = {
@@ -336,6 +352,9 @@ test("an alert opens from its link, with or without its row", async ({ page }) =
   await page.route("**/api/v1/crowdsec/alerts?*", (route) =>
     route.fulfill({ json: { alerts: rows, nextCursor: null } }),
   )
+  await page.route("**/api/v1/crowdsec/alerts/99", (route) =>
+    route.fulfill({ status: 404, json: { detail: "No CrowdSec alert with id 99" } }),
+  )
   await page.route("**/api/v1/crowdsec/alerts/14", (route) =>
     route.fulfill({
       json: {
@@ -369,4 +388,46 @@ test("an alert opens from its link, with or without its row", async ({ page }) =
   const url = new URL(page.url())
   expect(url.searchParams.get("tab")).toBe("alerts")
   expect(url.searchParams.get("record")).toBe("14")
+
+  // A link to an alert the LAPI no longer holds says so.
+  await page.goto("/security?tab=alerts&record=99")
+  await expect(sheet(page)).toContainText("No CrowdSec alert with id 99")
+})
+
+test("a Geo Logs link opens its own location and IP, or says it is gone", async ({ page }) => {
+  await login(page)
+  const at = "2026-11-21T00:00:00.000Z/2026-11-28T00:00:00.000Z"
+  const geoRow = (locationId: number, ipAddress: string, eventCount: number) => ({
+    locationId,
+    ipAddress,
+    eventCount,
+    lastSeen: "2026-11-27T19:00:00Z",
+    city: `City ${locationId}`,
+    postalCode: null,
+    state: null,
+    stateCode: null,
+    countryCode: "NO",
+    countryName: "Norway",
+    latitude: 59.9,
+    longitude: 10.7,
+    asn: null,
+    asOrganization: null,
+    servers: ["edge"],
+  })
+  // The IPv4 filter also matches the ::ffff: twin, and the IP has a second location.
+  const items = [
+    geoRow(41, "::ffff:198.51.100.9", 1),
+    geoRow(42, "198.51.100.9", 2),
+    geoRow(41, "198.51.100.9", 3),
+  ]
+  await page.route("**/api/v1/geo-events/logs?*", (route) =>
+    route.fulfill({ json: { items, total: items.length, limit: 50, offset: 0 } }),
+  )
+  await page.goto(`/geo-logs?record=41@198.51.100.9&at=${encodeURIComponent(at)}`)
+  await expect(sheet(page)).toContainText("3 events")
+
+  await page.goto(`/geo-logs?record=43@198.51.100.9&at=${encodeURIComponent(at)}`)
+  await expect(sheet(page)).toContainText(
+    "This location is no longer stored, or the link is wrong.",
+  )
 })

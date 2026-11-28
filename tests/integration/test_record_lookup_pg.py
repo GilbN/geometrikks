@@ -92,6 +92,12 @@ async def test_access_log_line_needs_its_time(client) -> None:
     assert response.status_code == 400
 
 
+@pytest.mark.parametrize("path", ["/api/v1/access-logs", "/api/v1/access-log-debug"])
+async def test_lookup_ids_stay_within_bigint(client, path: str) -> None:
+    response = await client.get(f"{path}/{2**63}", params={"at": "2026-11-28T00:00:00Z"})
+    assert response.status_code == 400
+
+
 async def test_stored_line_by_id_and_time(pg_session_maker, clean_tables, client) -> None:
     created = datetime.now(UTC).replace(microsecond=654321) - timedelta(minutes=5)
     async with pg_session_maker() as session:

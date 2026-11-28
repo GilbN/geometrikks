@@ -353,16 +353,18 @@ export function GeoLogsTable({
   const queryClient = useQueryClient()
   const recordLink = useRecordLink()
   const recordKey = useMemo(() => parseGeoRecord(recordLink.search), [recordLink.search])
-  const recordQuery = useGeoLogRecord(recordKey, filters.servers)
+  const recordQuery = useGeoLogRecord(recordKey, filters)
   const countedWindow = data?.window
   const openRecord = useCallback(
     (entry: GeoLogEntry) => {
-      if (!countedWindow) return
+      // Rows from the previous filters stay on screen until the new ones load,
+      // and their counts would not match the link.
+      if (!countedWindow || isPlaceholderData) return
       const key = { locationId: entry.locationId, ip: entry.ipAddress, ...countedWindow }
-      queryClient.setQueryData(queryKeys.records.geoLog(key, filters.servers), entry)
+      queryClient.setQueryData(queryKeys.records.geoLog(key, filters), entry)
       recordLink.open(geoRecord(key))
     },
-    [queryClient, recordLink, countedWindow, filters.servers],
+    [queryClient, recordLink, countedWindow, isPlaceholderData, filters],
   )
 
   useEffect(() => {

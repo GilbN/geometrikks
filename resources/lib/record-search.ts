@@ -60,9 +60,10 @@ export function parseGeoRecord(search: RecordSearch): GeoRecordKey | null {
   const locationId = search.record.slice(0, split)
   const ip = search.record.slice(split + 1)
   const [from, to, ...rest] = search.at?.split("/") ?? []
-  if (!POSITIVE_INT.test(locationId) || !ip || rest.length > 0) return null
+  const id = positiveId(locationId)
+  if (id === null || !ip || rest.length > 0) return null
   if (!validTime(from) || !validTime(to)) return null
-  return { locationId: Number(locationId), ip, from, to }
+  return { locationId: id, ip, from, to }
 }
 
 export function alertRecord(id: number): RecordSearch {

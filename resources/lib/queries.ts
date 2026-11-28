@@ -121,6 +121,7 @@ import {
   fetchReleaseCheck,
   fetchClientIp,
   fetchDropLists,
+  type GeoLogFilterParams,
 } from "./api"
 import {
   buildOverviewSparklines,
@@ -180,8 +181,8 @@ export const queryKeys = {
   records: {
     accessLog: (id: number, at: string) => ["records", "access-log", id, at] as const,
     debugLine: (id: number, at: string) => ["records", "debug-line", id, at] as const,
-    geoLog: (key: GeoRecordKey, servers: string[]) =>
-      ["records", "geo-log", key.locationId, key.ip, key.from, key.to, servers] as const,
+    geoLog: (key: GeoRecordKey, filters: GeoLogFilterParams) =>
+      ["records", "geo-log", key.locationId, key.ip, key.from, key.to, filters] as const,
   },
   settings: ["settings"] as const,
   mutedIps: ["muted-ips"] as const,
@@ -962,12 +963,12 @@ export function useAccessLogDebugLine(key: { id: number; at: string } | null) {
   })
 }
 
-/** The Geo Logs row a record link names, over the link's own range. A server
- *  filter changes the row's count, so the lookup sends the page's. */
-export function useGeoLogRecord(key: GeoRecordKey | null, servers: string[]) {
+/** The Geo Logs row a record link names, over the link's own range and the
+ *  page's filters, which can change the row's count. */
+export function useGeoLogRecord(key: GeoRecordKey | null, filters: GeoLogFilterParams) {
   return useQuery({
-    queryKey: queryKeys.records.geoLog(key ?? { locationId: 0, ip: "", from: "", to: "" }, servers),
-    queryFn: () => fetchGeoLogRecord(key!, servers),
+    queryKey: queryKeys.records.geoLog(key ?? { locationId: 0, ip: "", from: "", to: "" }, filters),
+    queryFn: () => fetchGeoLogRecord(key!, filters),
     enabled: key !== null,
     ...RECORD_QUERY,
   })

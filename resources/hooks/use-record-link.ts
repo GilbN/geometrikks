@@ -54,6 +54,11 @@ export function useRecordLink() {
 export function RecordOverlayEntry() {
   const close = useCloseRecord()
   const open = useSearch({ strict: false, select: (search) => search.record !== undefined })
-  useOverlayEntry(RECORD_OVERLAY, open, close, { adopt: true })
+  useOverlayEntry(RECORD_OVERLAY, open, close, { adopt: true, openAt: hrefOpensRecord })
   return null
+}
+
+function hrefOpensRecord(href: string): boolean {
+  const query = href.split("#")[0].split("?")[1] ?? ""
+  return new URLSearchParams(query).has("record")
 }

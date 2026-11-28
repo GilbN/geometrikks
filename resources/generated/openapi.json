@@ -10656,6 +10656,8 @@
             "required": true,
             "schema": {
               "description": "The line's `id`.",
+              "maximum": 9.223372036854776e18,
+              "minimum": 1.0,
               "type": "integer"
             }
           },
@@ -11489,6 +11491,8 @@
             "required": true,
             "schema": {
               "description": "The line's `id`.",
+              "maximum": 9.223372036854776e18,
+              "minimum": 1.0,
               "type": "integer"
             }
           },

@@ -23,6 +23,7 @@ from geometrikks.lib.pagination import (
     limit_offset_provider,
 )
 from geometrikks.lib.parameters import (
+    BIGINT_MAX,
     CITY_FILTER_DESCRIPTION,
     COUNTRY_FILTER_DESCRIPTION,
     IP_FILTER_NOTE,
@@ -203,7 +204,7 @@ class AccessLogDebugController(Controller):
     async def get_access_log_debug(
         self,
         access_log_debug_service: NamedDependency[AccessLogDebugService],
-        line_id: Annotated[int, PathParameter(description="The line's `id`.")],
+        line_id: Annotated[int, PathParameter(description="The line's `id`.", ge=1, le=BIGINT_MAX)],
         at: Annotated[
             datetime,
             QueryParameter(description="The line's `createdAt`, as ISO 8601. A time without a timezone is UTC."),
