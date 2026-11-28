@@ -393,7 +393,9 @@ test("an alert opens from its link, with or without its row", async ({ page }) =
   await page.goto("/security")
   await page.getByRole("tab", { name: "Alerts" }).click()
   await page
-    .getByRole("button", { name: /http-sensitive-files/ })
+    .getByRole("button", { name: /^Alert 14,/ })
+    // The time cell: the row's middle can land on its IP buttons.
+    .getByRole("cell")
     .first()
     .click()
   await expect(sheet(page)).toContainText("Alert #14")
