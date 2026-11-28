@@ -246,17 +246,29 @@ test("a Geo Logs record keeps its location, IP and range in the link", async ({ 
   await page.route("**/api/v1/geo-events/logs?*", (route) => {
     const query = new URL(route.request().url()).searchParams
     const window = `${query.get("fromTimestamp")}/${query.get("toTimestamp")}`
-    if (query.get("ipAddressIn"))
+    if (query.getAll("ipAddressIn").includes(row.ipAddress))
       lookups.push(
-        `${window} ${query.getAll("serverIn").join(",")} ${query.getAll("asnIn").join(",")}`,
+        [
+          window,
+          query.getAll("ipAddressIn").join(","),
+          query.getAll("ipAddressNotIn").join(","),
+          query.getAll("serverIn").join(","),
+          query.getAll("asnIn").join(","),
+          query.get("excludeMutedIps") ?? "",
+        ].join(" "),
       )
     else tableWindows.push(window)
     return route.fulfill({ json: { items: [row], total: 1, limit: 50, offset: 0 } })
   })
-  // Server and ASN filters change the row's count, so the lookup sends them too.
-  await page.goto(
-    `/geo-logs?server=${encodeURIComponent('["edge"]')}&asn=${encodeURIComponent("[64496]")}`,
-  )
+  // Server and ASN filters change the row's count, so the lookup sends them
+  // too, with the record's IP in place of the page's IP filters.
+  const filters = {
+    server: '["edge"]',
+    asn: "[64496]",
+    ip: '["2001:db8::/32"]',
+    ipx: '["2001:db8::1"]',
+  }
+  await page.goto(`/geo-logs?${new URLSearchParams(filters)}`)
   await page.locator("table[data-density] tr[data-index='0']").click()
   await expect(sheet(page)).toContainText("528 events")
   const url = new URL(page.url())
@@ -267,7 +279,7 @@ test("a Geo Logs record keeps its location, IP and range in the link", async ({ 
 
   await page.reload()
   await expect(sheet(page)).toContainText("528 events")
-  expect(lookups).toEqual([`${range} edge 64496`])
+  expect(lookups).toEqual([`${range} ${row.ipAddress}  edge 64496 `])
 })
 
 const DEBUG_LINE: AccessLogDebugEntry = {

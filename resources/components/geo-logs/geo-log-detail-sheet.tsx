@@ -29,7 +29,7 @@ function ipValues(entry: GeoLogEntry): IpRowValues {
 export function GeoLogDetailSheet({
   open,
   entry: liveEntry,
-  status,
+  status: liveStatus,
   onOpenChange,
 }: {
   open: boolean
@@ -38,6 +38,7 @@ export function GeoLogDetailSheet({
   onOpenChange: (open: boolean) => void
 }) {
   const entry = useRecordWhileClosing(liveEntry, open)
+  const status = useRecordWhileClosing(liveStatus, open)
   return (
     <DetailSheet
       open={open}

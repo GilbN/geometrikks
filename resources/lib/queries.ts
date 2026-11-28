@@ -971,6 +971,8 @@ export function useGeoLogRecord(key: GeoRecordKey | null, filters: GeoLogFilterP
     queryFn: () => fetchGeoLogRecord(key!, filters),
     enabled: key !== null,
     ...RECORD_QUERY,
+    // A late import can still add events to the window, as on the list.
+    staleTime: 15 * 1000,
   })
 }
 

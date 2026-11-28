@@ -35,7 +35,7 @@ function ipValues(entry: AccessLog): IpRowValues {
 export function AccessLogDetailSheet({
   open,
   entry: liveEntry,
-  status,
+  status: liveStatus,
   onOpenChange,
 }: {
   open: boolean
@@ -44,6 +44,7 @@ export function AccessLogDetailSheet({
   onOpenChange: (open: boolean) => void
 }) {
   const entry = useRecordWhileClosing(liveEntry, open)
+  const status = useRecordWhileClosing(liveStatus, open)
   return (
     <DetailSheet
       open={open}

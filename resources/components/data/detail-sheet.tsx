@@ -151,11 +151,11 @@ export function DetailField({
 }
 
 /** What a sheet keeps showing while it slides closed, after the URL has
- *  already dropped its record. */
-export function useRecordWhileClosing<T>(entry: T | null, open: boolean): T | null {
-  const [shown, setShown] = useState(entry)
-  if (open && entry !== shown) setShown(entry)
-  return open ? entry : shown
+ *  already dropped its record: the record, or its status when it never loaded. */
+export function useRecordWhileClosing<T>(value: T, open: boolean): T {
+  const [shown, setShown] = useState(value)
+  if (open && value !== shown) setShown(value)
+  return open ? value : shown
 }
 
 export type RecordStatus = "loading" | "missing" | "failed"

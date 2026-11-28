@@ -10645,7 +10645,7 @@
     "/api/v1/access-log-debug/{line_id}": {
       "get": {
         "deprecated": false,
-        "description": "Returns one stored raw line by its `id` and `createdAt`, as the list returns them, with the access log line it produced. Lines are stored by the time GeoMetrikks stored them, so that time is part of the line's key.",
+        "description": "Returns one stored raw line by its `id` and `createdAt`, as the list returns them, with the request fields copied from the access log line it produced. Lines are stored by the time GeoMetrikks stored them, so that time is part of the line's key.",
         "operationId": "ApiV1AccessLogDebugLineIdGetAccessLogDebug",
         "parameters": [
           {

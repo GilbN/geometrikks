@@ -140,7 +140,7 @@ function RawLineBlock({
 export function DebugLogDetailSheet({
   open,
   entry: liveEntry,
-  status,
+  status: liveStatus,
   onOpenChange,
 }: {
   open: boolean
@@ -149,6 +149,7 @@ export function DebugLogDetailSheet({
   onOpenChange: (open: boolean) => void
 }) {
   const entry = useRecordWhileClosing(liveEntry, open)
+  const status = useRecordWhileClosing(liveStatus, open)
   const contentRef = useRef<HTMLDivElement>(null)
   const ip = ipValues(entry)
   return (

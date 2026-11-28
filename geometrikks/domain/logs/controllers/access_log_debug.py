@@ -190,9 +190,9 @@ class AccessLogDebugController(Controller):
         "/{line_id:int}",
         summary="Get one stored raw log line",
         description=(
-            "Returns one stored raw line by its `id` and `createdAt`, as the list returns them, with the access "
-            "log line it produced. Lines are stored by the time GeoMetrikks stored them, so that time is part of "
-            "the line's key."
+            "Returns one stored raw line by its `id` and `createdAt`, as the list returns them, with the request "
+            "fields copied from the access log line it produced. Lines are stored by the time GeoMetrikks stored "
+            "them, so that time is part of the line's key."
         ),
         responses={
             HTTP_404_NOT_FOUND: ResponseSpec(

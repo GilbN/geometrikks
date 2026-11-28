@@ -54,7 +54,9 @@ function SecurityPage() {
   const { data: status, isLoading, isError } = useCrowdsecStatus()
   const { data: abuseIpdbStatus, isLoading: abuseIpdbLoading } = useAbuseIpdbStatus()
   const { data: about, isLoading: aboutLoading } = useAbout()
-  const { tab: requestedTab } = Route.useSearch()
+  // Only the tab: opening an alert puts it in the URL too, and the page needs
+  // no re-render for that.
+  const requestedTab = Route.useSearch({ select: (search) => search.tab })
   const hash = useLocation({ select: (location) => location.hash })
   const navigate = useNavigate({ from: "/security" })
   useCrowdsecLiveUpdates()

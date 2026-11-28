@@ -357,8 +357,8 @@ export function GeoLogsTable({
   const countedWindow = data?.window
   const openRecord = useCallback(
     (entry: GeoLogEntry) => {
-      // Rows from the previous filters stay on screen until the new ones load,
-      // and their counts would not match the link.
+      // After a filter, page, sort or refresh change the old rows stay on
+      // screen until the new ones load, and a click waits for them.
       if (!countedWindow || isPlaceholderData) return
       const key = { locationId: entry.locationId, ip: entry.ipAddress, ...countedWindow }
       queryClient.setQueryData(queryKeys.records.geoLog(key, filters), entry)
