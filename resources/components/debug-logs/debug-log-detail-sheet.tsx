@@ -11,6 +11,7 @@ import {
   DetailSheet,
   RecordPending,
   type RecordStatus,
+  useRecordWhileClosing,
 } from "@/components/data/detail-sheet"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -138,7 +139,7 @@ function RawLineBlock({
 
 export function DebugLogDetailSheet({
   open,
-  entry,
+  entry: liveEntry,
   status,
   onOpenChange,
 }: {
@@ -147,6 +148,7 @@ export function DebugLogDetailSheet({
   status: RecordStatus
   onOpenChange: (open: boolean) => void
 }) {
+  const entry = useRecordWhileClosing(liveEntry, open)
   const contentRef = useRef<HTMLDivElement>(null)
   const ip = ipValues(entry)
   return (

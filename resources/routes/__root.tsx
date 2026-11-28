@@ -32,6 +32,7 @@ import { Button } from "@/components/ui/button"
 import { ChevronLeft, RefreshCw, Home } from "lucide-react"
 import { inspectSearchSchema } from "@/lib/ip-inspector-search"
 import { IpInspectorProvider } from "@/lib/ip-inspector"
+import { RecordOverlayEntry } from "@/hooks/use-record-link"
 import { OverlayHistoryProvider } from "@/lib/overlay-history"
 import { IpInspectorSheet } from "@/components/ip-inspector/ip-inspector-sheet"
 import { KeyboardShortcuts } from "@/components/shortcuts/keyboard-shortcuts"
@@ -297,6 +298,7 @@ function RootLayout() {
             <LiveFeedProvider>
               <OverlayHistoryProvider>
                 <IpInspectorProvider>
+                  <RecordOverlayEntry />
                   <SidebarProvider
                     defaultOpen={!isPhoneSideViewport() && loadSidebarOpenPreference()}
                   >

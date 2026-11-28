@@ -180,8 +180,8 @@ export const queryKeys = {
   records: {
     accessLog: (id: number, at: string) => ["records", "access-log", id, at] as const,
     debugLine: (id: number, at: string) => ["records", "debug-line", id, at] as const,
-    geoLog: (key: GeoRecordKey) =>
-      ["records", "geo-log", key.locationId, key.ip, key.from, key.to] as const,
+    geoLog: (key: GeoRecordKey, servers: string[]) =>
+      ["records", "geo-log", key.locationId, key.ip, key.from, key.to, servers] as const,
   },
   settings: ["settings"] as const,
   mutedIps: ["muted-ips"] as const,
@@ -930,6 +930,8 @@ export function useCrowdsecAlert(id: number | null) {
     queryFn: () => fetchCrowdsecAlert(id!),
     enabled: id !== null,
     staleTime: 30 * 1000,
+    // A link can name an alert the LAPI no longer holds.
+    retry: (failureCount, error) => !isClientError(error) && failureCount < 1,
   })
 }
 
@@ -960,11 +962,12 @@ export function useAccessLogDebugLine(key: { id: number; at: string } | null) {
   })
 }
 
-/** The Geo Logs row a record link names, over the link's own range. */
-export function useGeoLogRecord(key: GeoRecordKey | null) {
+/** The Geo Logs row a record link names, over the link's own range. A server
+ *  filter changes the row's count, so the lookup sends the page's. */
+export function useGeoLogRecord(key: GeoRecordKey | null, servers: string[]) {
   return useQuery({
-    queryKey: queryKeys.records.geoLog(key ?? { locationId: 0, ip: "", from: "", to: "" }),
-    queryFn: () => fetchGeoLogRecord(key!),
+    queryKey: queryKeys.records.geoLog(key ?? { locationId: 0, ip: "", from: "", to: "" }, servers),
+    queryFn: () => fetchGeoLogRecord(key!, servers),
     enabled: key !== null,
     ...RECORD_QUERY,
   })
@@ -1937,9 +1940,9 @@ export function useGeoLogs(options: UseGeoLogsOptions = {}) {
       },
       lastRefresh,
     ),
-    queryFn: () => {
+    queryFn: async () => {
       const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
-      return fetchGeoLogs({
+      const page = await fetchGeoLogs({
         fromTimestamp: startDate,
         toTimestamp: endDate,
         currentPage,
@@ -1949,6 +1952,8 @@ export function useGeoLogs(options: UseGeoLogsOptions = {}) {
         ...filters,
         excludeMutedIps: muted.flag || undefined,
       })
+      // A record link keeps the window its row was counted in.
+      return { ...page, window: { from: startDate, to: endDate } }
     },
     enabled,
     // Built inline per render so TanStack v5 doesn't reuse an earlier placeholder callback.

@@ -2,16 +2,12 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
-from advanced_alchemy.filters import (
-    CollectionFilter,
-    FilterTypes,
-    LimitOffset,
-    OnBeforeAfter,
-)
+from advanced_alchemy.filters import FilterTypes, LimitOffset
 from advanced_alchemy.repository import SQLAlchemyAsyncRepository
 from advanced_alchemy.service import SQLAlchemyAsyncRepositoryService
-from sqlalchemy import func, select, text
+from sqlalchemy import Row, Select, func, select, text
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession
 
 from geometrikks.domain.exceptions import DomainValidationError
@@ -157,6 +153,57 @@ DEBUG_SORT_COLUMNS = {
 }
 
 
+def _debug_entry_select() -> Select[Any]:
+    """The access_log_debug columns an entry carries, all denormalized at ingestion."""
+    return select(
+        AccessLogDebug.id,
+        AccessLogDebug.access_log_id,
+        AccessLogDebug.created_at,
+        AccessLogDebug.raw_line,
+        AccessLogDebug.is_malformed,
+        AccessLogDebug.parse_error,
+        AccessLogDebug.log_format,
+        AccessLogDebug.log_timestamp,
+        AccessLogDebug.ip_address,
+        AccessLogDebug.method,
+        AccessLogDebug.url,
+        AccessLogDebug.host,
+        AccessLogDebug.status_code,
+        AccessLogDebug.country_code,
+        AccessLogDebug.country_name,
+        AccessLogDebug.city,
+        AccessLogDebug.user_agent,
+    )
+
+
+def _debug_entry(row: Row[Any]) -> AccessLogDebugEntry:
+    return AccessLogDebugEntry(
+        id=row.id,
+        access_log_id=row.access_log_id,
+        created_at=row.created_at,
+        raw_line=row.raw_line,
+        is_malformed=row.is_malformed,
+        parse_error=row.parse_error,
+        log_format=row.log_format,
+        timestamp=row.log_timestamp,
+        # INET comes back as an ipaddress object, not str
+        ip_address=str(row.ip_address) if row.ip_address is not None else None,
+        method=row.method,
+        url=row.url,
+        host=row.host,
+        status_code=row.status_code,
+        country_code=row.country_code,
+        country_name=row.country_name,
+        city=row.city,
+        user_agent=row.user_agent,
+        raw_fields=raw_line_fields(
+            row.raw_line,
+            linked=row.access_log_id is not None,
+            log_format=row.log_format,
+        ),
+    )
+
+
 class AccessLogDebugService(SQLAlchemyAsyncRepositoryService[AccessLogDebug]):
     """Repository service for AccessLogDebug with denormalized log context."""
 
@@ -167,11 +214,11 @@ class AccessLogDebugService(SQLAlchemyAsyncRepositoryService[AccessLogDebug]):
 
     async def get_entry(self, line_id: int, created_at: datetime) -> AccessLogDebugEntry | None:
         """One stored line by its primary key. ``created_at`` keeps the read to one chunk."""
-        rows, _ = await self.list_entries(
-            CollectionFilter("id", [line_id]),
-            OnBeforeAfter("created_at", on_or_after=created_at, on_or_before=created_at),
+        stmt = _debug_entry_select().where(
+            AccessLogDebug.id == line_id, AccessLogDebug.created_at == created_at
         )
-        return rows[0] if rows else None
+        row = (await self.repository.session.execute(stmt)).first()
+        return _debug_entry(row) if row is not None else None
 
     async def list_entries(
         self,
@@ -204,25 +251,7 @@ class AccessLogDebugService(SQLAlchemyAsyncRepositoryService[AccessLogDebug]):
         if sort_order not in ("asc", "desc"):
             raise DomainValidationError(f"Invalid sort order {sort_order!r}")
 
-        stmt = select(
-            AccessLogDebug.id,
-            AccessLogDebug.access_log_id,
-            AccessLogDebug.created_at,
-            AccessLogDebug.raw_line,
-            AccessLogDebug.is_malformed,
-            AccessLogDebug.parse_error,
-            AccessLogDebug.log_format,
-            AccessLogDebug.log_timestamp,
-            AccessLogDebug.ip_address,
-            AccessLogDebug.method,
-            AccessLogDebug.url,
-            AccessLogDebug.host,
-            AccessLogDebug.status_code,
-            AccessLogDebug.country_code,
-            AccessLogDebug.country_name,
-            AccessLogDebug.city,
-            AccessLogDebug.user_agent,
-        )
+        stmt = _debug_entry_select()
 
         if ip_addresses:
             stmt = stmt.where(ip_match_clause(AccessLogDebug.ip_address, ip_addresses))
@@ -254,34 +283,7 @@ class AccessLogDebugService(SQLAlchemyAsyncRepositoryService[AccessLogDebug]):
 
         rows = (await session.execute(stmt)).all()
         logger.debug("access_log_debug_page_fetched", rows=len(rows), total=total)
-        return [
-            AccessLogDebugEntry(
-                id=row.id,
-                access_log_id=row.access_log_id,
-                created_at=row.created_at,
-                raw_line=row.raw_line,
-                is_malformed=row.is_malformed,
-                parse_error=row.parse_error,
-                log_format=row.log_format,
-                timestamp=row.log_timestamp,
-                # INET comes back as an ipaddress object, not str
-                ip_address=str(row.ip_address) if row.ip_address is not None else None,
-                method=row.method,
-                url=row.url,
-                host=row.host,
-                status_code=row.status_code,
-                country_code=row.country_code,
-                country_name=row.country_name,
-                city=row.city,
-                user_agent=row.user_agent,
-                raw_fields=raw_line_fields(
-                    row.raw_line,
-                    linked=row.access_log_id is not None,
-                    log_format=row.log_format,
-                ),
-            )
-            for row in rows
-        ], total
+        return [_debug_entry(row) for row in rows], total
 
     async def get_stats(
         self,

@@ -30,6 +30,7 @@ from geometrikks.lib.parameters import (
     range_end_examples,
     range_start_examples,
 )
+from geometrikks.lib.time import ensure_utc
 from geometrikks.server.exceptions import ErrorEnvelope
 
 _STORED_FROM = "Keep only lines GeoMetrikks stored at or after this time, as ISO 8601 with a timezone."
@@ -205,11 +206,11 @@ class AccessLogDebugController(Controller):
         line_id: Annotated[int, PathParameter(description="The line's `id`.")],
         at: Annotated[
             datetime,
-            QueryParameter(description="The line's `createdAt`, as ISO 8601 with a timezone."),
+            QueryParameter(description="The line's `createdAt`, as ISO 8601. A time without a timezone is UTC."),
         ],
     ) -> AccessLogDebugEntry:
         """One stored line by id and storage time, for a link to its record."""
-        entry = await access_log_debug_service.get_entry(line_id, at)
+        entry = await access_log_debug_service.get_entry(line_id, ensure_utc(at))
         if entry is None:
             raise NotFoundException(detail=f"No stored log line {line_id} at {at.isoformat()}")
         return entry

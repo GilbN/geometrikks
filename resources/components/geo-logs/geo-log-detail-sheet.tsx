@@ -9,6 +9,7 @@ import {
   DetailSheet,
   RecordPending,
   type RecordStatus,
+  useRecordWhileClosing,
 } from "@/components/data/detail-sheet"
 import type { GeoLogEntry } from "@/generated/api/types.gen"
 import { formatNumber } from "@/lib/api"
@@ -27,7 +28,7 @@ function ipValues(entry: GeoLogEntry): IpRowValues {
 
 export function GeoLogDetailSheet({
   open,
-  entry,
+  entry: liveEntry,
   status,
   onOpenChange,
 }: {
@@ -36,6 +37,7 @@ export function GeoLogDetailSheet({
   status: RecordStatus
   onOpenChange: (open: boolean) => void
 }) {
+  const entry = useRecordWhileClosing(liveEntry, open)
   return (
     <DetailSheet
       open={open}

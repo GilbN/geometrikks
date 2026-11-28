@@ -2,7 +2,7 @@
  * Historical access-logs table: server-paginated, newest-first, scoped to the
  * global time range. Sorting and pagination state live on the parent route
  * (URL search params), driven here via props and callbacks; column visibility
- * persists per browser and the selected row is local state. Filter values come from AccessLogFiltersContext
+ * persists per browser and the open record lives in the URL. Filter values come from AccessLogFiltersContext
  * (search, IP, host, server, source format, status, method, country and
  * city live in access-logs-filter-bar.tsx). Pairs with GET /api/v1/access-logs/.
  */

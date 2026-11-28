@@ -1,7 +1,11 @@
 import { expect, test, type Page, type Route } from "@playwright/test"
 import type { AccessLog, AccessLogDebugEntry } from "../../resources/lib/api"
 
-test.use({ serviceWorkers: "block" })
+test.use({
+  // The phone test lands on the map, which needs WebGL.
+  launchOptions: { args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] },
+  serviceWorkers: "block",
+})
 
 async function login(page: Page) {
   const password = process.env.SMOKE_ADMIN_PASSWORD ?? process.env.APP_ADMIN_PASSWORD
@@ -136,6 +140,75 @@ test.describe("Access Logs, docked", () => {
     await expect(sheet(page)).toContainText("Request #3")
     await expect(page).toHaveURL(/record=3/)
   })
+
+  test("with the inspector already docked, Back from Inspect IP still returns to the record", async ({
+    page,
+  }) => {
+    await login(page)
+    await routeAccessLogs(page)
+    await page.goto("/access-logs?inspect=198.51.100.1")
+    await expect(dock(page)).toHaveAccessibleName(/^198\.51\.100\.1/)
+    await page.locator("table tr[data-index='2']").getByText("/request/3").click()
+    await expect(sheet(page)).toContainText("Request #3")
+    await sheet(page).getByRole("button", { name: "Inspect IP" }).click()
+    await expect(dock(page)).toHaveAccessibleName(/^198\.51\.100\.3/)
+    await expect(sheet(page)).toHaveCount(0)
+
+    await page.goBack()
+    await expect(sheet(page)).toContainText("Request #3")
+    // The modal record hides the dock from the accessibility tree, so check the URL.
+    await expect(page).toHaveURL(
+      /inspect=198\.51\.100\.1&.*record=3|record=3&.*inspect=198\.51\.100\.1/,
+    )
+  })
+})
+
+test.describe("on a phone", () => {
+  test.use({
+    viewport: { width: 393, height: 852 },
+    hasTouch: true,
+    isMobile: true,
+  })
+
+  test("Back from the map returns to the record", async ({ page }) => {
+    await login(page)
+    await routeAccessLogs(page)
+    await openAccessLogRecord(page, 1)
+    await sheet(page).getByRole("button", { name: "Show on map" }).click()
+    await expect(page).toHaveURL(/\/map/)
+    await expect(page).not.toHaveURL(/record=/)
+
+    await page.goBack()
+    await expect(page).toHaveURL(/\/access-logs\?.*record=2/)
+    await expect(sheet(page)).toContainText("Request #2")
+  })
+
+  test("a filter from the record's actions drawer closes the record", async ({ page }) => {
+    await login(page)
+    await routeAccessLogs(page)
+    await openAccessLogRecord(page, 0)
+    await sheet(page).getByRole("button", { name: "Actions for 198.51.100.1" }).click()
+    await page.getByRole("radio", { name: "Filter by IP" }).click()
+    await expect(sheet(page)).toHaveCount(0)
+    await expect(page.getByRole("dialog")).toHaveCount(0)
+    await expect(page).toHaveURL(/ip=%5B%22198\.51\.100\.1%22%5D/)
+    await expect(page).not.toHaveURL(/record=/)
+  })
+
+  test("a Debug Logs filter from the record's actions drawer closes the record", async ({
+    page,
+  }) => {
+    await login(page)
+    await routeDebugLine(page)
+    await page.goto("/debug-logs")
+    await page.locator("table tr[data-index='0']").click()
+    await expect(sheet(page)).toContainText("Debug line #4000")
+    await sheet(page).getByRole("button", { name: "Actions for 198.51.100.40" }).click()
+    await page.getByRole("radio", { name: "Filter by IP" }).click()
+    await expect(sheet(page)).toHaveCount(0)
+    await expect(page.getByRole("dialog")).toHaveCount(0)
+    await expect(page).not.toHaveURL(/record=/)
+  })
 })
 
 test("a Geo Logs record keeps its location, IP and range in the link", async ({ page }) => {
@@ -157,71 +230,85 @@ test("a Geo Logs record keeps its location, IP and range in the link", async ({ 
     asOrganization: "Example Hosting",
     servers: ["edge"],
   }
+  const tableWindows: string[] = []
   const lookups: string[] = []
   await page.route("**/api/v1/geo-events/logs?*", (route) => {
     const query = new URL(route.request().url()).searchParams
-    if (query.get("ipAddressIn"))
-      lookups.push(`${query.get("fromTimestamp")}/${query.get("toTimestamp")}`)
+    const window = `${query.get("fromTimestamp")}/${query.get("toTimestamp")}`
+    if (query.get("ipAddressIn")) lookups.push(`${window} ${query.getAll("serverIn").join(",")}`)
+    else tableWindows.push(window)
     return route.fulfill({ json: { items: [row], total: 1, limit: 50, offset: 0 } })
   })
-  await page.goto("/geo-logs")
-  await page.getByRole("row").filter({ hasText: "Moscow" }).first().click()
+  // A server filter changes the row's count, so the lookup sends it too.
+  await page.goto(`/geo-logs?server=${encodeURIComponent('["edge"]')}`)
+  await page.locator("table[data-density] tr[data-index='0']").click()
   await expect(sheet(page)).toContainText("528 events")
   const url = new URL(page.url())
   expect(url.searchParams.get("record")).toBe(`41@${row.ipAddress}`)
+  // The link keeps a window the table fetched, not one resolved again on click.
   const range = url.searchParams.get("at")
-  expect(range).toMatch(/^\d{4}-.+Z\/\d{4}-.+Z$/)
+  expect(tableWindows).toContain(range)
 
   await page.reload()
   await expect(sheet(page)).toContainText("528 events")
-  expect(lookups).toEqual([range])
+  expect(lookups).toEqual([`${range} edge`])
 })
 
-test("a Debug Logs record opens from its link", async ({ page }) => {
-  await login(page)
-  const line: AccessLogDebugEntry = {
-    id: 4000,
-    createdAt: "2026-11-28T11:17:23.654321Z",
-    rawLine: "GET /broken",
-    isMalformed: true,
-    accessLogId: null,
-    parseError: "bad line",
-    logFormat: "nginx",
-    timestamp: null,
-    ipAddress: "198.51.100.40",
-    method: null,
-    url: null,
-    host: null,
-    statusCode: null,
-    countryCode: null,
-    countryName: null,
-    city: null,
-    userAgent: null,
-    rawFields: null,
-  }
+const DEBUG_LINE: AccessLogDebugEntry = {
+  id: 4000,
+  createdAt: "2026-11-28T11:17:23.654321Z",
+  rawLine: "GET /broken",
+  isMalformed: true,
+  accessLogId: null,
+  parseError: "bad line",
+  logFormat: "nginx",
+  timestamp: null,
+  ipAddress: "198.51.100.40",
+  method: null,
+  url: null,
+  host: null,
+  statusCode: null,
+  countryCode: null,
+  countryName: null,
+  city: null,
+  userAgent: null,
+  rawFields: null,
+}
+
+async function routeDebugLine(page: Page) {
   await page.route(
     (url) => url.pathname.replace(/\/$/, "").startsWith("/api/v1/access-log-debug"),
     (route) => {
       const where = path(route)
       if (where === "/api/v1/access-log-debug")
-        return route.fulfill({ json: { items: [line], total: 1, limit: 50, offset: 0 } })
+        return route.fulfill({ json: { items: [DEBUG_LINE], total: 1, limit: 50, offset: 0 } })
       const at = new URL(route.request().url()).searchParams.get("at")
-      if (where === "/api/v1/access-log-debug/4000" && at === line.createdAt)
-        return route.fulfill({ json: line })
+      if (where === "/api/v1/access-log-debug/4000" && at === DEBUG_LINE.createdAt)
+        return route.fulfill({ json: DEBUG_LINE })
       return route.fallback()
     },
   )
+}
+
+test("a Debug Logs record opens from its link", async ({ page }) => {
+  await login(page)
+  await routeDebugLine(page)
   await page.goto("/debug-logs")
-  await page.getByRole("row").filter({ hasText: "GET /broken" }).first().click()
+  await page.locator("table[data-density] tr[data-index='0']").click()
   await expect(sheet(page)).toContainText("Debug line #4000")
   await expect(page).toHaveURL(/record=4000&at=/)
 
   await page.reload()
   await expect(sheet(page)).toContainText("Debug line #4000")
   await expect(sheet(page)).toContainText("bad line")
+
+  await sheet(page).getByRole("button", { name: "Actions for 198.51.100.40" }).click()
+  await page.getByRole("menuitem", { name: /^Filter by IP/ }).click()
+  await expect(sheet(page)).toHaveCount(0)
+  await expect(page).not.toHaveURL(/record=/)
 })
 
-test("an alert opens from its link, without its row", async ({ page }) => {
+test("an alert opens from its link, with or without its row", async ({ page }) => {
   await login(page)
   const summary = {
     id: 14,
@@ -245,9 +332,9 @@ test("an alert opens from its link, without its row", async ({ page }) => {
       json: { enabled: true, writeEnabled: true, lapiReachable: true, liveUpdates: false },
     }),
   )
-  // A page with no rows, so the sheet has only the link to go on.
+  let rows: (typeof summary)[] = []
   await page.route("**/api/v1/crowdsec/alerts?*", (route) =>
-    route.fulfill({ json: { alerts: [], nextCursor: null } }),
+    route.fulfill({ json: { alerts: rows, nextCursor: null } }),
   )
   await page.route("**/api/v1/crowdsec/alerts/14", (route) =>
     route.fulfill({
@@ -264,8 +351,22 @@ test("an alert opens from its link, without its row", async ({ page }) => {
       },
     }),
   )
+  // No rows, so the sheet has only the link to go on.
   await page.goto("/security?tab=alerts&record=14")
   await expect(sheet(page)).toContainText("http-sensitive-files")
   await expect(sheet(page)).toContainText("Alert #14")
   await expect(sheet(page)).toContainText("6 events")
+
+  // From its row, the link names the Alerts tab.
+  rows = [summary]
+  await page.goto("/security")
+  await page.getByRole("tab", { name: "Alerts" }).click()
+  await page
+    .getByRole("button", { name: /http-sensitive-files/ })
+    .first()
+    .click()
+  await expect(sheet(page)).toContainText("Alert #14")
+  const url = new URL(page.url())
+  expect(url.searchParams.get("tab")).toBe("alerts")
+  expect(url.searchParams.get("record")).toBe("14")
 })

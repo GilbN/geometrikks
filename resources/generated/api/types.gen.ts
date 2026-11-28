@@ -5117,7 +5117,7 @@ export type ApiV1AccessLogDebugLineIdGetAccessLogDebugData = {
   };
   query: {
     /**
-     * The line's `createdAt`, as ISO 8601 with a timezone.
+     * The line's `createdAt`, as ISO 8601. A time without a timezone is UTC.
      */
     at: string;
   };
@@ -5384,7 +5384,7 @@ export type ApiV1AccessLogsLogIdGetAccessLogData = {
   };
   query: {
     /**
-     * The line's `timestamp`, as ISO 8601 with a timezone.
+     * The line's `timestamp`, as ISO 8601. A time without a timezone is UTC.
      */
     at: string;
   };

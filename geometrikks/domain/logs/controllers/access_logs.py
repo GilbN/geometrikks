@@ -62,6 +62,7 @@ from geometrikks.lib.parameters import (
     range_end_examples,
     range_start_examples,
 )
+from geometrikks.lib.time import ensure_utc
 from geometrikks.lib.time_ranges import Window, relative_range
 from geometrikks.server.exceptions import ErrorEnvelope
 
@@ -392,11 +393,11 @@ class AccessLogController(Controller):
         log_id: Annotated[int, PathParameter(description="The line's `id`.")],
         at: Annotated[
             datetime,
-            QueryParameter(description="The line's `timestamp`, as ISO 8601 with a timezone."),
+            QueryParameter(description="The line's `timestamp`, as ISO 8601. A time without a timezone is UTC."),
         ],
     ) -> AccessLog:
         """One line by id and time, for a link to its record."""
-        line = await access_log_service.get_line(log_id, at)
+        line = await access_log_service.get_line(log_id, ensure_utc(at))
         if line is None:
             raise NotFoundException(detail=f"No access log line {log_id} at {at.isoformat()}")
         return line

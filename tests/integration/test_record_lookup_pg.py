@@ -1,7 +1,7 @@
 """One access log line and one stored raw line by id and time, as a record link asks for them."""
 
 from collections.abc import AsyncGenerator, AsyncIterator
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 from litestar import Litestar
@@ -74,6 +74,14 @@ async def test_access_log_line_by_id_and_time(pg_session_maker, clean_tables, cl
     assert body["ipAddress"] == "192.0.2.2"
     assert body["url"] == "/second"
 
+    offset = at.astimezone(timezone(timedelta(hours=2))).isoformat()
+    by_offset = await client.get(f"/api/v1/access-logs/{ids[1]}", params={"at": offset})
+    assert by_offset.json()["id"] == ids[1]
+
+    naive = at.replace(tzinfo=None).isoformat()
+    as_utc = await client.get(f"/api/v1/access-logs/{ids[1]}", params={"at": naive})
+    assert as_utc.json()["id"] == ids[1]
+
     moved = (at + timedelta(seconds=1)).isoformat()
     missing = await client.get(f"/api/v1/access-logs/{ids[1]}", params={"at": moved})
     assert missing.status_code == 404
@@ -115,6 +123,10 @@ async def test_stored_line_by_id_and_time(pg_session_maker, clean_tables, client
     assert body["rawLine"] == "GET /broken"
     assert body["parseError"] == "bad line"
     assert body["ipAddress"] == "192.0.2.9"
+
+    naive = created.replace(tzinfo=None).isoformat()
+    as_utc = await client.get(f"/api/v1/access-log-debug/{line_id}", params={"at": naive})
+    assert as_utc.json()["id"] == line_id
 
     moved = (created - timedelta(seconds=1)).isoformat()
     missing = await client.get(f"/api/v1/access-log-debug/{line_id}", params={"at": moved})

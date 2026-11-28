@@ -13,7 +13,7 @@ import { DropNetworksCard } from "@/components/security/drop-networks-card"
 import { LapiPill, SecuritySummary } from "@/components/security/security-summary"
 import { ErrorBanner } from "@/components/error-banner"
 import { PageHeader } from "@/components/page-header"
-import { recordSearchShape, type RecordSearch } from "@/lib/record-search"
+import { NO_RECORD, recordSearchShape, type RecordSearch } from "@/lib/record-search"
 import { CROWDSEC_DOCS_URL } from "@/lib/docs-links"
 import { dropNetworksLoaded } from "@/lib/drop-lists"
 import {
@@ -160,7 +160,11 @@ function SecurityPage() {
         value={activeTab}
         onValueChange={(value) =>
           navigate({
-            search: (previous) => ({ ...previous, tab: value === tabs[0] ? undefined : value }),
+            search: (previous) => ({
+              ...previous,
+              ...NO_RECORD,
+              tab: value === tabs[0] ? undefined : value,
+            }),
             hash: "",
             replace: true,
             resetScroll: false,

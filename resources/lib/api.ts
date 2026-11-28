@@ -1162,19 +1162,26 @@ export async function fetchGeoLogs(
 
 /** One Geo Logs row, the location and IP pair over a record link's range.
  *  Naming the IP keeps a muted one. Null when the range holds no such row. */
-export async function fetchGeoLogRecord(key: {
-  locationId: number
-  ip: string
-  from: string
-  to: string
-}): Promise<GeoLogEntry | null> {
-  const page = await fetchGeoLogs({
-    fromTimestamp: key.from,
-    toTimestamp: key.to,
-    ips: [key.ip],
-    pageSize: 100,
+export async function fetchGeoLogRecord(
+  key: { locationId: number; ip: string; from: string; to: string },
+  servers: string[],
+): Promise<GeoLogEntry | null> {
+  // Through axios, unlike fetchGeoLogs, so a 4xx reads as a client error.
+  const { data } = await api.get<{ items: GeoLogEntry[] }>("/geo-events/logs", {
+    params: {
+      fromTimestamp: key.from,
+      toTimestamp: key.to,
+      ipAddressIn: [key.ip],
+      serverIn: servers.length ? servers : undefined,
+      // One IP has few locations; the endpoint's largest page covers them all.
+      pageSize: 500,
+    },
   })
-  return page.items?.find((entry) => entry.locationId === key.locationId) ?? null
+  // An IPv4 filter also matches its ::ffff: twin, which can hold a row of its own.
+  return (
+    data.items.find((entry) => entry.locationId === key.locationId && entry.ipAddress === key.ip) ??
+    null
+  )
 }
 
 export async function fetchGeoLogSummary(

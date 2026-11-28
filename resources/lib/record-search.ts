@@ -24,7 +24,8 @@ export const NO_RECORD = { record: undefined, at: undefined } satisfies RecordSe
 const POSITIVE_INT = /^[1-9]\d*$/
 
 function positiveId(value: RecordSearch["record"]): number | null {
-  return value !== undefined && POSITIVE_INT.test(String(value)) ? Number(value) : null
+  if (value === undefined || !POSITIVE_INT.test(String(value))) return null
+  return Number.isSafeInteger(Number(value)) ? Number(value) : null
 }
 
 function validTime(value: string | undefined): value is string {

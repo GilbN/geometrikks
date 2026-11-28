@@ -54,7 +54,9 @@ const SECTIONS: readonly JumpSection[] = [
 
 function GeoLogsPage() {
   const search = Route.useSearch({
-    select: ({ inspect: _inspect, ...routeSearch }) => routeSearch,
+    // The inspector and the record live in the URL too; leaving them out keeps
+    // the page from re-rendering when either opens.
+    select: ({ inspect: _inspect, record: _record, at: _at, ...routeSearch }) => routeSearch,
     structuralSharing: true,
   })
   const navigate = Route.useNavigate()

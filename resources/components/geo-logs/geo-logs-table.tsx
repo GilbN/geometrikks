@@ -38,7 +38,7 @@ import { recordStatus } from "@/components/data/detail-sheet"
 import { useRecordLink } from "@/hooks/use-record-link"
 import { geoRecord, parseGeoRecord } from "@/lib/record-search"
 import type { GeoLogEntry } from "@/generated/api/types.gen"
-import { formatNumber, parseTimeRange, type GeoLogSortField, type GeoLogSortOrder } from "@/lib/api"
+import { formatNumber, type GeoLogSortField, type GeoLogSortOrder } from "@/lib/api"
 import { IpActionsMenu, IpFilterTargetsProvider } from "@/components/ip-actions/ip-actions-menu"
 import { IpLabel } from "@/components/ip-actions/ip-label"
 import { geoLogFilterTargets, type IpRowValues } from "@/lib/ip-filter-targets"
@@ -324,25 +324,6 @@ export function GeoLogsTable({
   const [layoutRef, narrow] = useNarrowLayout<HTMLDivElement>()
   const isMobile = useIsMobile()
   const { range, customRange } = useTimeRange()
-  const queryClient = useQueryClient()
-  const recordLink = useRecordLink()
-  const recordKey = useMemo(() => parseGeoRecord(recordLink.search), [recordLink.search])
-  const recordQuery = useGeoLogRecord(recordKey)
-  const openRecord = useCallback(
-    (entry: GeoLogEntry) => {
-      // The range resolves now, so the link shows these numbers whenever it opens.
-      const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
-      const key = {
-        locationId: entry.locationId,
-        ip: entry.ipAddress,
-        from: startDate,
-        to: endDate,
-      }
-      queryClient.setQueryData(queryKeys.records.geoLog(key), entry)
-      recordLink.open(geoRecord(key))
-    },
-    [queryClient, recordLink, range, customRange],
-  )
   const { filters, setFilters, muted } = useGeoLogFilters()
   const filterTargetsFor = useMemo(
     () => geoLogFilterTargets(filters, setFilters),
@@ -368,6 +349,21 @@ export function GeoLogsTable({
   const rows = data?.items ?? []
   const total = data?.total ?? 0
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
+
+  const queryClient = useQueryClient()
+  const recordLink = useRecordLink()
+  const recordKey = useMemo(() => parseGeoRecord(recordLink.search), [recordLink.search])
+  const recordQuery = useGeoLogRecord(recordKey, filters.servers)
+  const countedWindow = data?.window
+  const openRecord = useCallback(
+    (entry: GeoLogEntry) => {
+      if (!countedWindow) return
+      const key = { locationId: entry.locationId, ip: entry.ipAddress, ...countedWindow }
+      queryClient.setQueryData(queryKeys.records.geoLog(key, filters.servers), entry)
+      recordLink.open(geoRecord(key))
+    },
+    [queryClient, recordLink, countedWindow, filters.servers],
+  )
 
   useEffect(() => {
     const target = pageToClamp({ loaded: !!data, placeholder: isPlaceholderData, page, pageCount })

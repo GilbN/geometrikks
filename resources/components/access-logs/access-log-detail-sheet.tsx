@@ -10,6 +10,7 @@ import {
   DetailSheet,
   RecordPending,
   type RecordStatus,
+  useRecordWhileClosing,
 } from "@/components/data/detail-sheet"
 import { Badge } from "@/components/ui/badge"
 import { formatBytes, formatDuration, type AccessLog } from "@/lib/api"
@@ -33,7 +34,7 @@ function ipValues(entry: AccessLog): IpRowValues {
 
 export function AccessLogDetailSheet({
   open,
-  entry,
+  entry: liveEntry,
   status,
   onOpenChange,
 }: {
@@ -42,6 +43,7 @@ export function AccessLogDetailSheet({
   status: RecordStatus
   onOpenChange: (open: boolean) => void
 }) {
+  const entry = useRecordWhileClosing(liveEntry, open)
   return (
     <DetailSheet
       open={open}

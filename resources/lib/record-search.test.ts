@@ -21,6 +21,7 @@ describe("line records", () => {
     expect(parseLineRecord({ record: "12a", at: AT })).toBeNull()
     expect(parseLineRecord({ record: "12" })).toBeNull()
     expect(parseLineRecord({ record: "12", at: "yesterday" })).toBeNull()
+    expect(parseLineRecord({ record: "99999999999999999999", at: AT })).toBeNull()
   })
 })
 

@@ -10663,12 +10663,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "The line's `createdAt`, as ISO 8601 with a timezone.",
+            "description": "The line's `createdAt`, as ISO 8601. A time without a timezone is UTC.",
             "in": "query",
             "name": "at",
             "required": true,
             "schema": {
-              "description": "The line's `createdAt`, as ISO 8601 with a timezone.",
+              "description": "The line's `createdAt`, as ISO 8601. A time without a timezone is UTC.",
               "format": "date-time",
               "type": "string"
             }
@@ -11496,12 +11496,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "The line's `timestamp`, as ISO 8601 with a timezone.",
+            "description": "The line's `timestamp`, as ISO 8601. A time without a timezone is UTC.",
             "in": "query",
             "name": "at",
             "required": true,
             "schema": {
-              "description": "The line's `timestamp`, as ISO 8601 with a timezone.",
+              "description": "The line's `timestamp`, as ISO 8601. A time without a timezone is UTC.",
               "format": "date-time",
               "type": "string"
             }

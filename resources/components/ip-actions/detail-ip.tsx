@@ -13,6 +13,7 @@ import { CopyIpButton, IpActionsMenu, IpContext } from "@/components/ip-actions/
 import type { IpRowValues } from "@/lib/ip-filter-targets"
 import { useIpInspectorActions } from "@/lib/ip-inspector"
 import { flyToSearch } from "@/lib/map-filters"
+import { NO_RECORD } from "@/lib/record-search"
 import { useAbuseIpdbBlacklisted, useBannedIps, useDropNetwork } from "@/lib/queries"
 
 /** Sits first in a DetailSheet body; the negative margins take it to the
@@ -110,6 +111,7 @@ export function DetailIpActions({
               to: "/map",
               search: (prev: Record<string, unknown>) => ({
                 ...prev,
+                ...NO_RECORD,
                 ...flyToSearch(values.ip, locationId),
               }),
             })

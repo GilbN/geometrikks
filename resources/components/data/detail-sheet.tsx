@@ -1,4 +1,4 @@
-import { useId, useRef } from "react"
+import { useId, useRef, useState } from "react"
 import { XIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -148,6 +148,14 @@ export function DetailField({
       </dd>
     </div>
   )
+}
+
+/** The record a sheet keeps showing while it slides closed, after the URL has
+ *  already dropped it. */
+export function useRecordWhileClosing<T>(entry: T | null, open: boolean): T | null {
+  const [last, setLast] = useState(entry)
+  if (open && entry !== null && entry !== last) setLast(entry)
+  return open ? entry : last
 }
 
 export type RecordStatus = "loading" | "missing" | "failed"
